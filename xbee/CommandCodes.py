@@ -8,9 +8,10 @@ class CONSTANTS:
     # 2 bits Buttons
 
     # number of processed buttons and axes
-    NUM_AXES = 2
+    NUM_AXES = 4
+    NUM_USED_AXES = 2
     NUM_TRIGGER = 2
-    NUM_BUTTONS = 8 # this number is including the triggers
+    NUM_BUTTONS = 8  # this number is including the triggers
 
     class INPUT_TYPE:
         # enum for input type
