@@ -4,9 +4,9 @@ import pygame
 import os
 import time
 from pygame.event import Event
-from CommandCodes import CommandCodes
+from CommandCodes import CONSTANTS
 from JoystickFeedback import Display
-
+from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
 
 class XbeeControl:
     def __init__(self):
@@ -25,32 +25,36 @@ class XbeeControl:
         # initialize all of values
         self.values = {
             # Store all the axis
-            CommandCodes.JOYSTICK.AXIS_LX: CommandCodes.JOYSTICK.NEUTRAL_HEX,
-            CommandCodes.JOYSTICK.AXIS_LY: CommandCodes.JOYSTICK.NEUTRAL_HEX,
-            CommandCodes.JOYSTICK.AXIS_RX: CommandCodes.JOYSTICK.NEUTRAL_HEX,
-            CommandCodes.JOYSTICK.AXIS_RY: CommandCodes.JOYSTICK.NEUTRAL_HEX,
+            CONSTANTS.JOYSTICK.AXIS_LX: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
+            CONSTANTS.JOYSTICK.AXIS_LY: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
+            CONSTANTS.JOYSTICK.AXIS_RX: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
+            CONSTANTS.JOYSTICK.AXIS_RY: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
 
             # Store all the buttons
-            CommandCodes.TRIGGER.AXIS_LT: CommandCodes.BUTTONS.OFF,
-            CommandCodes.TRIGGER.AXIS_RT: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.A + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.B + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.X + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.Y + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.LEFT_BUMPER + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.RIGHT_BUMPER + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.START + 6: CommandCodes.BUTTONS.OFF,
-            CommandCodes.BUTTONS.SELECT + 6: CommandCodes.BUTTONS.OFF}
+            CONSTANTS.TRIGGER.AXIS_LT: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.TRIGGER.AXIS_RT: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.A + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.B + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.X + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.Y + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.LEFT_BUMPER + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.RIGHT_BUMPER + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.START + 6: CONSTANTS.BUTTONS.OFF,
+            CONSTANTS.BUTTONS.SELECT + 6: CONSTANTS.BUTTONS.OFF}
 
-        self.XBEE_ENABLE = False
+        self.XBEE_ENABLE = True
         if (self.XBEE_ENABLE):
             self.PORT = "COM11"  # change based on current xbee coms
-            self.BAUD_RATE = 9600  # change based on xbee baud_rate
-            self.XbeeCom = serial.Serial(self.PORT,
-                                         self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
+            self.BAUD_RATE = 921600  # change based on xbee baud_rate
+            self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
+            self.xbee_device.open()
+            self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A200423A7DDD"))
+
+            # self.XbeeCom = serial.Serial(self.PORT,
+            #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
 
         self.DEADBAND = 0.10  # this is the dead band on the controller
-        self.FREQUENCY = 40000  # how often the message is sent, (ns)
+        self.FREQUENCY = 40000000  # how often the message is sent, (ns)
         self.updateLoop = 0
 
     """
@@ -127,13 +131,13 @@ class XbeeControl:
             newEvent.dict['value'] = 0
 
         # convert the controller to int with multiplier
-        newValue = math.floor(multiplier * newEvent.dict['value'] + CommandCodes.JOYSTICK.NEUTRAL_INT)
+        newValue = math.floor(multiplier * newEvent.dict['value'] + CONSTANTS.JOYSTICK.NEUTRAL_INT)
 
         # check if value is between min and max
-        if (newValue < CommandCodes.JOYSTICK.MIN_VALUE):
-            newValue = CommandCodes.JOYSTICK.MIN_VALUE
-        elif (newValue > CommandCodes.JOYSTICK.MAX_VALUE):
-            newValue = CommandCodes.JOYSTICK.MAX_VALUE
+        if (newValue < CONSTANTS.JOYSTICK.MIN_VALUE):
+            newValue = CONSTANTS.JOYSTICK.MIN_VALUE
+        elif (newValue > CONSTANTS.JOYSTICK.MAX_VALUE):
+            newValue = CONSTANTS.JOYSTICK.MAX_VALUE
 
         self.values[newEvent.dict['axis']] = newValue.to_bytes(1)  # store the value as one byte
 
@@ -145,9 +149,9 @@ class XbeeControl:
         # Treat joystick like a button.
         # If it is over zero then on, otherwise off
         if (newEvent.dict['value'] > 0):
-            self.values[newEvent.dict['axis']] = CommandCodes.BUTTONS.ON
+            self.values[newEvent.dict['axis']] = CONSTANTS.BUTTONS.ON
         else:
-            self.values[newEvent.dict['axis']] = CommandCodes.BUTTONS.OFF
+            self.values[newEvent.dict['axis']] = CONSTANTS.BUTTONS.OFF
 
     """
     Handle button event
@@ -157,13 +161,13 @@ class XbeeControl:
         newValue = self.joysticks[newEvent.dict['joy']].get_button(newEvent.dict['button'])
         if (newValue == 0):
             # the button is off
-            self.values[newEvent.dict['button'] + 6] = CommandCodes.BUTTONS.OFF
+            self.values[newEvent.dict['button'] + 6] = CONSTANTS.BUTTONS.OFF
         else:
             # the button is on
-            self.values[newEvent.dict['button'] + 6] = CommandCodes.BUTTONS.ON
+            self.values[newEvent.dict['button'] + 6] = CONSTANTS.BUTTONS.ON
 
         # if button is home kill the code
-        if(newEvent.dict['button'] == CommandCodes.BUTTONS.HOME):
+        if(newEvent.dict['button'] == CONSTANTS.BUTTONS.HOME):
             self.quit = True
 
 
@@ -174,21 +178,21 @@ class XbeeControl:
     def SendJoyPad(self, newEvent: Event):
 
         # if joypad is down disable modes
-        if (newEvent.dict['value'] == CommandCodes.JOYPAD.DOWN):
-            if (self.values[CommandCodes.BUTTONS.SELECT + 6] == CommandCodes.BUTTONS.ON):  # left button is on
+        if (newEvent.dict['value'] == CONSTANTS.JOYPAD.DOWN):
+            if (self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON):  # left button is on
                 self.reverseMode = False
                 print("reverse off")
-            if (self.values[CommandCodes.BUTTONS.START + 6] == CommandCodes.BUTTONS.ON):  # right button is on
+            if (self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON):  # right button is on
                 self.creepMode = False
                 print("creep mode off")
 
         # if joypad is up enable modes
-        elif (newEvent.dict['value'] == CommandCodes.JOYPAD.UP):
-            if (self.values[CommandCodes.BUTTONS.SELECT + 6] == CommandCodes.BUTTONS.ON):  # left button is on
+        elif (newEvent.dict['value'] == CONSTANTS.JOYPAD.UP):
+            if (self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON):  # left button is on
                 self.reverseMode = True
                 print("reverse on")
 
-            if (self.values[CommandCodes.BUTTONS.START + 6] == CommandCodes.BUTTONS.ON):  # right button is on
+            if (self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON):  # right button is on
                 self.creepMode = True
                 print("creep mode on")
 
@@ -197,48 +201,58 @@ class XbeeControl:
     """
 
     def UpdateInfo(self):
-        self.updateLoop+=1
-        print(self.updateLoop)
+        self.updateLoop += 1
+
         # if the xbee is enabled
         if (self.XBEE_ENABLE):
 
+            data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
+
             # write the initial
-            self.XbeeCom.write(CommandCodes.START_MESSAGE)
+            #self.XbeeCom.write(CONSTANTS.START_MESSAGE)
 
             if (not self.reverseMode):
                 # send the regular mode so Left joy stick is left and right joy stick is right
-                self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_LY))
-                self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_RY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
             else:
                 # invert the controller so left joy stick is right and right joy stick is left
-                self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_RY))
-                self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_LY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
 
             result = 0
             # the first two bits
-            result += 64 * self.values.get(CommandCodes.BUTTONS.A + 6)
+            result += 64 * self.values.get(CONSTANTS.BUTTONS.A + 6)
             # the 3rd and 4th bits
-            result += 16 * self.values.get(CommandCodes.BUTTONS.B + 6)
+            result += 16 * self.values.get(CONSTANTS.BUTTONS.B + 6)
             # the 5th and 6th bits
-            result += 4 * self.values.get(CommandCodes.BUTTONS.X + 6)
+            result += 4 * self.values.get(CONSTANTS.BUTTONS.X + 6)
             # the 7th and 8th bits
-            result += 1 * self.values.get(CommandCodes.BUTTONS.Y + 6)
+            result += 1 * self.values.get(CONSTANTS.BUTTONS.Y + 6)
 
-            self.XbeeCom.write(result.to_bytes(1))
+            data.append(result)
+            #self.XbeeCom.write(result.to_bytes(1))
             result = 0
             # the first two bits
-            result += 64 * self.values.get(CommandCodes.BUTTONS.LEFT_BUMPER + 6)
+            result += 64 * self.values.get(CONSTANTS.BUTTONS.LEFT_BUMPER + 6)
             # the 3 and 4th bits
-            result += 16 * self.values.get(CommandCodes.BUTTONS.RIGHT_BUMPER + 6)
+            result += 16 * self.values.get(CONSTANTS.BUTTONS.RIGHT_BUMPER + 6)
             # the 5 and 6th bits
-            result += 4 * self.values.get(CommandCodes.TRIGGER.AXIS_LT)
+            result += 4 * self.values.get(CONSTANTS.TRIGGER.AXIS_LT)
             # the 7 and 8th bits
-            result += 1 * self.values.get(CommandCodes.TRIGGER.AXIS_RT)
+            result += 1 * self.values.get(CONSTANTS.TRIGGER.AXIS_RT)
             # send all 4 buttons in one byte
-            self.XbeeCom.write(result.to_bytes(1))
+            data.append(result)
+            #self.XbeeCom.write(result.to_bytes(1))
 
             # make sure all the byte are sent
-            self.XbeeCom.flush()
+            #self.XbeeCom.flush()
+            # print(bytearray(data))
+            self.xbee_device.send_data(self.remote_xbee, bytearray(data))
 
 
 if __name__ == '__main__':
@@ -266,4 +280,4 @@ if __name__ == '__main__':
         timer = time.time_ns()
 
     if(xbee.XBEE_ENABLE):
-        xbee.XbeeCom.close()
+        xbee.xbee_device.close()

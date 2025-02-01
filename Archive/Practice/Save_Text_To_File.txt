@@ -1,0 +1,8 @@
+
+def main():
+    # import libraries/mods!
+    import os
+
+    # initialize arrays w/ info to be saved to text file.
+    
+
