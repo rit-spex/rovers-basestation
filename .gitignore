@@ -1,2 +1,3 @@
 .venv
 package-lock.json
+shell.nix
