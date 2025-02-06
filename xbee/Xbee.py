@@ -45,7 +45,7 @@ class XbeeControl:
         self.XBEE_ENABLE = True
         if (self.XBEE_ENABLE):
             self.PORT = "COM11"  # change based on current xbee coms
-            self.BAUD_RATE = 921600  # change based on xbee baud_rate
+            self.BAUD_RATE = 9600  # change based on xbee baud_rate
             self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
             self.xbee_device.open()
             self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A200423A7DDD"))
