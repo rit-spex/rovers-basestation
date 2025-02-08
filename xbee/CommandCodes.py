@@ -1,64 +1,115 @@
-class CONSTANTS:
-    # message to send to show start of new values
-    START_MESSAGE = b'\xDE'
-
-    # message order:
-    # byte Axis
-    # 2 bits Trigger
-    # 2 bits Buttons
-
-    # number of processed buttons and axes
-    NUM_AXES = 4
-    NUM_USED_AXES = 2
-    NUM_TRIGGER = 2
-    NUM_BUTTONS = 8  # this number is including the triggers
-
-    class INPUT_TYPE:
-        # enum for input type
-        IS_BUTTON = 0
-        IS_AXIS = 1
-        IS_TRIGGER = 2
-
+class CommandCodes:
     class JOYSTICK:
-        MIN_VALUE = 0
-        NEUTRAL_HEX = b'\x64'
-        NEUTRAL_INT   = 100
-        MAX_VALUE = 200
+        class AXIS_LX:
+            command = b'\xc9'
+            index = 0
 
-        AXIS_LX = 0
-        AXIS_LY = 1
-        AXIS_RX = 2
-        AXIS_RY = 3
+        class AXIS_LY:
+            command = b'\xca'
+            index = 1
 
-    # these are treated like buttons for transfer msgs but are classified as axis
+        class AXIS_RX:
+            command = b'\xcb'
+            index = 2
+
+        class AXIS_RY:
+            command = b'\xcc'
+            index = 3
+
     class TRIGGER:
-        AXIS_LT = 4
-        AXIS_RT = 5
+        class AXIS_LT:
+            command = b'\xcd'
+            index = 4
+
+        class AXIS_RT:
+            command = b'\xce'
+            index = 5
 
     class BUTTONS:
-        SIZE_BUTTON_IN_BITS = 2
-        NUM_BUTTONS_PER_BYTE = 8 / SIZE_BUTTON_IN_BITS
+        class A:
 
-        # I choose 2 to represent ON b/c it equals the bit value of 10
-        # this means if it error and one of the bit was flipped then it would ignore it.
-        # this would make it so 2 bit would need to be changed to produce the wrong result
-        ON           = 2
-        OFF          = 1
+            OnCommand = b'\xcf'
+            OffCommand = b'\xd0'
+            index = 0
 
-        A            = 0
-        B            = 1
-        X            = 2
-        Y            = 3
-        LEFT_BUMPER  = 4
-        RIGHT_BUMPER = 5
-        SELECT       = 6
-        START        = 7
-        LEFT_STICK   = 8
-        RIGHT_STICK  = 9
-        HOME         = 10
+        class B:
+            OnCommand = b'\xd1'
+            OffCommand = b'\xd2'
+            index = 1
+
+        class X:
+            OnCommand = b'\xd3'
+            OffCommand = b'\xd4'
+            index = 2
+
+        class Y:
+            OnCommand = b'\xd5'
+            OffCommand = b'\xd6'
+            index = 3
+
+        class LEFT_BUMPER:
+            OnCommand = b'\xd7'
+            OffCommand = b'\xd8'
+            index = 4
+
+        class RIGHT_BUMPER:
+            OnCommand = b'\xd9'
+            OffCommand = b'\xda'
+            index = 5
+
+        class SELECT:
+            OnCommand = b'\xdb'
+            OffCommand = b'\xdc'
+            index = 6
+
+        class START:
+            OnCommand = b'\xdd'
+            OffCommand = b'\xde'
+            index = 7
+
+        class LEFT_STICK:
+            OnCommand = b'\xdf'
+            OffCommand = b'\xe0'
+            index = 8
+
+        class RIGHT_STICK:
+            OnCommand = b'\xe1'
+            OffCommand = b'\xe2'
+            index = 9
+
+        class HOME:
+            OnCommand = b'\xe3'
+            OffCommand = b'\xe4'
+            index = 10
 
     class JOYPAD:
-        UP = (0, 1)
-        DOWN = (0, -1)
-        LEFT = (1, 0)  # Needs to be checked
-        RIGHT = (-1, 0)  # Needs to be checked
+        command = b'\xe5'
+        index = 0
+
+# # joysticks
+# AXIS_LX = b'1'  # axis 0
+# AXIS_LY = b'1'  # axis 1
+# AXIS_RX = b'1'  # axis 2
+# AXIS_RY = b'1'  # axis 3
+#
+# # triggers
+# AXIS_LT = b'1'  # axis 4
+# AXIS_RT = b'1'  # axis 5
+#
+# # buttons
+# BUTTON_A = b'1'  # button 0
+# BUTTON_B = b'1'  # button 0
+# BUTTON_X = b'1'  # button 0
+# BUTTON_Y = b'1'  # button 0
+# BUTTON_LB = b'1'  # button 0
+# BUTTON_RB = b'1'  # button 0
+# BUTTON_BACK = b'1'  # button 0
+# BUTTON_START = b'1'  # button 0
+# BUTTON_LS = b'1'  # button 0
+# BUTTON_RS = b'1'  # button 0
+#
+# # joy pad
+# BUTTON_UP = b'1'  # button 0
+# BUTTON_DOWN = b'1'  # button 0
+# BUTTON_LEFT = b'1'  # button 0
+# BUTTON_RIGHT = b'1'  # button 0

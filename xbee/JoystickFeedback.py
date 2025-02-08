@@ -1,11 +1,13 @@
 import pygame
 from pygame.event import Event
 
+# maybe a fix for linux
+from ctypes import cdll, util
+cdll.LoadLibrary(util.find_library('z')) # type: ignore
 
 class Display:
 
     def __init__(self):
-
         # Set the width and height of the screen (width, height), and name the window.
         self.screen = pygame.display.set_mode((500, 550))
         self.text_print = TextPrint(self.screen)
