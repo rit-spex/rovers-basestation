@@ -1,9 +1,6 @@
 import pygame
 from pygame.event import Event
 
-# maybe a fix for linux
-from ctypes import cdll, util
-cdll.LoadLibrary(util.find_library('z')) # type: ignore
 
 class Display:
 
