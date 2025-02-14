@@ -35,7 +35,7 @@ class XbeeControl:
             CommandCodes.BUTTONS.START.index+6: 1,
             CommandCodes.BUTTONS.SELECT.index+6: 1}
 
-        self.PORT = "/dev/ttyUSB0"  # change based on current xbee coms
+        self.PORT = "/dev/ttyUSB1"  # change based on current xbee coms
         self.BAUD_RATE = 230400  # change based on xbee baud_rate
         self.DEADBAND = 0.10  # this is the dead band on the controller
         self.XbeeCom = serial.Serial(self.PORT, self.BAUD_RATE)  # create the actual serial
