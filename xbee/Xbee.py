@@ -44,11 +44,11 @@ class XbeeControl:
 
         self.XBEE_ENABLE = True
         if (self.XBEE_ENABLE):
-            self.PORT = "COM11"  # change based on current xbee coms
-            self.BAUD_RATE = 921600  # change based on xbee baud_rate
+            self.PORT = "/dev/ttyUSB0"  # change based on current xbee coms
+            self.BAUD_RATE = 230400 # 921600  # change based on xbee baud_rate
             self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
             self.xbee_device.open()
-            self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A200423A7DDD"))
+            self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309"))
 
             # self.XbeeCom = serial.Serial(self.PORT,
             #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
@@ -247,7 +247,7 @@ class XbeeControl:
             result += 1 * self.values.get(CONSTANTS.TRIGGER.AXIS_RT)
             # send all 4 buttons in one byte
             data.append(result)
-            #self.XbeeCom.write(result.to_bytes(1))
+            # self.XbeeCom.write(result.to_bytes(1))
 
             # make sure all the byte are sent
             #self.XbeeCom.flush()
