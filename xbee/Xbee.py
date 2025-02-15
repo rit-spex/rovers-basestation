@@ -35,13 +35,22 @@ class XbeeControl:
             CommandCodes.BUTTONS.START.index+6: 1,
             CommandCodes.BUTTONS.SELECT.index+6: 1}
 
-        self.PORT = "/dev/ttyUSB1"  # change based on current xbee coms
-        self.BAUD_RATE = 230400  # change based on xbee baud_rate
+        self.XBEE_ENABLE = True
+        if (self.XBEE_ENABLE):
+            self.PORT = "/dev/ttyUSB0"  # change based on current xbee coms
+            self.BAUD_RATE = 230400 # 921600  # change based on xbee baud_rate
+            self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
+            self.xbee_device.open()
+            self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309"))
+
+            # self.XbeeCom = serial.Serial(self.PORT,
+            #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
+
         self.DEADBAND = 0.10  # this is the dead band on the controller
         self.XbeeCom = serial.Serial(self.PORT, self.BAUD_RATE)  # create the actual serial
 
     """
-    
+
     """
     def SendCommand(self, newEvent: Event):
         # the different event types
@@ -140,40 +149,53 @@ class XbeeControl:
         print(result)
 
     def UpdateInfo(self):
+        self.updateLoop += 1
 
-        self.XbeeCom.write(b'\xDE')
+        # if the xbee is enabled
+        if (self.XBEE_ENABLE):
 
-        if(not self.reverseMode):
-            self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_LY.index))
-            self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_RY.index))
-        else:
-            self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_RY.index))
-            self.XbeeCom.write(self.values.get(CommandCodes.JOYSTICK.AXIS_LY.index))
-        result = 0
-        # the first two bits
-        result += 64 * self.values.get(CommandCodes.BUTTONS.A.index+6)
-        # the 3rd and 4th bits
-        result += 16 * self.values.get(CommandCodes.BUTTONS.B.index+6)
-        # the 5th and 6th bits
-        result += 4 * self.values.get(CommandCodes.BUTTONS.X.index+6)
-        # the 7th and 8th bits
-        result += self.values.get(CommandCodes.BUTTONS.Y.index+6)
-        
-        self.XbeeCom.write(result.to_bytes(1, "big"))
-        print(f"1: {result} -> {result.to_bytes(1, 'big')}")
-        result = 0
-        # the first two bits
-        result += 64 * self.values.get(CommandCodes.BUTTONS.LEFT_BUMPER.index+6)
-        # the 3 and 4th bits
-        result += 16 * self.values.get(CommandCodes.BUTTONS.RIGHT_BUMPER.index+6)
-        # the 5 and 6th bits
-        result += 4 * self.values.get(CommandCodes.TRIGGER.AXIS_LT.index)
-        # the 7 and 8th bits
-        result += self.values.get(CommandCodes.TRIGGER.AXIS_RT.index)
-        # send all 4 buttons in one byte
-        self.XbeeCom.write(result.to_bytes(1, "big"))
-        print(f"2: {result} -> {result.to_bytes(1, 'big')}")
-        print()
+            data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
+
+            # write the initial
+            #self.XbeeCom.write(CONSTANTS.START_MESSAGE)
+
+            if (not self.reverseMode):
+                # send the regular mode so Left joy stick is left and right joy stick is right
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
+            else:
+                # invert the controller so left joy stick is right and right joy stick is left
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
+                data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
+                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
+
+            result = 0
+            # the first two bits
+            result += 64 * self.values.get(CONSTANTS.BUTTONS.A + 6)
+            # the 3rd and 4th bits
+            result += 16 * self.values.get(CONSTANTS.BUTTONS.B + 6)
+            # the 5th and 6th bits
+            result += 4 * self.values.get(CONSTANTS.BUTTONS.X + 6)
+            # the 7th and 8th bits
+            result += 1 * self.values.get(CONSTANTS.BUTTONS.Y + 6)
+
+            data.append(result)
+            #self.XbeeCom.write(result.to_bytes(1))
+            result = 0
+            # the first two bits
+            result += 64 * self.values.get(CONSTANTS.BUTTONS.LEFT_BUMPER + 6)
+            # the 3 and 4th bits
+            result += 16 * self.values.get(CONSTANTS.BUTTONS.RIGHT_BUMPER + 6)
+            # the 5 and 6th bits
+            result += 4 * self.values.get(CONSTANTS.TRIGGER.AXIS_LT)
+            # the 7 and 8th bits
+            result += 1 * self.values.get(CONSTANTS.TRIGGER.AXIS_RT)
+            # send all 4 buttons in one byte
+            data.append(result)
+            # self.XbeeCom.write(result.to_bytes(1))
 
         # make sure all the byte are sent
         self.XbeeCom.flush()
