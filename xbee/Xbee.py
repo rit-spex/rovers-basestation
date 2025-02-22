@@ -251,7 +251,7 @@ class XbeeControl:
 
             # make sure all the byte are sent
             #self.XbeeCom.flush()
-            # print(bytearray(data))
+            print(bytearray(data))
             self.xbee_device.send_data(self.remote_xbee, bytearray(data))
 
 
