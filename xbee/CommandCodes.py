@@ -8,7 +8,7 @@ class CONSTANTS:
     # 2 bits Buttons
 
     # number of processed buttons and axes
-    NUM_AXES = 4
+    NUM_AXES = 6
     NUM_USED_AXES = 2
     NUM_TRIGGER = 2
     NUM_BUTTONS = 8  # this number is including the triggers
@@ -27,12 +27,12 @@ class CONSTANTS:
 
         AXIS_LX = 0
         AXIS_LY = 1
-        AXIS_RX = 2
-        AXIS_RY = 3
+        AXIS_RX = 3
+        AXIS_RY = 4
 
     # these are treated like buttons for transfer msgs but are classified as axis
     class TRIGGER:
-        AXIS_LT = 4
+        AXIS_LT = 2
         AXIS_RT = 5
 
     class BUTTONS:
@@ -53,12 +53,12 @@ class CONSTANTS:
         RIGHT_BUMPER = 5
         SELECT       = 6
         START        = 7
-        LEFT_STICK   = 8
-        RIGHT_STICK  = 9
-        HOME         = 10
+        LEFT_STICK   = 9
+        RIGHT_STICK  = 10
+        HOME         = 8
 
     class JOYPAD:
         UP = (0, 1)
         DOWN = (0, -1)
-        LEFT = (1, 0)  # Needs to be checked
-        RIGHT = (-1, 0)  # Needs to be checked
+        LEFT = (-1, 0)
+        RIGHT = (1, 0)

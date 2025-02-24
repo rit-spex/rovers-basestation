@@ -8,6 +8,7 @@ from CommandCodes import CONSTANTS
 from JoystickFeedback import Display
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
 
+
 class XbeeControl:
     def __init__(self):
         # a set to hold multiple joysticks
@@ -29,7 +30,6 @@ class XbeeControl:
             CONSTANTS.JOYSTICK.AXIS_LY: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
             CONSTANTS.JOYSTICK.AXIS_RX: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
             CONSTANTS.JOYSTICK.AXIS_RY: CONSTANTS.JOYSTICK.NEUTRAL_HEX,
-
             # Store all the buttons
             CONSTANTS.TRIGGER.AXIS_LT: CONSTANTS.BUTTONS.OFF,
             CONSTANTS.TRIGGER.AXIS_RT: CONSTANTS.BUTTONS.OFF,
@@ -40,15 +40,18 @@ class XbeeControl:
             CONSTANTS.BUTTONS.LEFT_BUMPER + 6: CONSTANTS.BUTTONS.OFF,
             CONSTANTS.BUTTONS.RIGHT_BUMPER + 6: CONSTANTS.BUTTONS.OFF,
             CONSTANTS.BUTTONS.START + 6: CONSTANTS.BUTTONS.OFF,
-            CONSTANTS.BUTTONS.SELECT + 6: CONSTANTS.BUTTONS.OFF}
+            CONSTANTS.BUTTONS.SELECT + 6: CONSTANTS.BUTTONS.OFF,
+        }
 
         self.XBEE_ENABLE = True
-        if (self.XBEE_ENABLE):
+        if self.XBEE_ENABLE:
             self.PORT = "/dev/ttyUSB0"  # change based on current xbee coms
-            self.BAUD_RATE = 230400 # 921600  # change based on xbee baud_rate
+            self.BAUD_RATE = 230400  # 921600  # change based on xbee baud_rate
             self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
             self.xbee_device.open()
-            self.remote_xbee = RemoteXBeeDevice(self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309"))
+            self.remote_xbee = RemoteXBeeDevice(
+                self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309")
+            )
 
             # self.XbeeCom = serial.Serial(self.PORT,
             #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
@@ -57,16 +60,18 @@ class XbeeControl:
         self.FREQUENCY = 40000000  # how often the message is sent, (ns)
         self.updateLoop = 0
 
-    """
-    Update the values stored when an event is received from controller
-    newEvent: the new event from the controller
-    """
+        self.__last_message = bytearray()
 
     def SendCommand(self, newEvent: Event):
-        # the different event types
+        """
+        Update the values stored when an event is received from controller
+        newEvent: the new event from the controller
+
+        """
+
+        # the different event types:
         # JOYAXISMOTION, JOYBALLMOTION, JOYBUTTONDOWN,
         # JOYBUTTONUP, JOYHATMOTION, JOYDEVICEADDED, JOYDEVICEREMOVED
-
         match (newEvent.type):
             # controller was added or removed
             case pygame.JOYDEVICEADDED | pygame.JOYDEVICEREMOVED:
@@ -75,7 +80,12 @@ class XbeeControl:
             # axis
             case pygame.JOYAXISMOTION:
                 # Joystick Axis
-                if (newEvent.dict['axis'] < 4):
+                if newEvent.dict["axis"] in [
+                    CONSTANTS.JOYSTICK.AXIS_LX,
+                    CONSTANTS.JOYSTICK.AXIS_LY,
+                    CONSTANTS.JOYSTICK.AXIS_RX,
+                    CONSTANTS.JOYSTICK.AXIS_RY,
+                ]:
                     self.SendJoystickAxis(newEvent)
                 # Trigger Axis
                 else:
@@ -90,13 +100,12 @@ class XbeeControl:
                 display.Update_Display2(creep=self.creepMode, reverse=self.reverseMode)
         display.Controller_Display(newEvent)
 
-    """
-    Handle events when the controller is plugin or unpluged
-    Plugin: Add device to controller array
-    Unpluged: Removed the device and kill the code
-    """
-
     def HotPluggin(self, newEvent: Event):
+        """
+        Handle events when the controller is plugin or unpluged
+        Plugin: Add device to controller array
+        Unpluged: Removed the device and kill the code
+        """
         # A new device is added
         if newEvent.type == pygame.JOYDEVICEADDED:
             # This event will be generated when the program starts for every
@@ -112,152 +121,184 @@ class XbeeControl:
             del self.joysticks[newEvent.instance_id]
             print(f"Joystick {newEvent.instance_id} disconnected")
 
-    """
-    Handle events when an joystick axis is pushed
-    """
-
     def SendJoystickAxis(self, newEvent: Event):
+        """
+        Handle events when an joystick axis is pushed
+        """
         # multiplier out of 100 to scale the output
         multiplier = 100
-        if (self.creepMode):
+        if self.creepMode:
             # half the speed of the controller
             multiplier = 20
-        if (self.reverseMode):
+        if self.reverseMode:
             # flip the direction of axis of the controller
             multiplier = -multiplier
 
         # check for deadband. If inside then zero values
-        if (abs(newEvent.dict['value']) < self.DEADBAND):
-            newEvent.dict['value'] = 0
+        if abs(newEvent.dict["value"]) < self.DEADBAND:
+            newEvent.dict["value"] = 0
 
         # convert the controller to int with multiplier
-        newValue = math.floor(multiplier * newEvent.dict['value'] + CONSTANTS.JOYSTICK.NEUTRAL_INT)
+        newValue = math.floor(
+            multiplier * newEvent.dict["value"] + CONSTANTS.JOYSTICK.NEUTRAL_INT
+        )
 
         # check if value is between min and max
-        if (newValue < CONSTANTS.JOYSTICK.MIN_VALUE):
+        if newValue < CONSTANTS.JOYSTICK.MIN_VALUE:
             newValue = CONSTANTS.JOYSTICK.MIN_VALUE
-        elif (newValue > CONSTANTS.JOYSTICK.MAX_VALUE):
+        elif newValue > CONSTANTS.JOYSTICK.MAX_VALUE:
             newValue = CONSTANTS.JOYSTICK.MAX_VALUE
-
-        self.values[newEvent.dict['axis']] = newValue.to_bytes(1)  # store the value as one byte
-
-    """
-    Handle events when an joystick axis is pushed
-    """
+        self.values[newEvent.dict["axis"]] = newValue.to_bytes(
+            1
+        )  # store the value as one byte
 
     def SendTriggerAxis(self, newEvent: Event):
+        """
+        Handle events when an joystick axis is pushed
+        """
         # Treat joystick like a button.
         # If it is over zero then on, otherwise off
-        if (newEvent.dict['value'] > 0):
-            self.values[newEvent.dict['axis']] = CONSTANTS.BUTTONS.ON
+        if newEvent.dict["value"] > 0:
+            self.values[newEvent.dict["axis"]] = CONSTANTS.BUTTONS.ON
         else:
-            self.values[newEvent.dict['axis']] = CONSTANTS.BUTTONS.OFF
-
-    """
-    Handle button event
-    """
+            self.values[newEvent.dict["axis"]] = CONSTANTS.BUTTONS.OFF
 
     def SendButton(self, newEvent: Event):
-        newValue = self.joysticks[newEvent.dict['joy']].get_button(newEvent.dict['button'])
-        if (newValue == 0):
-            # the button is off
-            self.values[newEvent.dict['button'] + 6] = CONSTANTS.BUTTONS.OFF
-        else:
-            # the button is on
-            self.values[newEvent.dict['button'] + 6] = CONSTANTS.BUTTONS.ON
+        """
+        Handle button event
+        """
+        newValue = self.joysticks[newEvent.dict["joy"]].get_button(
+            newEvent.dict["button"]
+        )
 
         # if button is home kill the code
-        if(newEvent.dict['button'] == CONSTANTS.BUTTONS.HOME):
+        if newEvent.dict["button"] == CONSTANTS.BUTTONS.HOME:
             self.quit = True
 
+        self.values[newEvent.dict["button"] + 6] = newValue + 1
 
-    """
-    Handle JoyPad events
-    """
+        # if newValue == 0:
+        #     # the button is off
+        #     self.values[newEvent.dict["button"] + 6] = CONSTANTS.BUTTONS.OFF
+        # else:
+        #     # the button is on
+        #     self.values[newEvent.dict["button"] + 6] = CONSTANTS.BUTTONS.ON
+
+        # print(f"{newEvent.dict["button"]}: {newValue}")
 
     def SendJoyPad(self, newEvent: Event):
-
+        """
+        Handle JoyPad events
+        """
         # if joypad is down disable modes
-        if (newEvent.dict['value'] == CONSTANTS.JOYPAD.DOWN):
-            if (self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON):  # left button is on
+        if newEvent.dict["value"] == CONSTANTS.JOYPAD.DOWN:
+            if (
+                self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON
+            ):  # left button is on
                 self.reverseMode = False
                 print("reverse off")
-            if (self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON):  # right button is on
+            if (
+                self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON
+            ):  # right button is on
                 self.creepMode = False
                 print("creep mode off")
 
         # if joypad is up enable modes
-        elif (newEvent.dict['value'] == CONSTANTS.JOYPAD.UP):
-            if (self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON):  # left button is on
+        elif newEvent.dict["value"] == CONSTANTS.JOYPAD.UP:
+            if (
+                self.values[CONSTANTS.BUTTONS.SELECT + 6] == CONSTANTS.BUTTONS.ON
+            ):  # left button is on
                 self.reverseMode = True
                 print("reverse on")
 
-            if (self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON):  # right button is on
+            if (
+                self.values[CONSTANTS.BUTTONS.START + 6] == CONSTANTS.BUTTONS.ON
+            ):  # right button is on
                 self.creepMode = True
                 print("creep mode on")
 
-    """
-    Send the current values to the controller
-    """
-
     def UpdateInfo(self):
+        """
+        Send the current values to the controller
+        """
         self.updateLoop += 1
 
         # if the xbee is enabled
-        if (self.XBEE_ENABLE):
+        if self.XBEE_ENABLE:
 
             data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
 
             # write the initial
-            #self.XbeeCom.write(CONSTANTS.START_MESSAGE)
+            # self.XbeeCom.write(CONSTANTS.START_MESSAGE)
 
-            if (not self.reverseMode):
+            if not self.reverseMode:
                 # send the regular mode so Left joy stick is left and right joy stick is right
                 data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
-                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
+                # self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
                 data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
-                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
+                # self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
             else:
                 # invert the controller so left joy stick is right and right joy stick is left
                 data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY)))
-                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
+                # self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_RY))
                 data.append(int.from_bytes(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY)))
-                #self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
+                # self.XbeeCom.write(self.values.get(CONSTANTS.JOYSTICK.AXIS_LY))
 
             result = 0
             # the first two bits
-            result += 64 * self.values.get(CONSTANTS.BUTTONS.A + 6)
+            result += 1 * self.values.get(CONSTANTS.BUTTONS.A + 6)
             # the 3rd and 4th bits
-            result += 16 * self.values.get(CONSTANTS.BUTTONS.B + 6)
+            result += 4 * self.values.get(CONSTANTS.BUTTONS.B + 6)
             # the 5th and 6th bits
-            result += 4 * self.values.get(CONSTANTS.BUTTONS.X + 6)
+            result += 16 * self.values.get(CONSTANTS.BUTTONS.X + 6)
             # the 7th and 8th bits
-            result += 1 * self.values.get(CONSTANTS.BUTTONS.Y + 6)
+            result += 64 * self.values.get(CONSTANTS.BUTTONS.Y + 6)
 
             data.append(result)
-            #self.XbeeCom.write(result.to_bytes(1))
+            # self.XbeeCom.write(result.to_bytes(1))
             result = 0
             # the first two bits
-            result += 64 * self.values.get(CONSTANTS.BUTTONS.LEFT_BUMPER + 6)
+            result += 1 * self.values.get(CONSTANTS.BUTTONS.LEFT_BUMPER + 6)
             # the 3 and 4th bits
-            result += 16 * self.values.get(CONSTANTS.BUTTONS.RIGHT_BUMPER + 6)
+            result += 4 * self.values.get(CONSTANTS.BUTTONS.RIGHT_BUMPER + 6)
             # the 5 and 6th bits
-            result += 4 * self.values.get(CONSTANTS.TRIGGER.AXIS_LT)
+            result += 16 * self.values.get(CONSTANTS.TRIGGER.AXIS_LT)
             # the 7 and 8th bits
-            result += 1 * self.values.get(CONSTANTS.TRIGGER.AXIS_RT)
+            result += 64 * self.values.get(CONSTANTS.TRIGGER.AXIS_RT)
             # send all 4 buttons in one byte
             data.append(result)
             # self.XbeeCom.write(result.to_bytes(1))
 
+            # ON  = 10
+            # OFF = 01
+
+            # result = 0
+            # result | self.values.get(CONSTANTS.BUTTONS.A + 6)
+            # result | self.values.get(CONSTANTS.BUTTONS.B + 6)<<2
+            # result | self.values.get(CONSTANTS.BUTTONS.X + 6)<<4
+            # result | self.values.get(CONSTANTS.BUTTONS.Y + 6)<<8
+            # data.append(result)
+            # result = 0
+            # result | self.values.get(CONSTANTS.BUTTONS.LEFT_BUMPER + 6)
+            # result | self.values.get(CONSTANTS.BUTTONS.RIGHT_BUMPER + 6)<<2
+            # result | self.values.get(CONSTANTS.TRIGGER.AXIS_LT)<<4
+            # result | self.values.get(CONSTANTS.TRIGGER.AXIS_RT)<<8
+            # data.append(result)
+
             # make sure all the byte are sent
-            #self.XbeeCom.flush()
-            print(bytearray(data))
-            self.xbee_device.send_data(self.remote_xbee, bytearray(data))
+            # self.XbeeCom.flush()
+            data_bytes = bytearray(data)
+            print(data_bytes)
+            if data_bytes == self.__last_message:
+                print("didnt send")
+                return
+            self.__last_message = data_bytes
+            self.xbee_device.send_data(self.remote_xbee, data_bytes)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # allow the controllers to always work
-    os.environ['SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS'] = '1'
+    os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 
     # start pygame
     pygame.init()
@@ -269,15 +310,17 @@ if __name__ == '__main__':
     xbee = XbeeControl()
 
     timer = time.time_ns()
-    while (not xbee.quit):
-        while (timer + xbee.FREQUENCY > time.time_ns() and not xbee.quit):
+    while not xbee.quit:
+        while timer + xbee.FREQUENCY > time.time_ns() and not xbee.quit:
             for event in pygame.event.get():
                 xbee.SendCommand(event)
-                if (event.type == pygame.QUIT):
+                if event.type == pygame.QUIT:
                     xbee.quit = True
+
+        # print(f"values: {xbee.values}")
 
         xbee.UpdateInfo()
         timer = time.time_ns()
 
-    if(xbee.XBEE_ENABLE):
+    if xbee.XBEE_ENABLE:
         xbee.xbee_device.close()
