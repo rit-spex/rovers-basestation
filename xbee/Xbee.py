@@ -45,6 +45,10 @@ class XbeeControl:
                 CONSTANTS.XBOX.BUTTONS.SELECT + 6: CONSTANTS.XBOX.BUTTONS.OFF,
             },
             "n64": {
+                # # Axies
+                # CONSTANTS.N64.JOYSTICK.AXIS_X: CONSTANTS.N64.JOYSTICK.NEUTRAL_HEX,
+                # CONSTANTS.N64.JOYSTICK.AXIS_Y: CONSTANTS.N64.JOYSTICK.NEUTRAL_HEX,
+                # Buttons
                 CONSTANTS.N64.BUTTONS.A: CONSTANTS.N64.BUTTONS.OFF,
                 CONSTANTS.N64.BUTTONS.B: CONSTANTS.N64.BUTTONS.OFF,
                 CONSTANTS.N64.BUTTONS.C_UP: CONSTANTS.N64.BUTTONS.OFF,
@@ -156,7 +160,10 @@ class XbeeControl:
         Handle events when an joystick axis is pushed
         """
 
-        if self.instance_id_values_map[newEvent.dict["instance_id"]] == "n64":
+        values_name = self.instance_id_values_map[newEvent.dict["instance_id"]]
+        working_const = CONSTANTS.N64 if values_name == "n64" else CONSTANTS.XBOX
+
+        if values_name == "n64":
             return
 
         # multiplier out of 100 to scale the output
@@ -168,21 +175,24 @@ class XbeeControl:
             # flip the direction of axis of the controller
             multiplier = -multiplier
 
+        if self.instance_id_values_map[newEvent.dict["instance_id"]] == "n64":
+            multiplier = 100
+
         # check for deadband. If inside then zero values
         if abs(newEvent.dict["value"]) < self.DEADBAND:
             newEvent.dict["value"] = 0
 
         # convert the controller to int with multiplier
         newValue = math.floor(
-            multiplier * newEvent.dict["value"] + CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
+            multiplier * newEvent.dict["value"] + working_const.JOYSTICK.NEUTRAL_INT
         )
 
         # check if value is between min and max
-        if newValue < CONSTANTS.XBOX.JOYSTICK.MIN_VALUE:
-            newValue = CONSTANTS.XBOX.JOYSTICK.MIN_VALUE
-        elif newValue > CONSTANTS.XBOX.JOYSTICK.MAX_VALUE:
-            newValue = CONSTANTS.XBOX.JOYSTICK.MAX_VALUE
-        self.values[newEvent.dict["axis"]] = newValue.to_bytes(
+        if newValue < working_const.JOYSTICK.MIN_VALUE:
+            newValue = working_const.JOYSTICK.MIN_VALUE
+        elif newValue > working_const.JOYSTICK.MAX_VALUE:
+            newValue = working_const.JOYSTICK.MAX_VALUE
+        self.values[values_name][newEvent.dict["axis"]] = newValue.to_bytes(
             1
         )  # store the value as one byte
 
@@ -208,8 +218,6 @@ class XbeeControl:
 
         values_name = self.instance_id_values_map[newEvent.dict["instance_id"]]
         working_const = CONSTANTS.N64 if values_name == "n64" else CONSTANTS.XBOX
-
-        print(f"for button parsing: {values_name}")
 
         newValue = self.joysticks[newEvent.dict["joy"]].get_button(
             newEvent.dict["button"]
@@ -267,12 +275,12 @@ class XbeeControl:
         # if joypad is down disable modes
         if newEvent.dict["value"] == CONSTANTS.XBOX.JOYPAD.DOWN:
             if (
-                self.values[CONSTANTS.XBOX.BUTTONS.SELECT + 6] == CONSTANTS.XBOX.BUTTONS.ON
+                self.values['xbox'][CONSTANTS.XBOX.BUTTONS.SELECT + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # left button is on
                 self.reverseMode = False
                 print("reverse off")
             if (
-                self.values[CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
+                self.values['xbox'][CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # right button is on
                 self.creepMode = False
                 print("creep mode off")
@@ -280,13 +288,13 @@ class XbeeControl:
         # if joypad is up enable modes
         elif newEvent.dict["value"] == CONSTANTS.XBOX.JOYPAD.UP:
             if (
-                self.values[CONSTANTS.XBOX.BUTTONS.SELECT + 6] == CONSTANTS.XBOX.BUTTONS.ON
+                self.values['xbox'][CONSTANTS.XBOX.BUTTONS.SELECT + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # left button is on
                 self.reverseMode = True
                 print("reverse on")
 
             if (
-                self.values[CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
+                self.values['xbox'][CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # right button is on
                 self.creepMode = True
                 print("creep mode on")
@@ -373,7 +381,6 @@ class XbeeControl:
             # result += 64 * self.values["n64"].get()
             data.append(result)
 
-
             # make sure all the byte are sent
             # self.XbeeCom.flush()
             data_bytes = bytearray(data)
@@ -411,8 +418,6 @@ if __name__ == "__main__":
     while not xbee.quit:
         while timer + xbee.FREQUENCY > time.time_ns() and not xbee.quit:
             for event in pygame.event.get():
-                print(f"LY: {xbee.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY)}")
-                print(f"RY: {xbee.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY)}")
                 xbee.SendCommand(event)
                 if event.type == pygame.QUIT:
                     xbee.quit = True

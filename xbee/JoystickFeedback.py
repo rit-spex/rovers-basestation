@@ -56,7 +56,10 @@ class Display:
             self.text_print.indent()
 
             for i in range(axes):
-                axis = self.axis[0][i]
+                try:
+                    axis = self.axis[0][i]
+                except:
+                    break
                 self.text_print.tprint(f"Axis {i} value: {axis:>6.3f}")
             self.text_print.unindent()
 
