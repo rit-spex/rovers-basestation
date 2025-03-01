@@ -2,21 +2,29 @@ import serial
 import math
 import pygame
 import os
+import time
 from pygame.event import Event
 from pygame.joystick import Joystick
 from CommandCodes import CONSTANTS
 from JoystickFeedback import Display
+from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
 
 
 class XbeeControl:
     def __init__(self):
+        # a set to hold multiple joysticks
         self.joysticks = {}
 
+        # flag to quit the program
         self.quit = False
 
+        # flag to half the speed
         self.creepMode = False
+
+        # flag to flip the drive control
         self.reverseMode = False
 
+        # initialize all of values
         self.values = {
             "xbox": {
                 # Store all the axis
@@ -69,8 +77,12 @@ class XbeeControl:
                 self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309")
             )
 
+            # self.XbeeCom = serial.Serial(self.PORT,
+            #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
+
         self.DEADBAND = 0.10  # this is the dead band on the controller
-        self.XbeeCom = serial.Serial(self.PORT, self.BAUD_RATE)  # create the actual serial
+        self.FREQUENCY = 40000000  # how often the message is sent, (ns)
+        self.updateLoop = 0
 
         self.__last_message = bytearray()
 
@@ -88,10 +100,9 @@ class XbeeControl:
         # JOYAXISMOTION, JOYBALLMOTION, JOYBUTTONDOWN,
         # JOYBUTTONUP, JOYHATMOTION, JOYDEVICEADDED, JOYDEVICEREMOVED
         match (newEvent.type):
-            # hot swappable
+            # controller was added or removed
             case pygame.JOYDEVICEADDED | pygame.JOYDEVICEREMOVED:
                 self.HotPluggin(newEvent)
-                display.Controller_Display(newEvent)
 
             # axis
             case pygame.JOYAXISMOTION:
@@ -105,11 +116,7 @@ class XbeeControl:
                     self.SendJoystickAxis(newEvent)
                 # Trigger Axis
                 else:
-                    if(newEvent.dict['value'] > 0):
-                        self.values[newEvent.dict['axis']] = 2
-                    else:
-                        self.values[newEvent.dict['axis']] = 1
-                display.Controller_Display(newEvent)
+                    self.SendTriggerAxis(newEvent)
 
             # button
             case pygame.JOYBUTTONDOWN | pygame.JOYBUTTONUP:
@@ -127,7 +134,6 @@ class XbeeControl:
         Plugin: Add device to controller array
         Unpluged: Removed the device and kill the code
         """
-
         # A new device is added
         if newEvent.type == pygame.JOYDEVICEADDED:
             # This event will be generated when the program starts for every
@@ -135,12 +141,16 @@ class XbeeControl:
             joy = pygame.joystick.Joystick(newEvent.device_index)
             self.joysticks[joy.get_instance_id()] = joy
             if "xbox" in joy.get_name().lower():
+                # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "xbox")
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
             elif "switch" in joy.get_name().lower():
+                # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "n64")
                 self.instance_id_values_map[joy.get_instance_id()] = "n64"
             print(f"Joystick {joy.get_instance_id()} connencted")
 
+        # A device is removed
         if newEvent.type == pygame.JOYDEVICEREMOVED:
+            # remove the controller from the joystick list and kill the code
             self.quit = True
             del self.joysticks[newEvent.instance_id]
             print(f"Joystick {newEvent.instance_id} disconnected")
@@ -219,6 +229,15 @@ class XbeeControl:
 
         self.values[values_name][newEvent.dict["button"] + (6 if values_name == "xbox" else 0)] = newValue + 1
 
+        # if newValue == 0:
+        #     # the button is off
+        #     self.values[newEvent.dict["button"] + 6] = CONSTANTS.XBOX.BUTTONS.OFF
+        # else:
+        #     # the button is on
+        #     self.values[newEvent.dict["button"] + 6] = CONSTANTS.XBOX.BUTTONS.ON
+
+        # print(f"{newEvent.dict["button"]}: {newValue}")
+
     def SendJoyPad(self, newEvent: Event):
         """
         Handle JoyPad events
@@ -264,7 +283,7 @@ class XbeeControl:
                 self.values['xbox'][CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # right button is on
                 self.creepMode = False
-                result= "creep mode off"
+                print("creep mode off")
 
         # if joypad is up enable modes
         elif newEvent.dict["value"] == CONSTANTS.XBOX.JOYPAD.UP:
@@ -272,7 +291,7 @@ class XbeeControl:
                 self.values['xbox'][CONSTANTS.XBOX.BUTTONS.SELECT + 6] == CONSTANTS.XBOX.BUTTONS.ON
             ):  # left button is on
                 self.reverseMode = True
-                result= "reverse on"
+                print("reverse on")
 
             if (
                 self.values['xbox'][CONSTANTS.XBOX.BUTTONS.START + 6] == CONSTANTS.XBOX.BUTTONS.ON
@@ -291,6 +310,9 @@ class XbeeControl:
         if self.XBEE_ENABLE:
 
             data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
+
+            # write the initial
+            # self.XbeeCom.write(CONSTANTS.START_MESSAGE)
 
             if not self.reverseMode:
                 # send the regular mode so Left joy stick is left and right joy stick is right
@@ -316,6 +338,7 @@ class XbeeControl:
             result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.Y + 6)
 
             data.append(result)
+            # self.XbeeCom.write(result.to_bytes(1))
             result = 0
             # the first two bits
             result += 1 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6)
@@ -327,6 +350,10 @@ class XbeeControl:
             result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.TRIGGER.AXIS_RT)
             # send all 4 buttons in one byte
             data.append(result)
+            # self.XbeeCom.write(result.to_bytes(1))
+
+            # ON  = 10
+            # OFF = 01
 
             data.append(int.from_bytes(CONSTANTS.START_MESSAGE))
             result = 0
@@ -349,8 +376,13 @@ class XbeeControl:
             data.append(result)
             result = 0
             result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.Z)
+            # result += 4 * self.values["n64"].get()
+            # result += 16 * self.values["n64"].get()
+            # result += 64 * self.values["n64"].get()
             data.append(result)
 
+            # make sure all the byte are sent
+            # self.XbeeCom.flush()
             data_bytes = bytearray(data)
             print(data_bytes)
             if data_bytes == self.__last_message:
@@ -389,6 +421,8 @@ if __name__ == "__main__":
                 xbee.SendCommand(event)
                 if event.type == pygame.QUIT:
                     xbee.quit = True
+
+        # print(f"values: {xbee.values}")
 
         xbee.UpdateInfo()
         timer = time.time_ns()
