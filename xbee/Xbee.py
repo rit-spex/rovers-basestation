@@ -143,7 +143,7 @@ class XbeeControl:
             if "xbox" in joy.get_name().lower():
                 # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "xbox")
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
-            elif "switch" in joy.get_name().lower():
+            elif "dinput" in joy.get_name().lower():
                 # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "n64")
                 self.instance_id_values_map[joy.get_instance_id()] = "n64"
             print(f"Joystick {joy.get_instance_id()} connencted")
