@@ -9,15 +9,28 @@ from pygame.joystick import Joystick
 from JoystickFeedback import Display
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
 
+# Flag to express the start of a message
 START_MESSAGE = b'\xDE'
+
+# Flag to express that the rover should cease functions
 QUIT_MESSAGE = b'\xFE'
 
+# The starting value of an axis input
 NEUTRAL_HEX = b'\x64'
+
+# The neutral value of an axis input after conversion to int
 NEUTRAL_INT   = 100
+
+# The minimum value an axis input can have after conversion to int
 MIN_VALUE = 0
+
+# The maximum value an axis input can have after conversion to int
 MAX_VALUE = 200
 
+# The bit value representing a button being on
 ON = 2
+
+# The bit value representing a button being off
 OFF = 1
 
 
@@ -26,7 +39,7 @@ class XbeeControl:
         # settings
         self.settings = configparser.ConfigParser()
         self.settings.read("./settings.ini")
-        
+
         # a set to hold multiple joysticks
         self.joysticks = {}
 
@@ -60,9 +73,6 @@ class XbeeControl:
                 int(self.settings['drive_base_IDs']['select']) + 6: OFF,
             },
             "n64": {
-                # # Axies
-                # CONSTANTS.N64.JOYSTICK.AXIS_X: CONSTANTS.N64.JOYSTICK.NEUTRAL_HEX,
-                # CONSTANTS.N64.JOYSTICK.AXIS_Y: CONSTANTS.N64.JOYSTICK.NEUTRAL_HEX,
                 # Buttons
                 int(self.settings['arm_IDs']['a']): OFF,
                 int(self.settings['arm_IDs']['b']): OFF,
@@ -80,38 +90,40 @@ class XbeeControl:
             }
         }
 
+        # used for mapping a controller name to dictionary keys
         self.instance_id_values_map = {}
 
         self.XBEE_ENABLE = True
         if self.XBEE_ENABLE:
-            self.PORT = self.settings['peripherals']['port']  # change based on current xbee coms
-            self.BAUD_RATE = self.settings['peripherals']['baud_rate']  # change based on xbee baud_rate
+            self.PORT = self.settings['peripherals']['port']
+            self.BAUD_RATE = self.settings['peripherals']['baud_rate']
             self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
             self.xbee_device.open()
             self.remote_xbee = RemoteXBeeDevice(
                 self.xbee_device, XBee64BitAddress.from_hex_string(self.settings['peripherals']['address']) # old one that broke, lmao 0013A20041B1D309
             )
 
-            # self.XbeeCom = serial.Serial(self.PORT,
-            #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
+        # this is the dead zone on the controller
+        self.DEAD_ZONE = self.settings['preferences']['dead_zone']
 
-        self.DEAD_ZONE = self.settings['preferences']['dead_zone']  # this is the dead zone on the controller
-        self.FREQUENCY = 40000000  # how often the message is sent, (ns)
+        # how often the message is sent, (ns)
+        self.FREQUENCY = 40000000
+
         self.updateLoop = 0
 
+        # last sent message
+        # used for checking if a new message should be sent
         self.__last_message = bytearray()
 
-        # self.xbee_device.set_parameter("CM", 1111111111111111)
-        # self.xbee_device.set_parameter("CH", "C")
-        # print(f"channel: {self.xbee_device.get_parameter('CH')}")
-
     def SendCommand(self, newEvent: Event):
-        """
-        Update the values stored when an event is received from controller
-        newEvent: the new event from the controller
+        """Update the values stored when an event is received from controller
 
+        Args:
+            newEvent (Event): the new event from the controller
         """
 
+        # disregard this event if this isn't a new controller
+        # event and we don't have any controller connected
         if len(self.joysticks.keys()) == 0 and newEvent.type != pygame.JOYDEVICEADDED:
             return
 
@@ -123,9 +135,9 @@ class XbeeControl:
             case pygame.JOYDEVICEADDED | pygame.JOYDEVICEREMOVED:
                 self.HotPluggin(newEvent)
 
-            # axis
+            # Dealing with Axis
             case pygame.JOYAXISMOTION:
-                # Joystick Axis
+                # Dealing with Joystick Axis
                 if newEvent.dict["axis"] in [
                     self.settings['drive_base_IDs']['left_stick_x'],
                     self.settings['drive_base_IDs']['left_stick_y'],
@@ -133,26 +145,32 @@ class XbeeControl:
                     self.settings['drive_base_IDs']['right_stick_y'],
                 ]:
                     self.SendJoystickAxis(newEvent)
-                # Trigger Axis
+                # Dealing with Trigger Axis
                 else:
                     self.SendTriggerAxis(newEvent)
 
-            # button
+            # Dealing with Buttons
             case pygame.JOYBUTTONDOWN | pygame.JOYBUTTONUP:
                 self.SendButton(newEvent)
                 pass
 
+            # Dealing with a DPad
             case pygame.JOYHATMOTION:
                 self.SendJoyPad(newEvent)
                 display.Update_Display2(creep=self.creepMode, reverse=self.reverseMode)
+
         display.Controller_Display(newEvent)
 
     def HotPluggin(self, newEvent: Event):
+        """Handle events when the controller is plugin or unpluged
+
+        On Plugin: Add device to controller array
+        On Unpluged: Remove the device and kill the code
+
+        Args:
+            newEvent (Event): the new event from the controller
         """
-        Handle events when the controller is plugin or unpluged
-        Plugin: Add device to controller array
-        Unpluged: Removed the device and kill the code
-        """
+
         # A new device is added
         if newEvent.type == pygame.JOYDEVICEADDED:
             # This event will be generated when the program starts for every
@@ -167,18 +185,22 @@ class XbeeControl:
 
         # A device is removed
         if newEvent.type == pygame.JOYDEVICEREMOVED:
-            # remove the controller from the joystick list and kill the code
+            # Remove the controller from the joystick list and kill the code
             self.quit = True
             del self.joysticks[newEvent.instance_id]
             print(f"Joystick {newEvent.instance_id} disconnected")
 
     def SendJoystickAxis(self, newEvent: Event):
-        """
-        Handle events when an joystick axis is pushed
+        """Handle events when an joystick axis is pushed
+
+        Args:
+            newEvent (Event): the new event from the controller
         """
 
+        # get the key for the controller values
         values_name = self.instance_id_values_map[newEvent.dict["instance_id"]]
 
+        # disregard this event if this is from the arm controller
         if values_name == "n64":
             return
 
@@ -208,15 +230,20 @@ class XbeeControl:
             newValue = MIN_VALUE
         elif newValue > MAX_VALUE:
             newValue = MAX_VALUE
+
+        # store the value as one byte
         self.values[values_name][newEvent.dict["axis"]] = newValue.to_bytes(
             1
-        )  # store the value as one byte
+        )
 
     def SendTriggerAxis(self, newEvent: Event):
-        """
-        Handle events when an joystick axis is pushed
+        """Handle events when an joystick axis is pushed
+
+        Args:
+            newEvent (Event): the new event from the controller
         """
 
+        # disregard this event if this is from the arm controller
         if self.instance_id_values_map[newEvent.dict["instance_id"]] == "n64":
             return
 
@@ -228,10 +255,13 @@ class XbeeControl:
             self.values["xbox"][newEvent.dict["axis"]] = OFF
 
     def SendButton(self, newEvent: Event):
-        """
-        Handle button event
+        """Handle button event
+
+        Args:
+            newEvent (Event): the new event from the controller
         """
 
+        # get the key for the controller values
         values_name = self.instance_id_values_map[newEvent.dict["instance_id"]]
 
         newValue = self.joysticks[newEvent.dict["joy"]].get_button(
@@ -242,15 +272,20 @@ class XbeeControl:
         if values_name == "xbox" and newEvent.dict["button"] == self.settings['drive_base_IDs']['home'] or values_name == "n64" and newEvent.dict["button"] == self.settings['arm_IDs']['start']:
             self.quit = True
 
+        # update current values
         self.values[values_name][newEvent.dict["button"] + (6 if values_name == "xbox" else 0)] = newValue + 1
 
     def SendJoyPad(self, newEvent: Event):
-        """
-        Handle JoyPad events
+        """Handle JoyPad events
+
+        Args:
+            newEvent (Event): the new event from the controller
         """
 
+        # get the key for the controller values
         values_name = self.instance_id_values_map[newEvent.dict["instance_id"]]
 
+        # do seperate code if this is from the arm controller
         if values_name == "n64":
             x = newEvent.dict["value"][0]
             y = newEvent.dict["value"][1]
@@ -305,8 +340,7 @@ class XbeeControl:
                 print("creep mode on")
 
     def UpdateInfo(self):
-        """
-        Send the current values to the controller
+        """Send the current values to the controller
         """
 
         self.updateLoop += 1
@@ -337,9 +371,8 @@ class XbeeControl:
             result += 16 * self.values["xbox"].get(int(self.settings['drive_base_IDs']['x']) + 6)
             # the 7th and 8th bits
             result += 64 * self.values["xbox"].get(int(self.settings['drive_base_IDs']['y']) + 6)
-
             data.append(result)
-            # self.XbeeCom.write(result.to_bytes(1))
+
             result = 0
             # the first two bits
             result += 1 * self.values["xbox"].get(int(self.settings['drive_base_IDs']['left_bumper']) + 6)
@@ -351,10 +384,6 @@ class XbeeControl:
             result += 64 * self.values["xbox"].get(int(self.settings['drive_base_IDs']['right_trigger']))
             # send all 4 buttons in one byte
             data.append(result)
-            # self.XbeeCom.write(result.to_bytes(1))
-
-            # ON  = 10
-            # OFF = 01
 
             data.append(int.from_bytes(START_MESSAGE))
             result = 0
@@ -389,12 +418,15 @@ class XbeeControl:
             if data_bytes == self.__last_message:
                 print("didnt send")
                 return
+
+            # update last message
             self.__last_message = data_bytes
+
+            # push the message
             self.xbee_device.send_data(self.remote_xbee, data_bytes)
 
     def SendQuitMessage(self):
-        """
-        Tells the rover to quit once the basestation quits
+        """Tells the rover to quit once the basestation quits
         """
 
         data = [int.from_bytes(QUIT_MESSAGE)]
@@ -420,10 +452,10 @@ if __name__ == "__main__":
         while timer + xbee.FREQUENCY > time.time_ns() and not xbee.quit:
             for event in pygame.event.get():
                 xbee.SendCommand(event)
+
+                # if pygame quits, quit the program
                 if event.type == pygame.QUIT:
                     xbee.quit = True
-
-        # print(f"values: {xbee.values}")
 
         xbee.UpdateInfo()
         timer = time.time_ns()
