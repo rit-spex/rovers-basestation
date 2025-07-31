@@ -8,6 +8,7 @@ from pygame.joystick import Joystick
 from CommandCodes import CONSTANTS
 from JoystickFeedback import Display
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
+import socket
 
 
 class XbeeControl:
@@ -67,7 +68,7 @@ class XbeeControl:
 
         self.instance_id_values_map = {}
 
-        self.XBEE_ENABLE = True
+        self.XBEE_ENABLE = False
         if self.XBEE_ENABLE:
             self.PORT = "/dev/ttyUSB0"  # change based on current xbee coms
             self.BAUD_RATE = 230400  # 921600  # change based on xbee baud_rate
@@ -79,12 +80,26 @@ class XbeeControl:
 
             # self.XbeeCom = serial.Serial(self.PORT,
             #                              self.BAUD_RATE)  # create the actual serial - will error if port doesn't exist
+        else:
+            self.UDP_PORT = 5005
+            self.UDP_IP   = "127.0.0.1"
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.DEADBAND = 0.10  # this is the dead band on the controller
         self.FREQUENCY = 40000000  # how often the message is sent, (ns)
         self.updateLoop = 0
 
         self.__last_message = bytearray()
+
+    def SendData(self, dataBytes: bytearray):
+        """
+        Send data over xbee
+        Needed for simulating xbee
+        """
+        if(self.XBEE_ENABLE):
+            self.xbee_device.send_data(self.remote_xbee, data_bytes)
+        else:
+            self.socket.sendto(dataBytes, (self.UDP_IP, self.UDP_PORT))
 
     def SendCommand(self, newEvent: Event):
         """
@@ -140,7 +155,7 @@ class XbeeControl:
             # joystick, filling up the list without needing to create them manually.
             joy = pygame.joystick.Joystick(newEvent.device_index)
             self.joysticks[joy.get_instance_id()] = joy
-            if "xbox" in joy.get_name().lower():
+            if "xbox" in joy.get_name().lower() or "x-box" in joy.get_name().lower():
                 # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "xbox")
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
             elif "dinput" in joy.get_name().lower():
@@ -192,9 +207,7 @@ class XbeeControl:
             newValue = working_const.JOYSTICK.MIN_VALUE
         elif newValue > working_const.JOYSTICK.MAX_VALUE:
             newValue = working_const.JOYSTICK.MAX_VALUE
-        self.values[values_name][newEvent.dict["axis"]] = newValue.to_bytes(
-            1
-        )  # store the value as one byte
+        self.values[values_name][newEvent.dict["axis"]] = newValue.to_bytes(1, "big")  # store the value as one byte
 
     def SendTriggerAxis(self, newEvent: Event):
         """
@@ -306,90 +319,85 @@ class XbeeControl:
 
         self.updateLoop += 1
 
-        # if the xbee is enabled
-        if self.XBEE_ENABLE:
+        data = [int.from_bytes(CONSTANTS.START_MESSAGE, "big")]
 
-            data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
+        # write the initial
+        # self.XbeeCom.write(CONSTANTS.START_MESSAGE)
 
-            # write the initial
-            # self.XbeeCom.write(CONSTANTS.START_MESSAGE)
+        if not self.reverseMode:
+            # send the regular mode so Left joy stick is left and right joy stick is right
+            data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY), "big"))
+            # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY))
+            data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY), "big"))
+            # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY))
+        else:
+            # invert the controller so left joy stick is right and right joy stick is left
+            data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY), "big"))
+            # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY))
+            data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY), "big"))
+            # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY))
 
-            if not self.reverseMode:
-                # send the regular mode so Left joy stick is left and right joy stick is right
-                data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY)))
-                # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY))
-                data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY)))
-                # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY))
-            else:
-                # invert the controller so left joy stick is right and right joy stick is left
-                data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY)))
-                # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY))
-                data.append(int.from_bytes(self.values["xbox"].get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY)))
-                # self.XbeeCom.write(self.values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY))
+        result = 0
+        # the first two bits
+        result += 1 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.A + 6)
+        # the 3rd and 4th bits
+        result += 4 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.B + 6)
+        # the 5th and 6th bits
+        result += 16 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.X + 6)
+        # the 7th and 8th bits
+        result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.Y + 6)
 
-            result = 0
-            # the first two bits
-            result += 1 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.A + 6)
-            # the 3rd and 4th bits
-            result += 4 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.B + 6)
-            # the 5th and 6th bits
-            result += 16 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.X + 6)
-            # the 7th and 8th bits
-            result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.Y + 6)
+        data.append(result)
+        # self.XbeeCom.write(result.to_bytes(1))
+        result = 0
+        # the first two bits
+        result += 1 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6)
+        # the 3 and 4th bits
+        result += 4 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6)
+        # the 5 and 6th bits
+        result += 16 * self.values["xbox"].get(CONSTANTS.XBOX.TRIGGER.AXIS_LT)
+        # the 7 and 8th bits
+        result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.TRIGGER.AXIS_RT)
+        # send all 4 buttons in one byte
+        data.append(result)
+        # self.XbeeCom.write(result.to_bytes(1))
 
-            data.append(result)
-            # self.XbeeCom.write(result.to_bytes(1))
-            result = 0
-            # the first two bits
-            result += 1 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6)
-            # the 3 and 4th bits
-            result += 4 * self.values["xbox"].get(CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6)
-            # the 5 and 6th bits
-            result += 16 * self.values["xbox"].get(CONSTANTS.XBOX.TRIGGER.AXIS_LT)
-            # the 7 and 8th bits
-            result += 64 * self.values["xbox"].get(CONSTANTS.XBOX.TRIGGER.AXIS_RT)
-            # send all 4 buttons in one byte
-            data.append(result)
-            # self.XbeeCom.write(result.to_bytes(1))
+        # ON  = 10
+        # OFF = 01
 
-            # ON  = 10
-            # OFF = 01
+        data.append(int.from_bytes(CONSTANTS.START_MESSAGE, "big"))
+        result = 0
+        result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.A)
+        result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.B)
+        result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.L)
+        result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.R)
+        data.append(result)
+        result = 0
+        result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_UP)
+        result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_DOWN)
+        result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_LEFT)
+        result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_RIGHT)
+        data.append(result)
+        result = 0
+        result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_UP)
+        result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_DOWN)
+        result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_LEFT)
+        result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_RIGHT)
+        data.append(result)
+        result = 0
+        result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.Z)
+        # result += 4 * self.values["n64"].get()
+        # result += 16 * self.values["n64"].get()
+        # result += 64 * self.values["n64"].get()
+        data.append(result)
 
-            data.append(int.from_bytes(CONSTANTS.START_MESSAGE))
-            result = 0
-            result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.A)
-            result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.B)
-            result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.L)
-            result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.R)
-            data.append(result)
-            result = 0
-            result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_UP)
-            result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_DOWN)
-            result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_LEFT)
-            result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.C_RIGHT)
-            data.append(result)
-            result = 0
-            result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_UP)
-            result += 4 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_DOWN)
-            result += 16 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_LEFT)
-            result += 64 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.DP_RIGHT)
-            data.append(result)
-            result = 0
-            result += 1 * self.values["n64"].get(CONSTANTS.N64.BUTTONS.Z)
-            # result += 4 * self.values["n64"].get()
-            # result += 16 * self.values["n64"].get()
-            # result += 64 * self.values["n64"].get()
-            data.append(result)
-
-            # make sure all the byte are sent
-            # self.XbeeCom.flush()
-            data_bytes = bytearray(data)
-            print(data_bytes)
-            if data_bytes == self.__last_message:
-                print("didnt send")
-                return
-            self.__last_message = data_bytes
-            self.xbee_device.send_data(self.remote_xbee, data_bytes)
+        # make sure all the byte are sent
+        data_bytes = bytearray(data)
+        if data_bytes == self.__last_message:
+            print("didnt send")
+            return
+        self.__last_message = data_bytes
+        self.SendData(data_bytes)
 
     def SendQuitMessage(self):
         """
@@ -399,7 +407,7 @@ class XbeeControl:
         data = [int.from_bytes(CONSTANTS.QUIT_MESSAGE)]
         data_bytes = bytearray(data)
         print(f"Telling the rover to quit: {data_bytes}")
-        self.xbee_device.send_data(self.remote_xbee, data_bytes)
+        self.SendData(self, data_bytes)
 
 if __name__ == "__main__":
     # allow the controllers to always work
