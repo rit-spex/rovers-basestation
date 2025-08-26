@@ -90,8 +90,8 @@ class XbeeControl:
             }
         }
 
-        # used for mapping a controller name to dictionary keys
-        self.instance_id_values_map = {}
+        self.drive_base_instance_ID = -1
+        self.arm_instance_ID = -1
 
         self.XBEE_ENABLE = True
         if self.XBEE_ENABLE:
@@ -152,12 +152,14 @@ class XbeeControl:
             # Dealing with Buttons
             case pygame.JOYBUTTONDOWN | pygame.JOYBUTTONUP:
                 self.SendButton(newEvent)
-                pass
 
             # Dealing with a DPad
             case pygame.JOYHATMOTION:
                 self.SendJoyPad(newEvent)
                 display.Update_Display2(creep=self.creepMode, reverse=self.reverseMode)
+
+            case _:
+                print(f"event {event} not accounted for")
 
         display.Controller_Display(newEvent)
 
@@ -177,9 +179,9 @@ class XbeeControl:
             # joystick, filling up the list without needing to create them manually.
             joy = pygame.joystick.Joystick(newEvent.device_index)
             self.joysticks[joy.get_instance_id()] = joy
-            if joy.get_name().lower() == self.settings['peripherals']['drive_base_name']:
+            if joy.get_name() == self.settings['peripherals']['drive_base_name']:
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
-            elif joy.get_name().lower() == self.settings['peripherals']['arm_name']:
+            elif joy.get_name() == self.settings['peripherals']['arm_name']:
                 self.instance_id_values_map[joy.get_instance_id()] = "n64"
             print(f"Joystick {joy.get_instance_id()} connencted")
 
