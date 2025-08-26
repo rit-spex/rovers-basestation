@@ -74,7 +74,7 @@ class XbeeControl:
             self.xbee_device = XBeeDevice(self.PORT, self.BAUD_RATE)
             self.xbee_device.open()
             self.remote_xbee = RemoteXBeeDevice(
-                self.xbee_device, XBee64BitAddress.from_hex_string("0013A20041B1D309")
+                self.xbee_device, XBee64BitAddress.from_hex_string("0013A200423A7DDD")
             )
 
             # self.XbeeCom = serial.Serial(self.PORT,

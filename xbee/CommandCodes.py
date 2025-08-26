@@ -28,13 +28,13 @@ class CONSTANTS:
 
             AXIS_LX = 0
             AXIS_LY = 1
-            AXIS_RX = 2
-            AXIS_RY = 3
+            AXIS_RX = 5
+            AXIS_RY = 4
 
         # these are treated like buttons for transfer msgs but are classified as axis
         class TRIGGER:
-            AXIS_LT = 4
-            AXIS_RT = 5
+            AXIS_LT = 2
+            AXIS_RT = 3
 
         class BUTTONS:
             SIZE_BUTTON_IN_BITS = 2
