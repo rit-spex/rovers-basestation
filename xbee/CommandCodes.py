@@ -2,10 +2,42 @@ class CONSTANTS:
     # message to send to show start of new values
     START_MESSAGE = b'\xDE'
     QUIT_MESSAGE = b'\xFE'
+
     # message order:
     # byte Axis
     # 2 bits Trigger
     # 2 bits Buttons
+
+    class CONVERSION:
+        NS_PER_MS = 1_000_000
+        NS_PER_S = 1_000_000_000
+        
+        ONE_HUNDRED_MS_TO_NS = 100_000_000
+        FIVE_HUNDRED_MS_TO_NS = 500_000_000
+    class HEARTBEAT:
+        MESSAGE = b'\xAA'  # Heartbeat signal identifier
+        MESSAGE_LENGTH = 3  # Length of heartbeat message in bytes
+
+        INTERVAL = 1_000_000_000  # 1 second heartbeat interval
+        # Heartbeat consists of 1 byte identifier + 2 bytes timestamp
+    
+    class TIMING:
+        # Timing constants for various operations (in nanoseconds)
+        UPDATE_FREQUENCY = 40_000_000  # 40ms update frequency
+        DEADBAND_THRESHOLD = 0.10  # Controller deadband threshold
+    
+    class COMMUNICATION:
+        # Communication settings
+        DEFAULT_PORT = "/dev/ttyUSB0"
+        DEFAULT_BAUD_RATE = 230400
+        FALLBACK_BAUD_RATE = 921600
+        REMOTE_XBEE_ADDRESS = "0013A200423A7DDD"
+    
+    class CONTROLLER_MODES:
+        # Controller mode multipliers
+        NORMAL_MULTIPLIER = 100
+        CREEP_MULTIPLIER = 20
+        REVERSE_MULTIPLIER = -100  # Will be applied to normal/creep multiplier
 
     class XBOX:
         # number of processed buttons and axes
