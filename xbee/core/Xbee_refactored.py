@@ -9,8 +9,8 @@ from pygame.event import Event
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress # idk if i know what this is
 
 # Import from parent dir (shared modules)
-from ..CommandCodes import CONSTANTS
-from ..JoystickFeedback import Display
+from .CommandCodes import CONSTANTS
+from .JoystickFeedback import Display
 
 # Import from current dir (core modules)
 from .heartbeat import HeartbeatManager

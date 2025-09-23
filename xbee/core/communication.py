@@ -5,7 +5,7 @@ Handles the protocol msg creation and data packing.
 
 from typing import Dict, List
 
-from ..CommandCodes import CONSTANTS
+from .CommandCodes import CONSTANTS
 
 class MessageFormatter:
     """
@@ -29,17 +29,17 @@ class MessageFormatter:
         Returns:
             List[int]: Formatted msg data
         """
-        data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
-        
+        data = [int.from_bytes(CONSTANTS.START_MESSAGE, 'big')]
+
         if not reverse_mode:
             # Send regular mode - left joystick is left, right joystick is right
-            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY, b'\x64')))
-            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY, b'\x64')))
+            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY, b'\x64'), 'big'))
+            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY, b'\x64'), 'big'))
         else:
             # Invert controller - left joystick is right, right joystick is left
-            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY, b'\x64')))
-            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY, b'\x64')))
-            
+            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY, b'\x64'), 'big'))
+            data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY, b'\x64'), 'big'))
+
         # Button data into bytes
         button_byte_1 = self._pack_xbox_buttons_1(values)
         button_byte_2 = self._pack_xbox_buttons_2(values)
@@ -59,7 +59,7 @@ class MessageFormatter:
         Returns:
             List[int]: Formatted msg data
         """
-        data = [int.from_bytes(CONSTANTS.START_MESSAGE)]
+        data = [int.from_bytes(CONSTANTS.START_MESSAGE, 'big')]
         
         # Pack N64 button data
         button_byte_1 = self._pack_n64_buttons_1(values)
@@ -258,7 +258,7 @@ class CommunicationManager:
             return False
             
         try:
-            data = bytearray([int.from_bytes(CONSTANTS.QUIT_MESSAGE)])
+            data = bytearray([int.from_bytes(CONSTANTS.QUIT_MESSAGE, 'big')])
             print(f"Telling the rover to quit: {data}")
             self.xbee_device.send_data(self.remote_xbee, data)
             return True

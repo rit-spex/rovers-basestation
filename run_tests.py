@@ -9,8 +9,8 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
-PYTEST_PATH = os.path.join(REPO_ROOT, 'xbee', 'tests', 'test_system_pytest.py')
-HUMAN_PATH = os.path.join(REPO_ROOT, 'xbee', 'tests', 'test_system_human.py')
+PYTEST_PATH = "test_system_pytest.py"
+HUMAN_PATH = "test_system_human.py"
 
 def run_pytest():
     env = os.environ.copy()
@@ -20,7 +20,7 @@ def run_pytest():
 
     print(f"Running pytest for: {PYTEST_PATH}\n")
 
-    cmd = [sys.executable, '-m', 'pytest', 'xbee/tests/test_system_pytest.py']
+    cmd = [sys.executable, '-m', 'pytest', PYTEST_PATH]
     proc = subprocess.run(cmd, env=env)
     return proc.returncode == 0
 
@@ -30,7 +30,7 @@ def run_human():
         env['PYTHONPATH'] = os.pathsep.join(filter(None, [REPO_ROOT, env.get('PYTHONPATH', '')]))
 
     print(f"Running human test script: {HUMAN_PATH}\n")
-    cmd = [sys.executable, '-m', 'xbee.tests.test_system_human']
+    cmd = [sys.executable, HUMAN_PATH]
     proc = subprocess.run(cmd, env=env)
     return proc.returncode == 0
 

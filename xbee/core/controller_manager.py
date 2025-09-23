@@ -7,7 +7,7 @@ import pygame
 from typing import Dict, Optional
 from pygame.event import Event
 
-from ..CommandCodes import CONSTANTS
+from .CommandCodes import CONSTANTS
 
 class ControllerState:
     """
@@ -248,7 +248,7 @@ class InputProcessor:
         
         # Update controller state
         self.controller_manager.controller_state.update_value(
-            controller_type, event.axis, new_value.to_bytes(1))
+            controller_type, event.axis, new_value.to_bytes(1,'big'))
             
     def process_trigger_axis(self, event: Event) -> None:
         """

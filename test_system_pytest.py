@@ -3,10 +3,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 import pytest
 
-from ..CommandCodes import CONSTANTS
-from ..core.heartbeat import HeartbeatTester, HeartbeatManager
-from ..core.controller_manager import ControllerState, ControllerManager
-from ..core.communication import MessageFormatter, CommunicationManager
+from xbee.core.CommandCodes import CONSTANTS
+from xbee.core.heartbeat import HeartbeatTester, HeartbeatManager
+from xbee.core.controller_manager import ControllerState, ControllerManager
+from xbee.core.communication import MessageFormatter, CommunicationManager
 
 def test_constants_and_enums():
     # Timing constants
@@ -135,7 +135,7 @@ def test_integration_full_flow(manager, formatter):
     fake_instance_id = 1
     manager.instance_id_values_map[fake_instance_id] = "xbox"
 
-    from ..core.controller_manager import InputProcessor
+    from xbee.core.controller_manager import InputProcessor
     from pygame.event import Event
     from typing import cast
     processor = InputProcessor(manager)

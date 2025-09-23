@@ -7,10 +7,10 @@ import time
 from unittest.mock import Mock
 from typing import Any, cast
 
-from ..CommandCodes import CONSTANTS
-from ..core.heartbeat import HeartbeatTester, HeartbeatManager
-from ..core.controller_manager import ControllerState, ControllerManager
-from ..core.communication import MessageFormatter, CommunicationManager
+from xbee.core.CommandCodes import CONSTANTS
+from xbee.core.heartbeat import HeartbeatTester, HeartbeatManager
+from xbee.core.controller_manager import ControllerState, ControllerManager
+from xbee.core.communication import MessageFormatter, CommunicationManager
 
 class XBeeSystemTester:
     """
@@ -172,7 +172,7 @@ class XBeeSystemTester:
             xbox_message = formatter.create_xbox_message(mock_xbox_values)
             assert len(xbox_message) >= 5  # Start byte + 2 axis + 2 button bytes
             print("✓ Xbox message formatting working")
-            
+
             # Test N64 msg creation
             n64_message = formatter.create_n64_message(mock_n64_values)
             assert len(n64_message) >= 5  # Start byte + 4 button bytes
@@ -256,7 +256,7 @@ class XBeeSystemTester:
             manager.instance_id_values_map[fake_instance_id] = "xbox"
 
             # Use InputProcessor to exercise axis processing which updates manager.controller_state
-            from ..core.controller_manager import InputProcessor
+            from xbee.core.controller_manager import InputProcessor
             processor = InputProcessor(manager)
 
             # Create a fake axis event object with required attributes
@@ -297,7 +297,7 @@ class XBeeSystemTester:
             message = formatter.create_combined_message(xbox_values, n64_values)
 
             # Verify message is valid
-            if len(message) > 0 and message[0] == int.from_bytes(CONSTANTS.START_MESSAGE):
+            if len(message) > 0 and message[0] == int.from_bytes(CONSTANTS.START_MESSAGE, 'big'):
                 print("✓ Component integration successful")
                 print(f"  Generated message length: {len(message)} bytes")
                 print(f"  Message preview: {message[:10].hex()}")
