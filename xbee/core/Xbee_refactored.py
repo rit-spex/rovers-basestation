@@ -6,7 +6,18 @@ import os
 import time
 import pygame
 from pygame.event import Event
-from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress # idk if i know what this is
+
+# Try to import XBee libraries. Uncomment stuff around and indent if fail or something
+# try:
+from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
+XBEE_AVAILABLE = True
+# except ImportError:
+#     print("XBee libraries not available")
+#     XBEE_AVAILABLE = False
+#     # Create dummy classes for when XBee is not available
+#     XBeeDevice = None
+#     RemoteXBeeDevice = None
+#     XBee64BitAddress = None
 
 # Import from parent dir (shared modules)
 from .CommandCodes import CONSTANTS
@@ -37,7 +48,7 @@ class XbeeControlRefactored:
         self.input_processor = InputProcessor(self.controller_manager)
         
         # Init XBee comms
-        self.xbee_enabled = True
+        self.xbee_enabled = XBEE_AVAILABLE
         self._init_xbee_communication()
         
         # Timing config
@@ -75,7 +86,7 @@ class XbeeControlRefactored:
                 self.heartbeat_manager = HeartbeatManager()
                 self.communication_manager = CommunicationManager()
         else:
-            # print("Bruh") D -----------------------------
+            print("XBee libraries not available - running in simulation mode")
             self.heartbeat_manager = HeartbeatManager()
             self.communication_manager = CommunicationManager()
     
@@ -112,6 +123,7 @@ class XbeeControlRefactored:
         """
         should_quit = self.controller_manager.handle_hotplug_event(event)
         if should_quit:
+            print("Controller hotplug event triggered quit")
             self.quit = True # would be a good meme REM ---------
 
     def _handle_axis_motion(self, event: Event):
@@ -137,6 +149,7 @@ class XbeeControlRefactored:
         
         # If quit button then death
         if self.controller_manager.should_quit_on_button(event):
+            print(f"Quit button pressed on controller {event.instance_id}")
             self.quit = True
     
     def _handle_joypad_motion(self, event: Event):
@@ -226,28 +239,34 @@ def main():
     
     try:
         while not xbee_control.quit:
-            # Check if it's time to process an update
-            if timer + xbee_control.frequency > time.time_ns():
-                # Process events only if we are in the update window
+            current_time = time.time_ns()
+            
+            # Check if enough time has passed for the next update
+            if current_time >= timer + xbee_control.frequency:
+                # Process pygame events
                 for event in pygame.event.get():
-                    xbee_control.send_command(event)
                     if event.type == pygame.QUIT:
+                        print("Pygame QUIT event received")
                         xbee_control.quit = True
+                    else:
+                        xbee_control.send_command(event)
+                        display.Controller_Display(event)  # Pass events to display for joystick tracking
 
-            # If this literally blows up cpu uncomment:
-            # time.sleep(0.001)
-            
-            # Send updates and handle heartbeat
-            xbee_control.update_info()
-            
-            # Update display
-            display.Update_Display2(
-                creep=xbee_control.creep_mode, 
-                reverse=xbee_control.reverse_mode
-            )
-            
-            # Reset timer for next cycle
-            timer = time.time_ns()
+                # Send updates and handle heartbeat
+                xbee_control.update_info()
+                
+                # Update display
+                display.Update_Display2(
+                    creep=xbee_control.creep_mode, 
+                    reverse=xbee_control.reverse_mode
+                )
+                display.Update_Display()  # Actually render the display
+                
+                # Reset timer for next cycle
+                timer = current_time
+
+            # Small sleep to prevent CPU spinning
+            time.sleep(0.001)
             
     except KeyboardInterrupt:
         print("\nShutdown by user")
@@ -261,6 +280,7 @@ def main():
         print("Quitting - Now cleaning...")
         xbee_control.send_quit_message()
         xbee_control.cleanup()
+        pygame.display.quit()  # Close the display window
         pygame.quit()
         print("Cleanup complete")
 

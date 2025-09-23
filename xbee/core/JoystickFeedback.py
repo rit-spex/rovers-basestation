@@ -54,10 +54,7 @@ class Display:
             self.text_print.indent()
 
             for i in range(axes):
-                try:
-                    axis = self.axis[0][i]
-                except:
-                    break
+                axis = joystick.get_axis(i)
                 self.text_print.tprint(f"Axis {i} value: {axis:>6.3f}")
             self.text_print.unindent()
 
@@ -122,8 +119,6 @@ class Display:
             self.axis[0][newEvent.dict['axis']] = newEvent.dict['value']
 
         self.Update_Display()
-
-
 class TextPrint:
     def __init__(self, screen):
         self.reset()
