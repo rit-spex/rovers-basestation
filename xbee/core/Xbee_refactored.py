@@ -6,27 +6,30 @@ import os
 import time
 import pygame
 from pygame.event import Event
+import threading
 
-# Try to import XBee libraries. Uncomment stuff around and indent if fail or something
-# try:
-from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
-XBEE_AVAILABLE = True
-# except ImportError:
-#     print("XBee libraries not available")
-#     XBEE_AVAILABLE = False
-#     # Create dummy classes for when XBee is not available
-#     XBeeDevice = None
-#     RemoteXBeeDevice = None
-#     XBee64BitAddress = None
+# Try to import XBee libraries
+try:
+    from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
+    XBEE_AVAILABLE = True
+except ImportError:
+    print("XBee libraries not available - simulation mode will be used")
+    XBEE_AVAILABLE = False
+    # Create dummy classes for when XBee is not available
+    XBeeDevice = None
+    RemoteXBeeDevice = None
+    XBee64BitAddress = None
 
 # Import from parent dir (shared modules)
 from .CommandCodes import CONSTANTS
-from .JoystickFeedback import Display
+from .tkinter_display import TkinterDisplay
 
 # Import from current dir (core modules)
 from .heartbeat import HeartbeatManager
 from .controller_manager import ControllerManager, InputProcessor
 from .communication import CommunicationManager
+from .udp_communication import SimulationCommunicationManager
+from .message_system import message_codec
 
 class XbeeControlRefactored:
     """
@@ -47,20 +50,25 @@ class XbeeControlRefactored:
         self.controller_manager = ControllerManager()
         self.input_processor = InputProcessor(self.controller_manager)
         
-        # Init XBee comms
-        self.xbee_enabled = XBEE_AVAILABLE
+        # Init XBee comms - disabled if in simulation mode
+        self.simulation_mode = CONSTANTS.SIMULATION_MODE
+        self.xbee_enabled = XBEE_AVAILABLE and not self.simulation_mode
         self._init_xbee_communication()
         
         # Timing config
         self.frequency = CONSTANTS.TIMING.UPDATE_FREQUENCY
         self.last_message = bytearray()
         
+        # Telemetry system
+        self.telemetry_data = {}
+        self._setup_telemetry_handlers()
+        
     def _init_xbee_communication(self):
         """
         Initialize XBee comms components.
         """
 
-        if self.xbee_enabled:
+        if self.xbee_enabled and XBEE_AVAILABLE and XBeeDevice is not None:
             try:
                 port = CONSTANTS.COMMUNICATION.DEFAULT_PORT
                 baud_rate = CONSTANTS.COMMUNICATION.DEFAULT_BAUD_RATE
@@ -68,10 +76,13 @@ class XbeeControlRefactored:
                 self.xbee_device = XBeeDevice(port, baud_rate)
                 self.xbee_device.open()
                 
-                self.remote_xbee = RemoteXBeeDevice(
-                    self.xbee_device, 
-                    XBee64BitAddress.from_hex_string(CONSTANTS.COMMUNICATION.REMOTE_XBEE_ADDRESS)
-                )
+                if RemoteXBeeDevice is not None and XBee64BitAddress is not None:
+                    self.remote_xbee = RemoteXBeeDevice(
+                        self.xbee_device, 
+                        XBee64BitAddress.from_hex_string(CONSTANTS.COMMUNICATION.REMOTE_XBEE_ADDRESS)
+                    )
+                else:
+                    raise ImportError("XBee classes not properly imported")
                 
                 # Init managers with XBee devices
                 self.heartbeat_manager = HeartbeatManager(self.xbee_device, self.remote_xbee)
@@ -81,14 +92,49 @@ class XbeeControlRefactored:
                 
             except Exception as e:
                 print(f"Failed to init XBee communication: {e}")
-                # Should just like poof everything
-                self.xbee_enabled = False # this better work D -------------------------------------------
+                # Fall back to simulation mode
+                self.xbee_enabled = False
                 self.heartbeat_manager = HeartbeatManager()
-                self.communication_manager = CommunicationManager()
+                self.communication_manager = SimulationCommunicationManager()
         else:
-            print("XBee libraries not available - running in simulation mode")
+            if self.simulation_mode:
+                print("SIMULATION MODE - Using UDP communication for testing")
+            else:
+                print("XBee libraries not available - running in simulation mode")
             self.heartbeat_manager = HeartbeatManager()
-            self.communication_manager = CommunicationManager()
+            self.communication_manager = SimulationCommunicationManager()
+            
+    def _setup_telemetry_handlers(self):
+        """
+        Setup telemetry data handlers for simulation mode.
+        """
+        # Only simulation communication manager has this method
+        try:
+            # Use getattr with default to avoid type checker issues
+            register_handler = getattr(self.communication_manager, 'register_telemetry_handler', None)
+            if register_handler:
+                register_handler(self._handle_telemetry_data)
+        except (AttributeError, TypeError):
+            # Regular CommunicationManager doesn't have telemetry handlers
+            pass
+            
+    def _handle_telemetry_data(self, telemetry: dict):
+        """
+        Handle received telemetry data.
+        
+        Args:
+            telemetry: Telemetry data dictionary
+        """
+        self.telemetry_data.update(telemetry)
+        
+    def get_telemetry_data(self) -> dict:
+        """
+        Get current telemetry data.
+        
+        Returns:
+            Dictionary of telemetry data
+        """
+        return self.telemetry_data.copy()
     
     def send_command(self, new_event: Event):
         """
@@ -217,72 +263,130 @@ class XbeeControlRefactored:
         """
         return self.controller_manager.reverse_mode
 
+def _process_controller_events(xbee_control, display):
+    """
+    Process pygame controller events and update display.
+    """
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            print("Pygame QUIT event received")
+            xbee_control.quit = True
+        else:
+            xbee_control.send_command(event)
+            
+            # Update display with controller info
+            if event.type == pygame.JOYDEVICEADDED:
+                controller = pygame.joystick.Joystick(event.device_index)
+                controller.init()
+                controller_info = {
+                    'name': controller.get_name(),
+                    'guid': controller.get_guid(),
+                    'id': controller.get_instance_id()
+                }
+                display.update_controller_display(controller.get_instance_id(), controller_info)
+
+def _update_display_data(xbee_control, display, update_count):
+    """
+    Update all display data with current system state.
+    """
+    # Update display with current status
+    display.update_modes(
+        creep=xbee_control.creep_mode, 
+        reverse=xbee_control.reverse_mode
+    )
+    display.update_communication_status(xbee_control.xbee_enabled, update_count)
+    
+    # Update controller values if available
+    if hasattr(xbee_control.controller_manager, 'controller_state'):
+        xbox_values = xbee_control.controller_manager.controller_state.get_controller_values("xbox")
+        display.update_controller_values(xbox_values)
+        
+    # Update telemetry display
+    telemetry = xbee_control.get_telemetry_data()
+    if telemetry:
+        display.update_telemetry(telemetry)
+
+def _create_control_loop(xbee_control, display):
+    """
+    Create the main control loop function.
+    """
+    def control_loop():
+        timer = time.time_ns()
+        update_count = 0
+        
+        try:
+            while not xbee_control.quit:
+                current_time = time.time_ns()
+                
+                # Check if enough time has passed for the next update
+                if current_time >= timer + xbee_control.frequency:
+                    # Process controller events
+                    _process_controller_events(xbee_control, display)
+
+                    # Send updates and handle heartbeat
+                    xbee_control.update_info()
+                    update_count += 1
+                    
+                    # Update display
+                    _update_display_data(xbee_control, display, update_count)
+                    
+                    # Reset timer for next cycle
+                    timer = current_time
+
+                # Small sleep to prevent CPU spinning
+                time.sleep(0.001)
+                
+        except KeyboardInterrupt:
+            print("\nShutdown by user")
+            xbee_control.quit = True
+            
+        except Exception as e:
+            print(f"\nUnexpected error: {e}")
+            xbee_control.quit = True
+            
+        finally:
+            print("Quitting - Now cleaning...")
+            xbee_control.send_quit_message()
+            xbee_control.cleanup()
+            pygame.quit()
+            print("Cleanup complete")
+            
+    return control_loop
+
 def main():
     """
-    Main for XBee control system.
+    Main for XBee control system with tkinter display.
     """
     # Allow controllers to work in background
     os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
     
-    # Init pygame
+    # Init pygame for only the controller inputs
     pygame.init()
     
     # Create display and control sys
-    display = Display()
+    display = TkinterDisplay()
     xbee_control = XbeeControlRefactored()
     
     print("XBee Control System started - is waiting for input...")
     print(f"Update frequency: {xbee_control.frequency / CONSTANTS.CONVERSION.NS_PER_MS:.1f}ms")
     print(f"Heartbeat interval: {xbee_control.heartbeat_manager.heartbeat_interval / CONSTANTS.CONVERSION.NS_PER_S:.1f}s")
-
-    timer = time.time_ns()
     
+    # Set initial display state
+    display.update_communication_status(xbee_control.xbee_enabled, 0)
+
+    # Create and start control loop in separate thread
+    control_loop = _create_control_loop(xbee_control, display)
+    control_thread = threading.Thread(target=control_loop, daemon=True)
+    control_thread.start()
+    
+    # Run tkinter main loop (blocks until window is closed)
     try:
-        while not xbee_control.quit:
-            current_time = time.time_ns()
-            
-            # Check if enough time has passed for the next update
-            if current_time >= timer + xbee_control.frequency:
-                # Process pygame events
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        print("Pygame QUIT event received")
-                        xbee_control.quit = True
-                    else:
-                        xbee_control.send_command(event)
-                        display.Controller_Display(event)  # Pass events to display for joystick tracking
-
-                # Send updates and handle heartbeat
-                xbee_control.update_info()
-                
-                # Update display
-                display.Update_Display2(
-                    creep=xbee_control.creep_mode, 
-                    reverse=xbee_control.reverse_mode
-                )
-                display.Update_Display()  # Actually render the display
-                
-                # Reset timer for next cycle
-                timer = current_time
-
-            # Small sleep to prevent CPU spinning
-            time.sleep(0.001)
-            
+        display.run()
     except KeyboardInterrupt:
-        print("\nShutdown by user")
         xbee_control.quit = True
-        
-    except Exception as e:
-        print(f"\nUnexpected error: {e}")
-        xbee_control.quit = True
-        
-    finally:
-        print("Quitting - Now cleaning...")
-        xbee_control.send_quit_message()
-        xbee_control.cleanup()
-        pygame.display.quit()  # Close the display window
-        pygame.quit()
-        print("Cleanup complete")
+    
+    # Wait for control thread to finish
+    control_thread.join(timeout=2.0)
 
 if __name__ == "__main__":
     main()
