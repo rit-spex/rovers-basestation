@@ -1,4 +1,7 @@
 class CONSTANTS:
+    # Set to True to run simulator with UDP, False for actual XBee communication
+    SIMULATION_MODE = True  # Change this to False when trying to communicate with real rover
+    
     # message to send to show start of new values
     START_MESSAGE = b'\xDE'
     QUIT_MESSAGE = b'\xFE'
@@ -32,7 +35,13 @@ class CONSTANTS:
         DEFAULT_BAUD_RATE = 230400
         FALLBACK_BAUD_RATE = 921600
         REMOTE_XBEE_ADDRESS = "0013A200423A7DDD"
-    
+        
+        # UDP settings for simulation mode
+        UDP_HOST = "127.0.0.1" # localhost
+        UDP_BASESTATION_PORT = 5000 # Port for basestation to send from
+        UDP_ROVER_PORT = 5001 # Port to send rover commands to
+        UDP_TELEMETRY_PORT = 5002 # Port to receive telemetry data
+
     class CONTROLLER_MODES:
         # Controller mode multipliers
         NORMAL_MULTIPLIER = 100
