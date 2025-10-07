@@ -7,7 +7,7 @@ import pygame
 from typing import Dict, Optional
 from pygame.event import Event
 
-from .CommandCodes import CONSTANTS
+from .command_codes import CONSTANTS
 
 class ControllerState:
     """

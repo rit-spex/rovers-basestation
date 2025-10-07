@@ -8,7 +8,7 @@ import threading
 import json
 import time
 from typing import Dict, Any, Optional, Callable
-from .CommandCodes import CONSTANTS
+from .command_codes import CONSTANTS
 
 
 class UdpMessage:
@@ -151,13 +151,13 @@ class UdpCommunicationManager:
             
         print("UDP communication stopped")
         
-    def send_controller_data(self, xbox_values: Dict[str, bytes], n64_values: Dict[str, bytes], reverse_mode: bool) -> bool:
+    def send_controller_data(self, xbox_values: Dict[Any, Any], n64_values: Dict[Any, Any], reverse_mode: bool) -> bool:
         """
         Send controller data over UDP.
         
         Args:
-            xbox_values: Xbox controller values
-            n64_values: N64 controller values  
+            xbox_values: Xbox controller values (keys can be int constants or strings)
+            n64_values: N64 controller values (keys can be int constants or strings)
             reverse_mode: Whether reverse mode is enabled
             
         Returns:
@@ -339,13 +339,13 @@ class SimulationCommunicationManager:
             self.real_manager = CommunicationManager(xbee_device, remote_xbee)
             print("Real communication manager initialized with XBee")
             
-    def send_controller_data(self, xbox_values: Dict[str, bytes], n64_values: Dict[str, bytes], reverse_mode: bool) -> bool:
+    def send_controller_data(self, xbox_values: Dict[Any, Any], n64_values: Dict[Any, Any], reverse_mode: bool) -> bool:
         """
         Send controller data via appropriate communication method.
         
         Args:
-            xbox_values: Xbox controller values
-            n64_values: N64 controller values
+            xbox_values: Xbox controller values (keys can be int constants or strings)
+            n64_values: N64 controller values (keys can be int constants or strings)
             reverse_mode: Whether reverse mode is enabled
             
         Returns:

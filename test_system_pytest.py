@@ -6,7 +6,7 @@ import socket
 import threading
 import json
 
-from xbee.core.CommandCodes import CONSTANTS
+from xbee.core.command_codes import CONSTANTS
 from xbee.core.heartbeat import HeartbeatTester, HeartbeatManager
 from xbee.core.controller_manager import ControllerState, ControllerManager
 from xbee.core.communication import MessageFormatter, CommunicationManager
@@ -127,6 +127,33 @@ def test_communication_manager_send_and_quit(comm_manager):
 
     quit_result = comm_manager.send_quit_message()
     assert quit_result is True
+
+
+def test_communication_manager_compact_messages(comm_manager):
+    """Test compact message functionality."""
+    # Test basic compact message
+    result = comm_manager.send_compact_message([0xCA, 0x01])
+    assert result is True
+    
+    # Test heartbeat with timestamp
+    result = comm_manager.send_heartbeat(1234)
+    assert result is True
+    
+    # Test status update
+    result = comm_manager.send_status_update(128, 85, 25)
+    assert result is True
+    
+    # Test error code
+    result = comm_manager.send_error_code(42, 1)
+    assert result is True
+    
+    # Test GPS position
+    result = comm_manager.send_gps_position(40.7128, -74.0060)
+    assert result is True
+    
+    # Test sensor reading
+    result = comm_manager.send_sensor_reading(5, 1234)
+    assert result is True
 
 @pytest.fixture
 def manager():
@@ -272,19 +299,32 @@ def test_udp_communication_manager():
     
     # Test UDP manager creation
     udp_manager = UdpCommunicationManager()
+    udp_manager.start()
     
     # Test that sockets are set up
     assert udp_manager.host == CONSTANTS.COMMUNICATION.UDP_HOST
     assert udp_manager.rover_port == CONSTANTS.COMMUNICATION.UDP_ROVER_PORT
     assert udp_manager.telemetry_port == CONSTANTS.COMMUNICATION.UDP_TELEMETRY_PORT
     
+    # Test sending messages
+    xbox_data = {CONSTANTS.XBOX.JOYSTICK.AXIS_LY: b'\x64'}
+    n64_data = {}
+    result = udp_manager.send_controller_data(xbox_data, n64_data, False)
+    assert result is True
+    
+    # Test heartbeat
+    result = udp_manager.send_heartbeat()
+    assert result is True
+    
     # Test statistics
     stats = udp_manager.get_statistics()
     assert 'messages_sent' in stats
     assert 'messages_received' in stats
+    assert stats['messages_sent'] >= 2
     
     # Clean up
     udp_manager.stop()
+    assert udp_manager.running is False
 
 
 def test_mock_rover_simulation():
@@ -305,9 +345,10 @@ def test_mock_rover_simulation():
     assert rover.running is True
     
     # Let it run briefly
-    time.sleep(0.1)
+    time.sleep(0.2)
     
     rover.stop()
+    time.sleep(0.1)  # Give threads time to shutdown
     assert rover.running is False
 
 
@@ -372,9 +413,13 @@ class MockRover:
         Stop the mock rover.
         """
         self.running = False
+        time.sleep(0.05)  # Give threads time to see the flag
         if CONSTANTS.SIMULATION_MODE:
-            self.command_socket.close()
-            self.telemetry_socket.close()
+            try:
+                self.command_socket.close()
+                self.telemetry_socket.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
             
     def _command_loop(self):
         """
@@ -439,11 +484,14 @@ def test_integrated_system():
     udp_manager = UdpCommunicationManager()
     udp_manager.start()
     
+    # Allow time for sockets to setup
+    time.sleep(0.1)
+    
     # Test sending controller data
-    xbox_data = {'axis_ly': b'\x64', 'axis_ry': b'\x64'}
+    xbox_data = {CONSTANTS.XBOX.JOYSTICK.AXIS_LY: b'\x64', CONSTANTS.XBOX.JOYSTICK.AXIS_RY: b'\x64'}
     n64_data = {}
     
-    result = udp_manager.send_controller_data(xbox_data, n64_data, False)
+    result = udp_manager.send_controller_data(xbox_data, n64_data, False)  # type: ignore[arg-type]
     assert result is True
     
     # Test heartbeat
@@ -451,7 +499,7 @@ def test_integrated_system():
     assert result is True
     
     # Allow some time for communication
-    time.sleep(0.5)
+    time.sleep(0.3)
     
     # Check statistics
     stats = udp_manager.get_statistics()
@@ -460,3 +508,4 @@ def test_integrated_system():
     # Clean up
     udp_manager.stop()
     rover.stop()
+    time.sleep(0.1)  # Give cleanup time to finish

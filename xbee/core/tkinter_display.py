@@ -8,7 +8,7 @@ from tkinter import ttk, font
 from typing import Dict, Any
 import threading
 import time
-from .CommandCodes import CONSTANTS
+from .command_codes import CONSTANTS
 
 
 class TkinterDisplay:
@@ -156,7 +156,7 @@ class TkinterDisplay:
         list_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
         list_frame.columnconfigure(0, weight=1)
         
-        self.controller_text = tk.Text(list_frame, height=15, width=50, wrap=tk.WORD)
+        self.controller_text = tk.Text(list_frame, height=40, width=50, wrap=tk.WORD)
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.controller_text.yview)
         self.controller_text.configure(yscrollcommand=scrollbar.set)
         

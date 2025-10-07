@@ -7,7 +7,7 @@ import time
 from unittest.mock import Mock
 from typing import Any, cast
 
-from xbee.core.CommandCodes import CONSTANTS
+from xbee.core.command_codes import CONSTANTS
 from xbee.core.heartbeat import HeartbeatTester, HeartbeatManager
 from xbee.core.controller_manager import ControllerState, ControllerManager
 from xbee.core.communication import MessageFormatter, CommunicationManager
@@ -231,11 +231,128 @@ class XBeeSystemTester:
             else:
                 print("✗ Quit message transmission failed")
                 return False
+            
+            # Test compact messages
+            result = comm_manager.send_compact_message([0xCA, 0x01])
+            if result:
+                print("✓ Compact message transmission successful")
+            else:
+                print("✗ Compact message transmission failed")
+                return False
+            
+            # Test heartbeat with custom timestamp
+            result = comm_manager.send_heartbeat(1234)
+            if result:
+                print("✓ Heartbeat with timestamp successful")
+            else:
+                print("✗ Heartbeat with timestamp failed")
+                return False
                 
             return True
             
         except Exception as e:
             print(f"✗ Communication manager test failed: {e}")
+            return False
+    
+    def test_simulation_mode(self):
+        """
+        Test simulation mode components.
+        """
+        
+        print("\nTesting simulation mode components...")
+        
+        try:
+            from xbee.core.udp_communication import UdpMessage, SimulationCommunicationManager
+            
+            # Test UDP message creation
+            msg_data = {"test": "data", "value": 42}
+            udp_msg = UdpMessage("test_type", msg_data)
+            
+            # Test JSON conversion
+            json_str = udp_msg.to_json()
+            reconstructed = UdpMessage.from_json(json_str)
+            
+            if reconstructed.message_type == "test_type" and reconstructed.data == msg_data:
+                print("✓ UDP message serialization working")
+            else:
+                print("✗ UDP message serialization failed")
+                return False
+            
+            # Test SimulationCommunicationManager
+            sim_manager = SimulationCommunicationManager()
+            
+            if hasattr(sim_manager, 'send_controller_data') and hasattr(sim_manager, 'get_statistics'):
+                print("✓ SimulationCommunicationManager interface correct")
+            else:
+                print("✗ SimulationCommunicationManager missing expected methods")
+                return False
+            
+            # Test statistics
+            stats = sim_manager.get_statistics()
+            if isinstance(stats, dict):
+                print("✓ Statistics retrieval working")
+            else:
+                print("✗ Statistics retrieval failed")
+                return False
+            
+            # Cleanup
+            if hasattr(sim_manager, 'cleanup'):
+                sim_manager.cleanup()
+                
+            return True
+            
+        except Exception as e:
+            print(f"✗ Simulation mode test failed: {e}")
+            return False
+    
+    def test_compact_messages(self):
+        """
+        Test compact message helpers.
+        """
+        
+        print("\nTesting compact message helpers...")
+        
+        try:
+            mock_xbee = Mock()
+            mock_remote = Mock()
+            comm_manager = CommunicationManager(mock_xbee, mock_remote)
+            
+            # Test send_status_update
+            result = comm_manager.send_status_update(128, 85, 25)
+            if result:
+                print("✓ send_status_update working")
+            else:
+                print("✗ send_status_update failed")
+                return False
+            
+            # Test send_error_code
+            result = comm_manager.send_error_code(42, 1)
+            if result:
+                print("✓ send_error_code working")
+            else:
+                print("✗ send_error_code failed")
+                return False
+            
+            # Test send_gps_position
+            result = comm_manager.send_gps_position(40.7128, -74.0060)
+            if result:
+                print("✓ send_gps_position working")
+            else:
+                print("✗ send_gps_position failed")
+                return False
+            
+            # Test send_sensor_reading
+            result = comm_manager.send_sensor_reading(5, 1234)
+            if result:
+                print("✓ send_sensor_reading working")
+            else:
+                print("✗ send_sensor_reading failed")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"✗ Compact message test failed: {e}")
             return False
             
     def test_integration(self):
@@ -323,6 +440,8 @@ class XBeeSystemTester:
             ("Controller State", self.test_controller_state_management),
             ("Message Formatting", self.test_message_formatting),
             ("Communication Manager", self.test_communication_manager),
+            ("Compact Messages", self.test_compact_messages),
+            ("Simulation Mode", self.test_simulation_mode),
             ("Integration", self.test_integration),
         ]
         

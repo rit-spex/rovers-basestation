@@ -9,7 +9,7 @@ import time
 from typing import Dict, List, Type, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from .CommandCodes import CONSTANTS # for future use
+from .command_codes import CONSTANTS # for future use
 
 @dataclass
 class MessageHeader:

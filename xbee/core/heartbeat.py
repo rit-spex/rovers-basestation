@@ -7,7 +7,7 @@ import time
 import struct
 from typing import Optional
 
-from .CommandCodes import CONSTANTS
+from .command_codes import CONSTANTS
 
 class HeartbeatManager:
     """

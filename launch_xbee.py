@@ -11,7 +11,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 try:
-    from xbee.core.Xbee_refactored import main
+    from xbee.core.xbee_refactored import main
     main()
 # I copied and pasted this from stack overflow cause it looked smart:
 except KeyboardInterrupt:

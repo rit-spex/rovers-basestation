@@ -17,12 +17,32 @@ class CONSTANTS:
         
         ONE_HUNDRED_MS_TO_NS = 100_000_000
         FIVE_HUNDRED_MS_TO_NS = 500_000_000
+    
     class HEARTBEAT:
         MESSAGE = b'\xAA'  # Heartbeat signal identifier
         MESSAGE_LENGTH = 3  # Length of heartbeat message in bytes
 
         INTERVAL = 1_000_000_000  # 1 second heartbeat interval
         # Heartbeat consists of 1 byte identifier + 2 bytes timestamp
+    
+    class COMPACT_MESSAGES:
+        # Reserved message IDs (DO NOT USE)
+        CONTROLLER_DATA = 0xDE  # START_MESSAGE
+        QUIT = 0xFE  # QUIT_MESSAGE
+        HEARTBEAT = 0xAA  # Heartbeat
+        
+        # Available message IDs for custom messages
+        STATUS = 0xB0  # System status update
+        ERROR = 0xE0  # Error codes
+        GPS = 0xC0  # GPS position data
+        SENSOR = 0xD0  # Sensor readings
+        
+        # Add your own here! Pick any unused byte value (0x00-0xFF)
+        # Examples:
+        # CAMERA_CONTROL = 0xCA
+        # ARM_POSITION = 0xA0
+        # SCIENCE_DATA = 0xDD
+        # DRIVE_MODE = 0xDB
     
     class TIMING:
         # Timing constants for various operations (in nanoseconds)
@@ -31,7 +51,7 @@ class CONSTANTS:
     
     class COMMUNICATION:
         # Communication settings
-        DEFAULT_PORT = "/dev/ttyUSB0"
+        DEFAULT_PORT = "COM9"
         DEFAULT_BAUD_RATE = 230400
         FALLBACK_BAUD_RATE = 921600
         REMOTE_XBEE_ADDRESS = "0013A200423A7DDD"
@@ -69,13 +89,13 @@ class CONSTANTS:
 
             AXIS_LX = 0
             AXIS_LY = 1
-            AXIS_RX = 5
-            AXIS_RY = 4
+            AXIS_RX = 2
+            AXIS_RY = 3
 
         # these are treated like buttons for transfer msgs but are classified as axis
         class TRIGGER:
-            AXIS_LT = 2
-            AXIS_RT = 3
+            AXIS_LT = 5
+            AXIS_RT = 4
 
         class BUTTONS:
             SIZE_BUTTON_IN_BITS = 2

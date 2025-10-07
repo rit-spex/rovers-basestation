@@ -21,7 +21,7 @@ except ImportError:
     XBee64BitAddress = None
 
 # Import from parent dir (shared modules)
-from .CommandCodes import CONSTANTS
+from .command_codes import CONSTANTS
 from .tkinter_display import TkinterDisplay
 
 # Import from current dir (core modules)

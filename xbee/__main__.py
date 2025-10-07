@@ -1,3 +1,3 @@
-from .core.Xbee_refactored import main
+from .core.xbee_refactored import main
 
 main()
