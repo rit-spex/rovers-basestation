@@ -1,0 +1,11 @@
+[Unit]
+Description=autoBoot systemd service
+
+[Service]
+Type=simple
+Environment=HOME=/home/rover
+WorkingDirectory=/home/rover/rovers-basestation
+ExecStart= /bin/bash /home/rover/rovers-basestation/autoBoot/autoBoot.sh
+#ExecStart=/usr/bin/python3 /home/savage22/ros/rovers-ros/src/externalScript/autoBoot.py
+[Install]
+WantedBy=multi-user.target
