@@ -119,6 +119,7 @@ class Display:
             self.axis[0][newEvent.dict['axis']] = newEvent.dict['value']
 
         self.Update_Display()
+
 class TextPrint:
     def __init__(self, screen):
         self.reset()
