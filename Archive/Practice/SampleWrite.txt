@@ -1,6 +1,0 @@
-Module A, Element 0 : Packet A 
-Module A, Element 1 : 1.87545 
-Module A, Element 2 : Packet B 
-Module B, Element 0 : Packet C 
-Module B, Element 1 : 1.875456 
-Module B, Element 2 : Packet D 

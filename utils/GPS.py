@@ -17,3 +17,4 @@ while(True):
     i2c.readfrom_into(device, buffer)
     print(buffer)
     time.sleep(0.5)
+

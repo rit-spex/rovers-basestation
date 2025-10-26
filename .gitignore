@@ -1,4 +1,15 @@
+# Virtualenv
 .venv
+# Node lock
 package-lock.json
+# Nix shell
 shell.nix
-*/***/__pycache__
+
+# Python bytecode caches
+__pycache__/
+*.py[cod]
+*.pyc
+*$py.class
+
+# Pytest cache
+.pytest_cache/
