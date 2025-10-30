@@ -16,7 +16,6 @@ class MessageFormatter:
         """
         Init the msg formatter.
         """
-        ...
         
     def create_xbox_message(self, values: Dict, reverse_mode: bool = False) -> List[int]:
         """
@@ -70,30 +69,6 @@ class MessageFormatter:
         data.extend([button_byte_1, button_byte_2, button_byte_3, button_byte_4])
         
         return data
-        
-    def create_combined_message(self, xbox_values: Dict, n64_values: Dict, reverse_mode: bool = False) -> bytearray:
-        """
-        Create combined Xbox and N64 msg for transmission.
-        
-        Args:
-            xbox_values: Xbox controller vals
-            n64_values: N64 controller vals  
-            reverse_mode: Whether reverse mode is enabled
-            
-        Returns:
-            bytearray: Complete formatted message
-        """
-        data = []
-        
-        # Xbox controller data
-        xbox_data = self.create_xbox_message(xbox_values, reverse_mode)
-        data.extend(xbox_data)
-        
-        # N64 controller data
-        n64_data = self.create_n64_message(n64_values)
-        data.extend(n64_data)
-        
-        return bytearray(data)
         
     def _pack_xbox_buttons_1(self, values: Dict) -> int:
         """

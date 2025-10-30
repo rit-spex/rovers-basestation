@@ -28,9 +28,16 @@ class CONSTANTS:
     class COMPACT_MESSAGES:
         # Reserved message IDs (DO NOT USE)
         CONTROLLER_DATA = 0xDE  # START_MESSAGE
+        N64_ID = 0xDF   # The Id for the N64
+        Xbox_ID = 0xF0  # The Id for the Xbox
         QUIT = 0xFE  # QUIT_MESSAGE
         HEARTBEAT = 0xAA  # Heartbeat
         
+        # enum of data types in bits
+        UINT_2 = 2
+        UINT_8 = 8
+        UINT_16 = 16
+
         # Available message IDs for custom messages
         STATUS = 0xB0  # System status update
         ERROR = 0xE0  # Error codes
