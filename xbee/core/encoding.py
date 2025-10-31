@@ -13,17 +13,21 @@ class BaseStationCommunication:
             },
             CONSTANTS.COMPACT_MESSAGES.N64_ID: { # byte 0
                 "name": "n64",
-                "values": {"a": CONSTANTS.COMPACT_MESSAGES.UINT_2, "b": CONSTANTS.COMPACT_MESSAGES.UINT_2, "L": CONSTANTS.COMPACT_MESSAGES.UINT_2, "R": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 1
+                "values": {"A": CONSTANTS.COMPACT_MESSAGES.UINT_2, "B": CONSTANTS.COMPACT_MESSAGES.UINT_2, "L": CONSTANTS.COMPACT_MESSAGES.UINT_2, "R": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 1
                         "C_UP": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_DOWN": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_LEFT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_RIGHT": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 2
                         "DP_UP": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_DOWN": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_LEFT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_RIGHT": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 3
                         "Z": CONSTANTS.COMPACT_MESSAGES.UINT_2} # byte 4
             },
-            CONSTANTS.COMPACT_MESSAGES.Xbox_ID: { # byte 0
+            CONSTANTS.COMPACT_MESSAGES.XBOX_ID: { # byte 0
                 "name": "xbox",
-                "values": {"ly": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 1
-                           "ry": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 2
+                "values": {"LY": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 1
+                           "RY": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 2
                             "A": CONSTANTS.COMPACT_MESSAGES.UINT_2, "B": CONSTANTS.COMPACT_MESSAGES.UINT_2, "X": CONSTANTS.COMPACT_MESSAGES.UINT_2, "Y": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 3
                             "LB": CONSTANTS.COMPACT_MESSAGES.UINT_2, "RB": CONSTANTS.COMPACT_MESSAGES.UINT_2, "LT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "RT": CONSTANTS.COMPACT_MESSAGES.UINT_2} # byte 4
+            },
+            CONSTANTS.COMPACT_MESSAGES.QUIT_MESSAGE: { # byte 0
+                "name": "quit",
+                "values": {}
             }
         }
 

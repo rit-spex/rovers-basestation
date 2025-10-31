@@ -30,15 +30,15 @@ from .controller_manager import ControllerManager, InputProcessor
 from .communication import CommunicationManager
 from .udp_communication import SimulationCommunicationManager
 
-class XbeeControlRefactored:
+class BaseStationCommunication:
     """
-    XBee control system but like modular.
+    BaseStation control system but like modular.
     Separates concerns into specific managers cause organization.
     """
     
     def __init__(self):
         """
-        Initializes the XBee control sys with all its modules.
+        Initializes the BaseStation control sys with all its modules.
         """
 
         # Core flags
@@ -314,7 +314,7 @@ def _update_display_data(xbee_control, display, update_count):
     if telemetry:
         display.update_telemetry(telemetry)
 
-def _create_control_loop(xbee_control, display):
+def _create_control_loop(baseStation, display):
     """
     Create the main control loop function.
     """
@@ -323,21 +323,21 @@ def _create_control_loop(xbee_control, display):
         update_count = 0
         
         try:
-            while not xbee_control.quit:
+            while not baseStation.quit:
                 current_time = time.time_ns()
                 
                 # Check if enough time has passed for the next update
-                if current_time >= timer + xbee_control.frequency:
+                if current_time >= timer + baseStation.frequency:
                     # Process controller events
-                    _process_controller_events(xbee_control, display)
+                    _process_controller_events(baseStation, display)
 
                     # Send updates and handle heartbeat
-                    xbee_control.update_info()
+                    baseStation.update_info()
                     update_count += 1
                     
                     # Update display
-                    _update_display_data(xbee_control, display, update_count)
-                    
+                    _update_display_data(baseStation, display, update_count)
+
                     # Reset timer for next cycle
                     timer = current_time
 
@@ -346,16 +346,16 @@ def _create_control_loop(xbee_control, display):
                 
         except KeyboardInterrupt:
             print("\nShutdown by user")
-            xbee_control.quit = True
-            
+            baseStation.quit = True
+
         except Exception as e:
             print(f"\nUnexpected error: {e}")
-            xbee_control.quit = True
-            
+            baseStation.quit = True
+
         finally:
             print("Quitting - Now cleaning...")
-            xbee_control.send_quit_message()
-            xbee_control.cleanup()
+            baseStation.send_quit_message()
+            baseStation.cleanup()
             pygame.quit()
             print("Cleanup complete")
             
@@ -373,17 +373,17 @@ def main():
     
     # Create display and control sys
     display = TkinterDisplay()
-    xbee_control = XbeeControlRefactored()
-    
-    print("XBee Control System started - is waiting for input...")
-    print(f"Update frequency: {xbee_control.frequency / CONSTANTS.CONVERSION.NS_PER_MS:.1f}ms")
-    print(f"Heartbeat interval: {xbee_control.heartbeat_manager.heartbeat_interval / CONSTANTS.CONVERSION.NS_PER_S:.1f}s")
-    
+    baseStation = BaseStationCommunication()
+
+    print("BaseStation Control System started - is waiting for input...")
+    print(f"Update frequency: {baseStation.frequency / CONSTANTS.CONVERSION.NS_PER_MS:.1f}ms")
+    print(f"Heartbeat interval: {baseStation.heartbeat_manager.heartbeat_interval / CONSTANTS.CONVERSION.NS_PER_S:.1f}s")
+
     # Set initial display state
-    display.update_communication_status(xbee_control.xbee_enabled, 0)
+    display.update_communication_status(baseStation.xbee_enabled, 0)
 
     # Create and start control loop in separate thread
-    control_loop = _create_control_loop(xbee_control, display)
+    control_loop = _create_control_loop(baseStation, display)
     control_thread = threading.Thread(target=control_loop, daemon=True)
     control_thread.start()
     
@@ -391,8 +391,8 @@ def main():
     try:
         display.run()
     except KeyboardInterrupt:
-        xbee_control.quit = True
-    
+        baseStation.quit = True
+
     # Wait for control thread to finish
     control_thread.join(timeout=2.0)
 

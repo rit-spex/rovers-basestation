@@ -29,7 +29,7 @@ class CONSTANTS:
         # Reserved message IDs (DO NOT USE)
         CONTROLLER_DATA = 0xDE  # START_MESSAGE
         N64_ID = 0xDF   # The Id for the N64
-        Xbox_ID = 0xF0  # The Id for the Xbox
+        XBOX_ID = 0xF0  # The Id for the Xbox
         QUIT = 0xFE  # QUIT_MESSAGE
         HEARTBEAT = 0xAA  # Heartbeat
         
@@ -104,7 +104,7 @@ class CONSTANTS:
             AXIS_LT = 5
             AXIS_RT = 4
 
-        class BUTTONS:
+        class BUTTON:
             SIZE_BUTTON_IN_BITS = 2
             NUM_BUTTONS_PER_BYTE = 8 / SIZE_BUTTON_IN_BITS
 
@@ -152,7 +152,7 @@ class CONSTANTS:
             AXIS_X = 0
             AXIS_Y = 1
 
-        class BUTTONS:
+        class BUTTON:
             SIZE_BUTTON_IN_BITS = 2
             NUM_BUTTONS_PER_BYTE = 8 / SIZE_BUTTON_IN_BITS
 

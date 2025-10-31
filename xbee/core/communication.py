@@ -40,9 +40,23 @@ class MessageFormatter:
             data.append(int.from_bytes(values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY, b'\x64'), 'big'))
 
         # Button data into bytes
-        button_byte_1 = self._pack_xbox_buttons_1(values)
-        button_byte_2 = self._pack_xbox_buttons_2(values)
+
         
+
+        # byte 1
+        button_byte_1 = 0
+        button_byte_1 += 1 * values.get(CONSTANTS.XBOX.BUTTONS.A + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_1 += 4 * values.get(CONSTANTS.XBOX.BUTTONS.B + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_1 += 16 * values.get(CONSTANTS.XBOX.BUTTONS.X + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_1 += 64 * values.get(CONSTANTS.XBOX.BUTTONS.Y + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+
+        # byte 2
+        button_byte_2 = 0
+        button_byte_2 += 1 * values.get(CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_2 += 4 * values.get(CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_2 += 16 * values.get(CONSTANTS.XBOX.TRIGGER.AXIS_LT, CONSTANTS.XBOX.BUTTONS.OFF)
+        button_byte_2 += 64 * values.get(CONSTANTS.XBOX.TRIGGER.AXIS_RT, CONSTANTS.XBOX.BUTTONS.OFF)
+
         data.append(button_byte_1)
         data.append(button_byte_2)
         
@@ -61,300 +75,36 @@ class MessageFormatter:
         data = [int.from_bytes(CONSTANTS.START_MESSAGE, 'big')]
         
         # Pack N64 button data
-        button_byte_1 = self._pack_n64_buttons_1(values)
-        button_byte_2 = self._pack_n64_buttons_2(values) 
-        button_byte_3 = self._pack_n64_buttons_3(values)
-        button_byte_4 = self._pack_n64_buttons_4(values)
-        
+
+        # byte 1
+        button_byte_1 = 0
+        button_byte_1 += 1 * values.get(CONSTANTS.N64.BUTTONS.A, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_1 += 4 * values.get(CONSTANTS.N64.BUTTONS.B, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_1 += 16 * values.get(CONSTANTS.N64.BUTTONS.L, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_1 += 64 * values.get(CONSTANTS.N64.BUTTONS.R, CONSTANTS.N64.BUTTONS.OFF)
+
+        # byte 2
+        button_byte_2 = 0
+        button_byte_2 += 1 * values.get(CONSTANTS.N64.BUTTONS.C_UP, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_2 += 4 * values.get(CONSTANTS.N64.BUTTONS.C_DOWN, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_2 += 16 * values.get(CONSTANTS.N64.BUTTONS.C_LEFT, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_2 += 64 * values.get(CONSTANTS.N64.BUTTONS.C_RIGHT, CONSTANTS.N64.BUTTONS.OFF)
+
+        # byte 3
+        button_byte_3 = 0
+        button_byte_3 += 1 * values.get(CONSTANTS.N64.BUTTONS.DP_UP, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_3 += 4 * values.get(CONSTANTS.N64.BUTTONS.DP_DOWN, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_3 += 16 * values.get(CONSTANTS.N64.BUTTONS.DP_LEFT, CONSTANTS.N64.BUTTONS.OFF)
+        button_byte_3 += 64 * values.get(CONSTANTS.N64.BUTTONS.DP_RIGHT, CONSTANTS.N64.BUTTONS.OFF)
+
+        # byte 4
+        button_byte_4 = 0
+        button_byte_4 += 1 * values.get(CONSTANTS.N64.BUTTONS.Z, CONSTANTS.N64.BUTTONS.OFF)
+
+        # Add more stuff in future if want idk cause like we gotta get all of em and this is spare space
         data.extend([button_byte_1, button_byte_2, button_byte_3, button_byte_4])
         
         return data
-        
-    def _pack_xbox_buttons_1(self, values: Dict) -> int:
-        """
-        Pack first set of Xbox buttons into a byte.
-        
-        Args:
-            values: Xbox controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        # Pack A, B, X, Y buttons (2 bits each)
-        result += 1 * values.get(CONSTANTS.XBOX.BUTTONS.A + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 4 * values.get(CONSTANTS.XBOX.BUTTONS.B + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 16 * values.get(CONSTANTS.XBOX.BUTTONS.X + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 64 * values.get(CONSTANTS.XBOX.BUTTONS.Y + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        return result
-        
-    def _pack_xbox_buttons_2(self, values: Dict) -> int:
-        """
-        Pack second set of Xbox buttons into a byte.
-        
-        Args:
-            values: Xbox controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        # Pack bumpers and triggers (2 bits each)
-        result += 1 * values.get(CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 4 * values.get(CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 16 * values.get(CONSTANTS.XBOX.TRIGGER.AXIS_LT, CONSTANTS.XBOX.BUTTONS.OFF)
-        result += 64 * values.get(CONSTANTS.XBOX.TRIGGER.AXIS_RT, CONSTANTS.XBOX.BUTTONS.OFF)
-        return result
-        
-    def _pack_n64_buttons_1(self, values: Dict) -> int:
-        """
-        Pack first set of N64 buttons into a byte.
-        
-        Args:
-            values: N64 controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        result += 1 * values.get(CONSTANTS.N64.BUTTONS.A, CONSTANTS.N64.BUTTONS.OFF)
-        result += 4 * values.get(CONSTANTS.N64.BUTTONS.B, CONSTANTS.N64.BUTTONS.OFF)
-        result += 16 * values.get(CONSTANTS.N64.BUTTONS.L, CONSTANTS.N64.BUTTONS.OFF)
-        result += 64 * values.get(CONSTANTS.N64.BUTTONS.R, CONSTANTS.N64.BUTTONS.OFF)
-        return result
-        
-    def _pack_n64_buttons_2(self, values: Dict) -> int:
-        """
-        Pack second set of N64 buttons into a byte.
-        
-        Args:
-            values: N64 controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        result += 1 * values.get(CONSTANTS.N64.BUTTONS.C_UP, CONSTANTS.N64.BUTTONS.OFF)
-        result += 4 * values.get(CONSTANTS.N64.BUTTONS.C_DOWN, CONSTANTS.N64.BUTTONS.OFF)
-        result += 16 * values.get(CONSTANTS.N64.BUTTONS.C_LEFT, CONSTANTS.N64.BUTTONS.OFF)
-        result += 64 * values.get(CONSTANTS.N64.BUTTONS.C_RIGHT, CONSTANTS.N64.BUTTONS.OFF)
-        return result
-        
-    def _pack_n64_buttons_3(self, values: Dict) -> int:
-        """
-        Pack third set of N64 buttons into a byte.
-        
-        Args:
-            values: N64 controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        result += 1 * values.get(CONSTANTS.N64.BUTTONS.DP_UP, CONSTANTS.N64.BUTTONS.OFF)
-        result += 4 * values.get(CONSTANTS.N64.BUTTONS.DP_DOWN, CONSTANTS.N64.BUTTONS.OFF)
-        result += 16 * values.get(CONSTANTS.N64.BUTTONS.DP_LEFT, CONSTANTS.N64.BUTTONS.OFF)
-        result += 64 * values.get(CONSTANTS.N64.BUTTONS.DP_RIGHT, CONSTANTS.N64.BUTTONS.OFF)
-        return result
-        
-    def _pack_n64_buttons_4(self, values: Dict) -> int:
-        """
-        Pack fourth set of N64 buttons into a byte.
-        
-        Args:
-            values: N64 controller vals
-            
-        Returns:
-            int: Packed byte val
-        """
-        result = 0
-        result += 1 * values.get(CONSTANTS.N64.BUTTONS.Z, CONSTANTS.N64.BUTTONS.OFF)
-        # Add more stuff in future if want idk cause like we gotta get all of em and this is spare space
-        return result
-        
-    def _unpack_xbox_buttons_1(self, byte_val: int) -> Dict:
-        """
-        Unpack first set of Xbox buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.XBOX.BUTTONS.A + 6] = (byte_val // 1) % 4
-        buttons[CONSTANTS.XBOX.BUTTONS.B + 6] = (byte_val // 4) % 4
-        buttons[CONSTANTS.XBOX.BUTTONS.X + 6] = (byte_val // 16) % 4
-        buttons[CONSTANTS.XBOX.BUTTONS.Y + 6] = (byte_val // 64) % 4
-        return buttons
-        
-    def _unpack_xbox_buttons_2(self, byte_val: int) -> Dict:
-        """
-        Unpack second set of Xbox buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6] = (byte_val // 1) % 4
-        buttons[CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6] = (byte_val // 4) % 4
-        buttons[CONSTANTS.XBOX.TRIGGER.AXIS_LT] = (byte_val // 16) % 4
-        buttons[CONSTANTS.XBOX.TRIGGER.AXIS_RT] = (byte_val // 64) % 4
-        return buttons
-        
-    def _unpack_n64_buttons_1(self, byte_val: int) -> Dict:
-        """
-        Unpack first set of N64 buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.N64.BUTTONS.A] = (byte_val // 1) % 4
-        buttons[CONSTANTS.N64.BUTTONS.B] = (byte_val // 4) % 4
-        buttons[CONSTANTS.N64.BUTTONS.L] = (byte_val // 16) % 4
-        buttons[CONSTANTS.N64.BUTTONS.R] = (byte_val // 64) % 4
-        return buttons
-        
-    def _unpack_n64_buttons_2(self, byte_val: int) -> Dict:
-        """
-        Unpack second set of N64 buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.N64.BUTTONS.C_UP] = (byte_val // 1) % 4
-        buttons[CONSTANTS.N64.BUTTONS.C_DOWN] = (byte_val // 4) % 4
-        buttons[CONSTANTS.N64.BUTTONS.C_LEFT] = (byte_val // 16) % 4
-        buttons[CONSTANTS.N64.BUTTONS.C_RIGHT] = (byte_val // 64) % 4
-        return buttons
-        
-    def _unpack_n64_buttons_3(self, byte_val: int) -> Dict:
-        """
-        Unpack third set of N64 buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.N64.BUTTONS.DP_UP] = (byte_val // 1) % 4
-        buttons[CONSTANTS.N64.BUTTONS.DP_DOWN] = (byte_val // 4) % 4
-        buttons[CONSTANTS.N64.BUTTONS.DP_LEFT] = (byte_val // 16) % 4
-        buttons[CONSTANTS.N64.BUTTONS.DP_RIGHT] = (byte_val // 64) % 4
-        return buttons
-        
-    def _unpack_n64_buttons_4(self, byte_val: int) -> Dict:
-        """
-        Unpack fourth set of N64 buttons from a byte.
-        
-        Args:
-            byte_val: Packed byte value
-            
-        Returns:
-            Dict: Unpacked button values
-        """
-        buttons = {}
-        buttons[CONSTANTS.N64.BUTTONS.Z] = (byte_val // 1) % 4
-        # Spare space for future buttons
-        return buttons
-        
-    def parse_xbox_message(self, data: List[int]) -> Dict:
-        """
-        Parse received Xbox controller message.
-        
-        Args:
-            data: Raw message data (5 bytes: START + LY + RY + BTN1 + BTN2)
-            
-        Returns:
-            Dict: Parsed controller values
-            
-        Raises:
-            ValueError: If message format is invalid
-        """
-        if len(data) < 5:
-            raise ValueError(f"Invalid Xbox message length: {len(data)}, expected 5")
-        
-        if data[0] != int.from_bytes(CONSTANTS.START_MESSAGE, 'big'):
-            raise ValueError(f"Invalid start byte: {data[0]:#x}")
-        
-        values = {}
-        values[CONSTANTS.XBOX.JOYSTICK.AXIS_LY] = data[1].to_bytes(1, 'big')
-        values[CONSTANTS.XBOX.JOYSTICK.AXIS_RY] = data[2].to_bytes(1, 'big')
-        
-        # Unpack buttons
-        values.update(self._unpack_xbox_buttons_1(data[3]))
-        values.update(self._unpack_xbox_buttons_2(data[4]))
-        
-        return values
-        
-    def parse_n64_message(self, data: List[int]) -> Dict:
-        """
-        Parse received N64 controller message.
-        
-        Args:
-            data: Raw message data (5 bytes: START + BTN1 + BTN2 + BTN3 + BTN4)
-            
-        Returns:
-            Dict: Parsed controller values
-            
-        Raises:
-            ValueError: If message format is invalid
-        """
-        if len(data) < 5:
-            raise ValueError(f"Invalid N64 message length: {len(data)}, expected 5")
-        
-        if data[0] != int.from_bytes(CONSTANTS.START_MESSAGE, 'big'):
-            raise ValueError(f"Invalid start byte: {data[0]:#x}")
-        
-        values = {}
-        
-        # Unpack all button bytes
-        values.update(self._unpack_n64_buttons_1(data[1]))
-        values.update(self._unpack_n64_buttons_2(data[2]))
-        values.update(self._unpack_n64_buttons_3(data[3]))
-        values.update(self._unpack_n64_buttons_4(data[4]))
-        
-        return values
-        
-    def parse_combined_message(self, data: bytearray) -> tuple[Dict, Dict]:
-        """
-        Parse received combined Xbox and N64 message.
-        
-        Args:
-            data: Raw combined message data (10 bytes total)
-            
-        Returns:
-            tuple[Dict, Dict]: (xbox_values, n64_values)
-            
-        Raises:
-            ValueError: If message format is invalid
-        """
-        if len(data) < 10:
-            raise ValueError(f"Invalid combined message length: {len(data)}, expected 10")
-        
-        # Split into Xbox (first 5 bytes) and N64 (next 5 bytes)
-        xbox_data = list(data[0:5])
-        n64_data = list(data[5:10])
-        
-        xbox_values = self.parse_xbox_message(xbox_data)
-        n64_values = self.parse_n64_message(n64_data)
-        
-        return xbox_values, n64_values
-
 
 class CommunicationManager:
     """
@@ -372,7 +122,8 @@ class CommunicationManager:
         self.xbee_device = xbee_device
         self.remote_xbee = remote_xbee
         self.formatter = MessageFormatter()
-        self.last_message = bytearray()
+        self.last_xbox_message = bytearray()
+        self.last_n64_message = bytearray()
         self.enabled = True
         
     def send_controller_data(self, xbox_values: Dict, n64_values: Dict, reverse_mode: bool = False) -> bool:
@@ -391,17 +142,28 @@ class CommunicationManager:
             return False
             
         try:
-            # Use compact 10-byte format
-            message = self.formatter.create_combined_message(xbox_values, n64_values, reverse_mode)
-            
+            message_send = False
+
+            # send xbox msg
+            xbox_message = self.formatter.create_xbox_message(xbox_values, reverse_mode)
+
             # Avoid sending dupe msgs
-            if message == self.last_message:
-                return False
-                
-            self.xbee_device.send_data(self.remote_xbee, message)
-            self.last_message = message
-            return True
-            
+            if xbox_message != self.last_xbox_message:
+                self.xbee_device.send_data(self.remote_xbee, xbox_message)
+                self.last_xbox_message = xbox_message
+                message_send = True
+
+            # send n64 msg
+            n64_message = self.formatter.create_n64_message(n64_values)
+
+            # Avoid sending dupe msgs
+            if n64_message != self.last_n64_message:
+                self.xbee_device.send_data(self.remote_xbee, n64_message)
+                self.last_n64_message = n64_message
+                message_send = True
+
+            return message_send
+
         except Exception as e:
             print(f"Failed to send controller data: {e}")
             return False
@@ -413,9 +175,9 @@ class CommunicationManager:
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        return self.send_compact_message([CONSTANTS.QUIT_MESSAGE])
-    
-    def send_compact_message(self, data: List, skip_duplicate_check: bool = False) -> bool:
+        return self.send_package([CONSTANTS.QUIT_MESSAGE])
+
+    def send_package(self, data: List, skip_duplicate_check: bool = False) -> bool:
         """
         Send a compact custom message (as few bytes as possible).
         
@@ -509,68 +271,3 @@ class CommunicationManager:
         Disable communication.
         """
         self.enabled = False
-        
-    # Example messages
-    # Add custom messages here, just define the message ID and format.
-    
-    def send_status_update(self, motor_speed: int, battery_level: int, temperature: int) -> bool:
-        """
-        Example: Send a 4-byte status update.
-        Format: [0xB0][motor_speed][battery_level][temperature]
-        
-        Args:
-            motor_speed: 0-255
-            battery_level: 0-255 (percentage * 2.55)
-            temperature: 0-255 (degrees C + 50 for negative temps)
-            
-        Returns:
-            bool: True if sent
-        """
-        return self.send_compact_message([0xB0, motor_speed, battery_level, temperature])
-    
-    def send_error_code(self, error_code: int, subsystem_id: int = 0) -> bool:
-        """
-        Example: Send a 3-byte error message.
-        Format: [0xE0][subsystem_id][error_code]
-        
-        Args:
-            error_code: 0-255 error code
-            subsystem_id: 0-255 which subsystem had the error
-            
-        Returns:
-            bool: True if sent
-        """
-        return self.send_compact_message([0xE0, subsystem_id, error_code])
-    
-    def send_gps_position(self, latitude: float, longitude: float) -> bool:
-        """
-        Example: Send a 9-byte GPS position.
-        Format: [0xC0][lat (4 bytes float)][lon (4 bytes float)]
-        
-        Args:
-            latitude: GPS latitude (-90 to 90)
-            longitude: GPS longitude (-180 to 180)
-            
-        Returns:
-            bool: True if sent
-        """
-        import struct
-        lat_bytes = struct.pack('>f', latitude)
-        lon_bytes = struct.pack('>f', longitude)
-        return self.send_compact_message([0xC0] + list(lat_bytes) + list(lon_bytes))
-    
-    def send_sensor_reading(self, sensor_id: int, value: int) -> bool:
-        """
-        Example: Send a 4-byte sensor reading.
-        Format: [0xD0][sensor_id][value (2 bytes, big-endian)]
-        
-        Args:
-            sensor_id: 0-255 which sensor
-            value: 0-65535 sensor value
-            
-        Returns:
-            bool: True if sent
-        """
-        high_byte = (value >> 8) & 0xFF
-        low_byte = value & 0xFF
-        return self.send_compact_message([0xD0, sensor_id, high_byte, low_byte])

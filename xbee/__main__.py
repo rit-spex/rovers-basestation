@@ -1,3 +1,3 @@
-from .core.xbee_refactored import main
+from .core.base_station import main
 
 main()

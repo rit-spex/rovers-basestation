@@ -19,41 +19,79 @@ class ControllerState:
         """
         Init controller state with default vals.
         """
+        self.indexConversion = {
+            "xbox": {
+                # Axis
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LX: CONSTANTS.XBOX.JOYSTICK.AXIS_LX.name,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LY: CONSTANTS.XBOX.JOYSTICK.AXIS_LY.name,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RX: CONSTANTS.XBOX.JOYSTICK.AXIS_RX.name,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RY: CONSTANTS.XBOX.JOYSTICK.AXIS_RY.name,
+
+                # Buttons
+                CONSTANTS.XBOX.TRIGGER.AXIS_LT: CONSTANTS.XBOX.TRIGGER.AXIS_LT.name,
+                CONSTANTS.XBOX.TRIGGER.AXIS_RT: CONSTANTS.XBOX.TRIGGER.AXIS_RT.name,
+
+                CONSTANTS.XBOX.BUTTON.A + 6: CONSTANTS.XBOX.BUTTON.A.name,
+                CONSTANTS.XBOX.BUTTON.B + 6: CONSTANTS.XBOX.BUTTON.B.name,
+                CONSTANTS.XBOX.BUTTON.X + 6: CONSTANTS.XBOX.BUTTON.X.name,
+                CONSTANTS.XBOX.BUTTON.Y + 6: CONSTANTS.XBOX.BUTTON.Y.name,
+                CONSTANTS.XBOX.BUTTON.LEFT_BUMPER + 6: CONSTANTS.XBOX.BUTTON.LEFT_BUMPER.name,
+                CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER + 6: CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER.name,
+                CONSTANTS.XBOX.BUTTON.START + 6: CONSTANTS.XBOX.BUTTON.START.name,
+                CONSTANTS.XBOX.BUTTON.SELECT + 6: CONSTANTS.XBOX.BUTTON.SELECT.name,
+            },
+            "n64": {
+                # Buttons
+                CONSTANTS.N64.BUTTON.A: CONSTANTS.N64.BUTTON.A.name,
+                CONSTANTS.N64.BUTTON.B: CONSTANTS.N64.BUTTON.B.name,
+                CONSTANTS.N64.BUTTON.C_UP: CONSTANTS.N64.BUTTON.C_UP.name,
+                CONSTANTS.N64.BUTTON.C_DOWN: CONSTANTS.N64.BUTTON.C_DOWN.name,
+                CONSTANTS.N64.BUTTON.C_LEFT: CONSTANTS.N64.BUTTON.C_LEFT.name,
+                CONSTANTS.N64.BUTTON.C_RIGHT: CONSTANTS.N64.BUTTON.C_RIGHT.name,
+                CONSTANTS.N64.BUTTON.L: CONSTANTS.N64.BUTTON.L.name,
+                CONSTANTS.N64.BUTTON.R: CONSTANTS.N64.BUTTON.R.name,
+                CONSTANTS.N64.BUTTON.Z: CONSTANTS.N64.BUTTON.Z.name,
+                CONSTANTS.N64.BUTTON.DP_UP: CONSTANTS.N64.BUTTON.DP_UP.name,
+                CONSTANTS.N64.BUTTON.DP_DOWN: CONSTANTS.N64.BUTTON.DP_DOWN.name,
+                CONSTANTS.N64.BUTTON.DP_LEFT: CONSTANTS.N64.BUTTON.DP_LEFT.name,
+                CONSTANTS.N64.BUTTON.DP_RIGHT: CONSTANTS.N64.BUTTON.DP_RIGHT.name,
+            }
+        }
 
         self.values = {
             "xbox": {
                 # Axis
-                CONSTANTS.XBOX.JOYSTICK.AXIS_LX: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_LY: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_RX: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_RY: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LX.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LY.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RX.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RY.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
                 # Buttons
-                CONSTANTS.XBOX.TRIGGER.AXIS_LT: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.TRIGGER.AXIS_RT: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.A + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.B + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.X + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.Y + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.LEFT_BUMPER + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.RIGHT_BUMPER + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.START + 6: CONSTANTS.XBOX.BUTTONS.OFF,
-                CONSTANTS.XBOX.BUTTONS.SELECT + 6: CONSTANTS.XBOX.BUTTONS.OFF,
+                CONSTANTS.XBOX.TRIGGER.AXIS_LT.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.TRIGGER.AXIS_RT.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.A.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.B.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.X.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.Y.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.LEFT_BUMPER.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.START.name: CONSTANTS.XBOX.BUTTON.OFF,
+                CONSTANTS.XBOX.BUTTON.SELECT.name: CONSTANTS.XBOX.BUTTON.OFF,
             },
             "n64": {
                 # Buttons
-                CONSTANTS.N64.BUTTONS.A: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.B: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.C_UP: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.C_DOWN: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.C_LEFT: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.C_RIGHT: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.L: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.R: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.Z: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.DP_UP: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.DP_DOWN: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.DP_LEFT: CONSTANTS.N64.BUTTONS.OFF,
-                CONSTANTS.N64.BUTTONS.DP_RIGHT: CONSTANTS.N64.BUTTONS.OFF,
+                CONSTANTS.N64.BUTTON.A.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.B.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.C_UP.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.C_DOWN.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.C_LEFT.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.C_RIGHT.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.L.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.R.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.Z.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.DP_UP.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.DP_DOWN.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.DP_LEFT.name: CONSTANTS.N64.BUTTON.OFF,
+                CONSTANTS.N64.BUTTON.DP_RIGHT.name: CONSTANTS.N64.BUTTON.OFF,
             }
         }
         
@@ -154,8 +192,8 @@ class ControllerManager:
             
         controller_type = self.instance_id_values_map[event.instance_id]
         
-        if ((controller_type == "xbox" and event.button == CONSTANTS.XBOX.BUTTONS.HOME) or
-            (controller_type == "n64" and event.button == CONSTANTS.N64.BUTTONS.START)):
+        if ((controller_type == "xbox" and event.button == CONSTANTS.XBOX.BUTTON.HOME) or
+            (controller_type == "n64" and event.button == CONSTANTS.N64.BUTTON.START)):
             return True
             
         return False
@@ -186,9 +224,9 @@ class ControllerManager:
             
         # Check button states
         select_pressed = (self.controller_state.values['xbox'].get(
-            CONSTANTS.XBOX.BUTTONS.SELECT + 6) == CONSTANTS.XBOX.BUTTONS.ON)
+            CONSTANTS.XBOX.BUTTON.SELECT + 6) == CONSTANTS.XBOX.BUTTON.ON)
         start_pressed = (self.controller_state.values['xbox'].get(
-            CONSTANTS.XBOX.BUTTONS.START + 6) == CONSTANTS.XBOX.BUTTONS.ON)
+            CONSTANTS.XBOX.BUTTON.START + 6) == CONSTANTS.XBOX.BUTTON.ON)
             
         # Handle mode changes based on joypad direction
         if joypad_direction == CONSTANTS.XBOX.JOYPAD.DOWN:
@@ -264,7 +302,7 @@ class InputProcessor:
             return
             
         # Treat trigger like button
-        value = CONSTANTS.XBOX.BUTTONS.ON if event.value > 0 else CONSTANTS.XBOX.BUTTONS.OFF
+        value = CONSTANTS.XBOX.BUTTON.ON if event.value > 0 else CONSTANTS.XBOX.BUTTON.OFF
         
         self.controller_manager.controller_state.update_value(
             controller_type, event.axis, value)
@@ -369,36 +407,36 @@ class InputProcessor:
         # X axis
         if x == 0:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_LEFT, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_RIGHT, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
         elif x == -1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_LEFT, working_const.BUTTONS.ON)
+                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.ON)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_RIGHT, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
         elif x == 1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_LEFT, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_RIGHT, working_const.BUTTONS.ON)
+                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.ON)
                 
         # Y axis
         if y == 0:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_DOWN, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_UP, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
         elif y == -1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_DOWN, working_const.BUTTONS.ON)
+                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.ON)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_UP, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
         elif y == 1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_DOWN, working_const.BUTTONS.OFF)
+                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTONS.DP_UP, working_const.BUTTONS.ON)
+                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.ON)
                 
     def _process_xbox_joypad(self, event: Event) -> None:
         """
