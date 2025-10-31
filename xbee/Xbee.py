@@ -140,7 +140,7 @@ class XbeeControl:
             # joystick, filling up the list without needing to create them manually.
             joy = pygame.joystick.Joystick(newEvent.device_index)
             self.joysticks[joy.get_instance_id()] = joy
-            if "xbox" in joy.get_name().lower():
+            if "x-box" in joy.get_name().lower():
                 # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "xbox")
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
             elif "dinput" in joy.get_name().lower():

@@ -5,9 +5,11 @@
 # Purpose  : Autorun ROS on startup
 # ------------------------------------------------------------------
 
-source venv/bin/activate
+source .venv/bin/activate
 
 dir=$(pwd)
 #export PYTHONPATH="$dir/install/"
 
-python3 autoBoot.py
+cd xbee
+
+python3 Xbee.py
