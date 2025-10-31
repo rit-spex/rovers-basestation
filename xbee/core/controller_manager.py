@@ -20,7 +20,7 @@ class ControllerState:
         Init controller state with default vals.
         """
         self.indexConversion = {
-            "xbox": {
+            CONSTANTS.XBOX.NAME: {
                 # Axis
                 CONSTANTS.XBOX.JOYSTICK.AXIS_LX: CONSTANTS.XBOX.JOYSTICK.AXIS_LX.name,
                 CONSTANTS.XBOX.JOYSTICK.AXIS_LY: CONSTANTS.XBOX.JOYSTICK.AXIS_LY.name,
@@ -40,7 +40,7 @@ class ControllerState:
                 CONSTANTS.XBOX.BUTTON.START + 6: CONSTANTS.XBOX.BUTTON.START.name,
                 CONSTANTS.XBOX.BUTTON.SELECT + 6: CONSTANTS.XBOX.BUTTON.SELECT.name,
             },
-            "n64": {
+            CONSTANTS.N64.NAME: {
                 # Buttons
                 CONSTANTS.N64.BUTTON.A: CONSTANTS.N64.BUTTON.A.name,
                 CONSTANTS.N64.BUTTON.B: CONSTANTS.N64.BUTTON.B.name,
@@ -59,7 +59,7 @@ class ControllerState:
         }
 
         self.values = {
-            "xbox": {
+            CONSTANTS.XBOX.NAME: {
                 # Axis
                 CONSTANTS.XBOX.JOYSTICK.AXIS_LX.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
                 CONSTANTS.XBOX.JOYSTICK.AXIS_LY.name: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
@@ -77,7 +77,7 @@ class ControllerState:
                 CONSTANTS.XBOX.BUTTON.START.name: CONSTANTS.XBOX.BUTTON.OFF,
                 CONSTANTS.XBOX.BUTTON.SELECT.name: CONSTANTS.XBOX.BUTTON.OFF,
             },
-            "n64": {
+            CONSTANTS.N64.NAME: {
                 # Buttons
                 CONSTANTS.N64.BUTTON.A.name: CONSTANTS.N64.BUTTON.OFF,
                 CONSTANTS.N64.BUTTON.B.name: CONSTANTS.N64.BUTTON.OFF,
@@ -119,7 +119,7 @@ class ControllerState:
         """
 
         if controller_type in self.values:
-            self.values[controller_type][key] = value
+            self.values[controller_type][self.indexConversion[key]] = value
 
 
 class ControllerManager:
@@ -158,10 +158,10 @@ class ControllerManager:
             
             # Map controller type based on name
             if "xbox" in joy.get_name().lower():
-                self.instance_id_values_map[joy.get_instance_id()] = "xbox"
+                self.instance_id_values_map[joy.get_instance_id()] = CONSTANTS.XBOX.NAME
             elif "dinput" in joy.get_name().lower():
-                self.instance_id_values_map[joy.get_instance_id()] = "n64"
-                
+                self.instance_id_values_map[joy.get_instance_id()] = CONSTANTS.N64.NAME
+
             print(f"Joystick {joy.get_instance_id()} connected")
             return False
             
@@ -192,8 +192,8 @@ class ControllerManager:
             
         controller_type = self.instance_id_values_map[event.instance_id]
         
-        if ((controller_type == "xbox" and event.button == CONSTANTS.XBOX.BUTTON.HOME) or
-            (controller_type == "n64" and event.button == CONSTANTS.N64.BUTTON.START)):
+        if ((controller_type == CONSTANTS.XBOX.NAME and event.button == CONSTANTS.XBOX.BUTTON.HOME) or
+            (controller_type == CONSTANTS.N64.NAME and event.button == CONSTANTS.N64.BUTTON.START)):
             return True
             
         return False
@@ -219,13 +219,13 @@ class ControllerManager:
             joypad_direction: Joypad direction tuple
             controller_type: Type of controller
         """
-        if controller_type != "xbox":
+        if controller_type != CONSTANTS.XBOX.NAME:
             return
             
         # Check button states
-        select_pressed = (self.controller_state.values['xbox'].get(
+        select_pressed = (self.controller_state.values[CONSTANTS.XBOX.NAME].get(
             CONSTANTS.XBOX.BUTTON.SELECT + 6) == CONSTANTS.XBOX.BUTTON.ON)
-        start_pressed = (self.controller_state.values['xbox'].get(
+        start_pressed = (self.controller_state.values[CONSTANTS.XBOX.NAME].get(
             CONSTANTS.XBOX.BUTTON.START + 6) == CONSTANTS.XBOX.BUTTON.ON)
             
         # Handle mode changes based on joypad direction
@@ -271,7 +271,7 @@ class InputProcessor:
         """
 
         controller_type = self.controller_manager.get_controller_type(event.instance_id)
-        if not controller_type or controller_type == "n64":
+        if not controller_type or controller_type == CONSTANTS.N64.NAME:
             return
             
         working_const = CONSTANTS.XBOX
@@ -298,7 +298,7 @@ class InputProcessor:
         """
 
         controller_type = self.controller_manager.get_controller_type(event.instance_id)
-        if not controller_type or controller_type == "n64":
+        if not controller_type or controller_type == CONSTANTS.N64.NAME:
             return
             
         # Treat trigger like button
@@ -323,7 +323,7 @@ class InputProcessor:
         button_value = joystick.get_button(event.button)
         
         # Calc button key offset
-        key_offset = 6 if controller_type == "xbox" else 0
+        key_offset = 6 if controller_type == CONSTANTS.XBOX.NAME else 0
         button_key = event.button + key_offset
         
         self.controller_manager.controller_state.update_value(
@@ -340,10 +340,10 @@ class InputProcessor:
         controller_type = self.controller_manager.get_controller_type(event.instance_id)
         if not controller_type:
             return
-            
-        if controller_type == "n64":
+
+        if controller_type == CONSTANTS.N64.NAME:
             self._process_n64_joypad(event)
-        else:
+        elif controller_type == CONSTANTS.XBOX.NAME:
             self._process_xbox_joypad(event)
             
     def _calculate_axis_multiplier(self, controller_type: str) -> int:
@@ -357,7 +357,7 @@ class InputProcessor:
             int: Calculated mult
         """
 
-        if controller_type == "n64":
+        if controller_type == CONSTANTS.N64.NAME:
             return CONSTANTS.CONTROLLER_MODES.NORMAL_MULTIPLIER
             
         multiplier = CONSTANTS.CONTROLLER_MODES.NORMAL_MULTIPLIER
@@ -407,37 +407,37 @@ class InputProcessor:
         # X axis
         if x == 0:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
         elif x == -1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.ON)
+                working_const.NAME, working_const.BUTTON.DP_LEFT, working_const.BUTTON.ON)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_RIGHT, working_const.BUTTON.OFF)
         elif x == 1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_LEFT, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_RIGHT, working_const.BUTTON.ON)
-                
+                working_const.NAME, working_const.BUTTON.DP_RIGHT, working_const.BUTTON.ON)
+
         # Y axis
         if y == 0:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
         elif y == -1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.ON)
+                working_const.NAME, working_const.BUTTON.DP_DOWN, working_const.BUTTON.ON)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_UP, working_const.BUTTON.OFF)
         elif y == 1:
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
+                working_const.NAME, working_const.BUTTON.DP_DOWN, working_const.BUTTON.OFF)
             self.controller_manager.controller_state.update_value(
-                "n64", working_const.BUTTON.DP_UP, working_const.BUTTON.ON)
-                
+                working_const.NAME, working_const.BUTTON.DP_UP, working_const.BUTTON.ON)
+
     def _process_xbox_joypad(self, event: Event) -> None:
         """
         Process Xbox controller joypad events for mode switching.

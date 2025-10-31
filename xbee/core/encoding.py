@@ -1,32 +1,66 @@
-from command_codes import CONSTANTS
+from .command_codes import CONSTANTS
 
 class BaseStationCommunication:
 
     """Module for encoding and decoding data for XBee communication."""
 
     def __init__(self):
+
         self.messages = { # Note: dictationaries are ordered in Python 3.7+
-            CONSTANTS.COMPACT_MESSAGES.HEARTBEAT: # byte 0
+            CONSTANTS.COMPACT_MESSAGES.HEARTBEAT_ID: # byte 0
             {
-                "name": "heartbeat",
-                "values": {"timestamp": CONSTANTS.COMPACT_MESSAGES.UINT_16} # byte 1-2
+                "name": CONSTANTS.HEARTBEAT.NAME,
+                "values": {
+                            # byte 1-2
+                            CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE: CONSTANTS.COMPACT_MESSAGES.UINT_16} # bits 0-15
             },
             CONSTANTS.COMPACT_MESSAGES.N64_ID: { # byte 0
-                "name": "n64",
-                "values": {"A": CONSTANTS.COMPACT_MESSAGES.UINT_2, "B": CONSTANTS.COMPACT_MESSAGES.UINT_2, "L": CONSTANTS.COMPACT_MESSAGES.UINT_2, "R": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 1
-                        "C_UP": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_DOWN": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_LEFT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "C_RIGHT": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 2
-                        "DP_UP": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_DOWN": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_LEFT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "DP_RIGHT": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 3
-                        "Z": CONSTANTS.COMPACT_MESSAGES.UINT_2} # byte 4
+                "name": CONSTANTS.N64.NAME,
+                "values": {
+                            # byte 1
+                            CONSTANTS.N64.BUTTON.A.name:        CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 0-1
+                            CONSTANTS.N64.BUTTON.B.name:        CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 2-3
+                            CONSTANTS.N64.BUTTON.L.name:        CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 4-5
+                            CONSTANTS.N64.BUTTON.R.name:        CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 6-7
+
+                            # byte 2
+                            CONSTANTS.N64.BUTTON.C_UP.name:     CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 0-1
+                            CONSTANTS.N64.BUTTON.C_DOWN.name:   CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 2-3
+                            CONSTANTS.N64.BUTTON.C_LEFT.name:   CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 4-5
+                            CONSTANTS.N64.BUTTON.C_RIGHT.name:  CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 6-7
+
+                            # byte 3
+                            CONSTANTS.N64.BUTTON.DP_UP.name:    CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 0-1
+                            CONSTANTS.N64.BUTTON.DP_DOWN.name:  CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 2-3
+                            CONSTANTS.N64.BUTTON.DP_LEFT.name:  CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 4-5
+                            CONSTANTS.N64.BUTTON.DP_RIGHT.name: CONSTANTS.COMPACT_MESSAGES.UINT_2, # bits 6-7
+
+                            # byte 4
+                            CONSTANTS.N64.BUTTON.Z.name:        CONSTANTS.COMPACT_MESSAGES.UINT_2} # bits 0-1
             },
             CONSTANTS.COMPACT_MESSAGES.XBOX_ID: { # byte 0
-                "name": "xbox",
-                "values": {"LY": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 1
-                           "RY": CONSTANTS.COMPACT_MESSAGES.UINT_8, # byte 2
-                            "A": CONSTANTS.COMPACT_MESSAGES.UINT_2, "B": CONSTANTS.COMPACT_MESSAGES.UINT_2, "X": CONSTANTS.COMPACT_MESSAGES.UINT_2, "Y": CONSTANTS.COMPACT_MESSAGES.UINT_2, # byte 3
-                            "LB": CONSTANTS.COMPACT_MESSAGES.UINT_2, "RB": CONSTANTS.COMPACT_MESSAGES.UINT_2, "LT": CONSTANTS.COMPACT_MESSAGES.UINT_2, "RT": CONSTANTS.COMPACT_MESSAGES.UINT_2} # byte 4
+                "name": CONSTANTS.XBOX.NAME,
+                "values": {
+                            # byte 1
+                            CONSTANTS.XBOX.JOYSTICK.AXIS_LY.name:    CONSTANTS.COMPACT_MESSAGES.UINT_8, # bits 0-7
+
+                            # byte 2
+                            CONSTANTS.XBOX.JOYSTICK.AXIS_RY.name:    CONSTANTS.COMPACT_MESSAGES.UINT_8, # bits 0-7
+
+                            # byte 3
+                            CONSTANTS.XBOX.BUTTON.A.name:            CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 0-1
+                            CONSTANTS.XBOX.BUTTON.B.name:            CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 2-3
+                            CONSTANTS.XBOX.BUTTON.X.name:            CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 4-5
+                            CONSTANTS.XBOX.BUTTON.Y.name:            CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 6-7
+
+                            # byte 4
+                            CONSTANTS.XBOX.BUTTON.LEFT_BUMPER.name:  CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 0-1
+                            CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER.name: CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 2-3
+                            CONSTANTS.XBOX.TRIGGER.AXIS_LT.name:     CONSTANTS.COMPACT_MESSAGES.UINT_2, # bit 4-5
+                            CONSTANTS.XBOX.TRIGGER.AXIS_RT.name:     CONSTANTS.COMPACT_MESSAGES.UINT_2} # bit 6-7
             },
-            CONSTANTS.COMPACT_MESSAGES.QUIT_MESSAGE: { # byte 0
-                "name": "quit",
+            CONSTANTS.COMPACT_MESSAGES.QUIT_ID: { # byte 0
+                "name": CONSTANTS.QUIT.NAME,
                 "values": {}
             }
         }

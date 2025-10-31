@@ -19,8 +19,12 @@ class CONSTANTS:
         FIVE_HUNDRED_MS_TO_NS = 500_000_000
     
     class HEARTBEAT:
+        NAME: "heartbeat"
+
         MESSAGE = b'\xAA'  # Heartbeat signal identifier
         MESSAGE_LENGTH = 3  # Length of heartbeat message in bytes
+
+        TIMESTAMP_MESSAGE = "timestamp"
 
         INTERVAL = 1_000_000_000  # 1 second heartbeat interval
         # Heartbeat consists of 1 byte identifier + 2 bytes timestamp
@@ -30,8 +34,8 @@ class CONSTANTS:
         CONTROLLER_DATA = 0xDE  # START_MESSAGE
         N64_ID = 0xDF   # The Id for the N64
         XBOX_ID = 0xF0  # The Id for the Xbox
-        QUIT = 0xFE  # QUIT_MESSAGE
-        HEARTBEAT = 0xAA  # Heartbeat
+        QUIT_ID = 0xFE  # QUIT_MESSAGE
+        HEARTBEAT_ID = 0xAA  # Heartbeat
         
         # enum of data types in bits
         UINT_2 = 2
@@ -75,8 +79,12 @@ class CONSTANTS:
         CREEP_MULTIPLIER = 20
         REVERSE_MULTIPLIER = -100  # Will be applied to normal/creep multiplier
 
+    class QUIT:
+        NAME = "quit"
+
     class XBOX:
         # number of processed buttons and axes
+        NAME = "xbox"
         NUM_AXES = 6
         NUM_USED_AXES = 2
         NUM_TRIGGER = 2
@@ -133,6 +141,7 @@ class CONSTANTS:
             RIGHT = (1, 0)
 
     class N64:
+        NAME = "n64"
         NUM_AXES = 2
         NUM_USED_AXES = 0
         NUM_TRIGGER = 0

@@ -9,57 +9,7 @@ import json
 import time
 from typing import Dict, Any, Optional, Callable
 from .command_codes import CONSTANTS
-
-
-class UdpMessage:
-    """
-    Standard UDP message format for rover communication.
-    """
-    
-    def __init__(self, message_type: str, data: Dict[str, Any], timestamp: Optional[float] = None):
-        """
-        Initialize a UDP message.
-        
-        Args:
-            message_type: Type of message (e.g., "controller", "heartbeat", "telemetry")
-            data: Message payload data
-            timestamp: Message timestamp (defaults to current time)
-        """
-        self.message_type = message_type
-        self.data = data
-        self.timestamp = timestamp or time.time()
-        
-    def to_json(self) -> str:
-        """
-        Convert message to JSON string for transmission.
-        
-        Returns:
-            JSON string representation of the message
-        """
-        return json.dumps({
-            'type': self.message_type,
-            'data': self.data,
-            'timestamp': self.timestamp
-        })
-        
-    @classmethod
-    def from_json(cls, json_str: str) -> 'UdpMessage':
-        """
-        Create message from JSON string.
-        
-        Args:
-            json_str: JSON string to parse
-            
-        Returns:
-            UdpMessage instance
-        """
-        data = json.loads(json_str)
-        return cls(
-            message_type=data['type'],
-            data=data['data'],
-            timestamp=data.get('timestamp', time.time())
-        )
-
+from .communication import MessageFormatter
 
 class UdpCommunicationManager:
     """
@@ -89,8 +39,8 @@ class UdpCommunicationManager:
         self.receive_thread = None
         
         # Callbacks for received messages
-        self.message_handlers: Dict[str, Callable[[UdpMessage], None]] = {}
-        
+        self.message_handlers: Dict[str, Callable[[bytes], None]] = {}
+
         # Statistics
         self.messages_sent = 0
         self.messages_received = 0
@@ -151,135 +101,44 @@ class UdpCommunicationManager:
             
         print("UDP communication stopped")
         
-    def send_controller_data(self, xbox_values: Dict[Any, Any], n64_values: Dict[Any, Any], reverse_mode: bool) -> bool:
-        """
-        Send controller data over UDP.
-        
-        Args:
-            xbox_values: Xbox controller values (keys can be int constants or strings)
-            n64_values: N64 controller values (keys can be int constants or strings)
-            reverse_mode: Whether reverse mode is enabled
-            
-        Returns:
-            True if message was sent successfully
-        """
-        try:
-            # Convert bytes values to integers for JSON serialization
-            xbox_data = {}
-            for key, value in xbox_values.items():
-                if isinstance(value, bytes):
-                    xbox_data[key] = int.from_bytes(value, 'big')
-                else:
-                    xbox_data[key] = value
-                    
-            n64_data = {}
-            for key, value in n64_values.items():
-                if isinstance(value, bytes):
-                    n64_data[key] = int.from_bytes(value, 'big')
-                else:
-                    n64_data[key] = value
-            
-            message_data = {
-                'xbox': xbox_data,
-                'n64': n64_data,
-                'reverse_mode': reverse_mode,
-                'timestamp': time.time()
-            }
-            
-            message = UdpMessage('controller', message_data)
-            self._send_message(message)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Failed to send controller data: {e}")
-            return False
-            
-    def send_heartbeat(self) -> bool:
-        """
-        Send heartbeat message over UDP.
-        
-        Returns:
-            True if heartbeat was sent successfully
-        """
-        try:
-            message_data = {
-                'timestamp': time.time(),
-                'status': 'alive'
-            }
-            
-            message = UdpMessage('heartbeat', message_data)
-            self._send_message(message)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Failed to send heartbeat: {e}")
-            return False
-            
-    def send_quit_message(self) -> bool:
-        """
-        Send quit message over UDP.
-        
-        Returns:
-            True if quit message was sent successfully
-        """
-        try:
-            message_data = {
-                'timestamp': time.time(),
-                'reason': 'basestation_shutdown'
-            }
-            
-            message = UdpMessage('quit', message_data)
-            self._send_message(message)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Failed to send quit message: {e}")
-            return False
-            
-    def _send_message(self, message: UdpMessage):
+    def _send_message(self, message: bytes) -> None:
         """
         Send a UDP message.
         
         Args:
-            message: UdpMessage to send
+            message: bytes to send
         """
-        json_data = message.to_json().encode('utf-8')
-        self.send_socket.sendto(json_data, (self.host, self.rover_port))
+        self.send_socket.sendto(message, (self.host, self.rover_port))
         self.messages_sent += 1
-        
-    def _receive_loop(self):
+
+    def _receive_loop(self) -> None:
         """
         Main loop for receiving UDP messages.
         """
-        while self.running:
-            try:
-                data, _ = self.receive_socket.recvfrom(4096)
-                json_str = data.decode('utf-8')
-                message = UdpMessage.from_json(json_str)
+        # while self.running:
+        #     try:
+        #         data, _ = self.receive_socket.recvfrom(4096)
+        #         # json_str = data.decode('utf-8')
+        #         message = UdpMessage.from_json(json_str)
                 
-                self.messages_received += 1
-                self._handle_received_message(message)
+        #         self.messages_received += 1
+        #         self._handle_received_message(message)
                 
-            except socket.timeout:
-                # Timeout is expected - allows clean shutdown
-                continue
-            except Exception as e:
-                if self.running:  # Only log errors if we're supposed to be running
-                    print(f"Error receiving UDP message: {e}")
+        #     except socket.timeout:
+        #         # Timeout is expected - allows clean shutdown
+        #         continue
+        #     except Exception as e:
+        #         if self.running:  # Only log errors if we're supposed to be running
+        #             print(f"Error receiving UDP message: {e}")
                 
-    def _handle_received_message(self, message: UdpMessage):
+    def _handle_received_message(self, message: bytes) -> None:
         """
         Handle received UDP message.
         
         Args:
-            message: Received UdpMessage
+            message: Received bytes message
         """
-        # Store telemetry data
-        if message.message_type == 'telemetry':
-            self.last_telemetry = message.data
+
             
         # Call registered handlers
         handler = self.message_handlers.get(message.message_type)
@@ -288,8 +147,8 @@ class UdpCommunicationManager:
                 handler(message)
             except Exception as e:
                 print(f"Error in message handler for {message.message_type}: {e}")
-                
-    def register_message_handler(self, message_type: str, handler: Callable[[UdpMessage], None]):
+
+    def register_message_handler(self, message_type: str, handler: Callable[[bytes], None]):
         """
         Register a handler for a specific message type.
         
@@ -313,88 +172,142 @@ class UdpCommunicationManager:
             'running': self.running
         }
 
+def send_package(self, data: bytes, skip_duplicate_check: bool = False) -> bool:
+        """
+        Send a compact custom message (as few bytes as possible).
+        
+        This is the EASY way to send custom messages without the overhead
+        of the new JSON format. Perfect for embedded systems where every byte counts.
+        
+        Args:
+            data: List of bytes or integers to send. Can be:
+                  - List[int]: [0xAA, 0x01, 0x02]
+                  - List[bytes]: [b'\xAA', b'\x01']
+                  - Mixed: [b'\xAA', 0x01, 0x02]
+            skip_duplicate_check: If True, always send even if identical to last message
+            
+        Returns:
+            bool: True if sent successfully, False otherwise
+            
+        Examples:
+            # Send a 1-byte heartbeat
+            comm.send_compact_message([0xAA])
+            
+            # Send a 3-byte status update (header + 2 bytes data)
+            comm.send_compact_message([0xBB, motor_speed, battery_level])
+            
+            # Send GPS coordinates (header + 8 bytes for lat/lon)
+            import struct
+            lat_bytes = struct.pack('>f', 40.7128)  # latitude as float
+            lon_bytes = struct.pack('>f', -74.0060)  # longitude as float
+            comm.send_compact_message([0xCC] + list(lat_bytes) + list(lon_bytes))
+        """
+        if not self.enabled or not self.xbee_device or not self.remote_xbee:
+            return False
+            
+        try:
+            # Convert everything to bytearray
+            message = bytearray()
+            for item in data:
+                if isinstance(item, bytes):
+                    message.extend(item)
+                elif isinstance(item, int):
+                    message.append(item)
+                else:
+                    raise ValueError(f"Unsupported data type: {type(item)}")
+            
+            # Skip duplicate check if requested
+            # if not skip_duplicate_check and message == self.last_message:
+            #     return False
 
-class SimulationCommunicationManager:
-    """
-    UDP-based communication manager for simulation mode.
-    Provides the same interface as CommunicationManager but uses UDP instead of XBee.
-    """
+            self._send_data(message)
+            # self.last_message = message
+            return True
+            
+        except Exception as e:
+            print(f"Failed to send compact message: {e}")
+            return False
+# class SimulationCommunicationManager:
+#     """
+#     UDP-based communication manager for simulation mode.
+#     Provides the same interface as CommunicationManager but uses UDP instead of XBee.
+#     """
     
-    def __init__(self, xbee_device=None, remote_xbee=None):
-        """
-        Initialize simulation communication manager with UDP.
+#     def __init__(self, xbee_device=None, remote_xbee=None):
+#         """
+#         Initialize simulation communication manager with UDP.
         
-        Args:
-            xbee_device: XBee device (ignored in simulation)
-            remote_xbee: Remote XBee device (ignored in simulation)
-        """
-        self.udp_manager = UdpCommunicationManager()
-        self.udp_manager.start()
-        print("Simulation communication manager initialized with UDP")
+#         Args:
+#             xbee_device: XBee device (ignored in simulation)
+#             remote_xbee: Remote XBee device (ignored in simulation)
+#         """
+#         self.udp_manager = UdpCommunicationManager()
+#         self.udp_manager.start()
+#         print("Simulation communication manager initialized with UDP")
             
-    def send_controller_data(self, xbox_values: Dict[Any, Any], n64_values: Dict[Any, Any], reverse_mode: bool) -> bool:
-        """
-        Send controller data via UDP.
+#     def send_controller_data(self, xbox_values: Dict[Any, Any], n64_values: Dict[Any, Any], reverse_mode: bool) -> bool:
+#         """
+#         Send controller data via UDP.
         
-        Args:
-            xbox_values: Xbox controller values (keys can be int constants or strings)
-            n64_values: N64 controller values (keys can be int constants or strings)
-            reverse_mode: Whether reverse mode is enabled
+#         Args:
+#             xbox_values: Xbox controller values (keys can be int constants or strings)
+#             n64_values: N64 controller values (keys can be int constants or strings)
+#             reverse_mode: Whether reverse mode is enabled
             
-        Returns:
-            True if message was sent successfully
-        """
-        return self.udp_manager.send_controller_data(xbox_values, n64_values, reverse_mode)
+#         Returns:
+#             True if message was sent successfully
+#         """
+#         return self.udp_manager.send_controller_data(xbox_values, n64_values, reverse_mode)
             
-    def send_quit_message(self) -> bool:
-        """
-        Send quit message via UDP.
+#     def send_quit_message(self) -> bool:
+#         """
+#         Send quit message via UDP.
         
-        Returns:
-            True if message was sent successfully
-        """
-        return self.udp_manager.send_quit_message()
+#         Returns:
+#             True if message was sent successfully
+#         """
+#         return self.udp_manager.send_quit_message()
     
-    def send_heartbeat(self) -> bool:
-        """
-        Send heartbeat message via UDP (simulation mode).
+#     def send_heartbeat(self) -> bool:
+#         """
+#         Send heartbeat message via UDP (simulation mode).
         
-        Returns:
-            True if message was sent successfully
-        """
-        return self.udp_manager.send_heartbeat()
+#         Returns:
+#             True if message was sent successfully
+#         """
+#         return self.udp_manager.send_heartbeat()
             
-    def register_telemetry_handler(self, handler: Callable[[Dict[str, Any]], None]):
-        """
-        Register a handler for telemetry data.
+#     def register_telemetry_handler(self, handler: Callable[[Dict[str, Any]], None]):
+#         """
+#         Register a handler for telemetry data.
         
-        Args:
-            handler: Function to call when telemetry is received
-        """
-        def message_handler(message: UdpMessage):
-            handler(message.data)
-        self.udp_manager.register_message_handler('telemetry', message_handler)
+#         Args:
+#             handler: Function to call when telemetry is received
+#         """
+#         def message_handler(message: UdpMessage):
+#             handler(message.data)
+#         self.udp_manager.register_message_handler('telemetry', message_handler)
         
-    def get_telemetry_data(self) -> Dict[str, Any]:
-        """
-        Get the latest telemetry data.
+#     def get_telemetry_data(self) -> Dict[str, Any]:
+#         """
+#         Get the latest telemetry data.
         
-        Returns:
-            Dictionary containing telemetry data
-        """
-        return self.udp_manager.last_telemetry.copy()
+#         Returns:
+#             Dictionary containing telemetry data
+#         """
+#         return self.udp_manager.last_telemetry.copy()
             
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get communication stats.
+#     def get_statistics(self) -> Dict[str, Any]:
+#         """
+#         Get communication stats.
         
-        Returns:
-            Dictionary containing communication stats
-        """
-        return self.udp_manager.get_statistics()
+#         Returns:
+#             Dictionary containing communication stats
+#         """
+#         return self.udp_manager.get_statistics()
             
-    def cleanup(self):
-        """
-        Clean up communication resources.
-        """
-        self.udp_manager.stop()
+#     def cleanup(self):
+#         """
+#         Clean up communication resources.
+#         """
+#         self.udp_manager.stop()

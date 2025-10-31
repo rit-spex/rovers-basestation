@@ -30,6 +30,7 @@ from .controller_manager import ControllerManager, InputProcessor
 from .communication import CommunicationManager
 from .udp_communication import SimulationCommunicationManager
 
+
 class BaseStationCommunication:
     """
     BaseStation control system but like modular.
@@ -85,8 +86,8 @@ class BaseStationCommunication:
                 
                 # Init managers with XBee devices
                 self.heartbeat_manager = HeartbeatManager(self.xbee_device, self.remote_xbee)
-                self.communication_manager = CommunicationManager(self.xbee_device, self.remote_xbee)
-                
+                self.communication_manager = CommunicationManager(self.xbee_device, self.remote_xbee, simulation_mode=False)
+
                 print("XBee comms init success")
                 
             except Exception as e:
@@ -94,14 +95,14 @@ class BaseStationCommunication:
                 # Fall back to simulation mode
                 self.xbee_enabled = False
                 self.heartbeat_manager = HeartbeatManager()
-                self.communication_manager = SimulationCommunicationManager()
+                self.communication_manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=True)
         else:
             if self.simulation_mode:
                 print("SIMULATION MODE - Using UDP communication for testing")
             else:
                 print("XBee libraries not available - running in simulation mode")
             self.heartbeat_manager = HeartbeatManager()
-            self.communication_manager = SimulationCommunicationManager()
+            self.communication_manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=True)
             
     def _setup_telemetry_handlers(self):
         """
@@ -218,9 +219,9 @@ class BaseStationCommunication:
         
         # Send the controller data (works in both real and simulation modes)
         if self.communication_manager:
-            xbox_values = self.controller_manager.controller_state.get_controller_values("xbox")
-            n64_values = self.controller_manager.controller_state.get_controller_values("n64")
-            
+            xbox_values = self.controller_manager.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
+            n64_values = self.controller_manager.controller_state.get_controller_values(CONSTANTS.N64.NAME)
+
             message_sent = self.communication_manager.send_controller_data(
                 xbox_values, 
                 n64_values, 
@@ -306,7 +307,7 @@ def _update_display_data(xbee_control, display, update_count):
     
     # Update controller values if available
     if hasattr(xbee_control.controller_manager, 'controller_state'):
-        xbox_values = xbee_control.controller_manager.controller_state.get_controller_values("xbox")
+        xbox_values = xbee_control.controller_manager.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
         display.update_controller_values(xbox_values)
         
     # Update telemetry display
