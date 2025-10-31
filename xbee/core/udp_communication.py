@@ -9,7 +9,6 @@ import json
 import time
 from typing import Dict, Any, Optional, Callable
 from .command_codes import CONSTANTS
-from .communication import MessageFormatter
 
 class UdpCommunicationManager:
     """

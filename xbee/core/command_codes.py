@@ -31,12 +31,12 @@ class CONSTANTS:
     
     class COMPACT_MESSAGES:
         # Reserved message IDs (DO NOT USE)
-        CONTROLLER_DATA = 0xDE  # START_MESSAGE
-        N64_ID = 0xDF   # The Id for the N64
-        XBOX_ID = 0xF0  # The Id for the Xbox
-        QUIT_ID = 0xFE  # QUIT_MESSAGE
-        HEARTBEAT_ID = 0xAA  # Heartbeat
-        
+        CONTROLLER_DATA = int(0xDE)  # START_MESSAGE
+        N64_ID = int(0xDF)   # The Id for the N64
+        XBOX_ID = int(0xF0)  # The Id for the Xbox
+        QUIT_ID = int(0xFE)  # QUIT_MESSAGE
+        HEARTBEAT_ID = int(0xAA)  # Heartbeat
+
         # enum of data types in bits
         UINT_2 = 2
         UINT_8 = 8
@@ -103,14 +103,20 @@ class CONSTANTS:
             MAX_VALUE = 200
 
             AXIS_LX = 0
+            AXIS_LX_STR = "AXIS_LX"
             AXIS_LY = 1
+            AXIS_LY_STR = "AXIS_LY"
             AXIS_RX = 2
+            AXIS_RX_STR = "AXIS_RX"
             AXIS_RY = 3
+            AXIS_RY_STR = "AXIS_RY"
 
         # these are treated like buttons for transfer msgs but are classified as axis
         class TRIGGER:
             AXIS_LT = 5
+            AXIS_LT_STR = "AXIS_LT"
             AXIS_RT = 4
+            AXIS_RT_STR = "AXIS_RT"
 
         class BUTTON:
             SIZE_BUTTON_IN_BITS = 2
@@ -123,16 +129,27 @@ class CONSTANTS:
             OFF          = 1
 
             A            = 0
+            A_STR       = "A"
             B            = 1
+            B_STR       = "B"
             X            = 2
+            X_STR       = "X"
             Y            = 3
+            Y_STR       = "Y"
             LEFT_BUMPER  = 4
+            LEFT_BUMPER_STR = "LEFT_BUMPER"
             RIGHT_BUMPER = 5
+            RIGHT_BUMPER_STR = "RIGHT_BUMPER"
             SELECT       = 6
+            SELECT_STR   = "SELECT"
             START        = 7
+            START_STR    = "START"
             LEFT_STICK   = 9
+            LEFT_STICK_STR = "LEFT_STICK"
             RIGHT_STICK  = 10
+            RIGHT_STICK_STR = "RIGHT_STICK" 
             HOME         = 8
+            HOME_STR     = "HOME"
 
         class JOYPAD:
             UP = (0, 1)
@@ -159,7 +176,9 @@ class CONSTANTS:
             MAX_VALUE = 200
 
             AXIS_X = 0
+            AXIS_X_STR = "AXIS_X"
             AXIS_Y = 1
+            AXIS_Y_STR = "AXIS_Y"
 
         class BUTTON:
             SIZE_BUTTON_IN_BITS = 2
@@ -169,19 +188,33 @@ class CONSTANTS:
             OFF      = 1
 
             A        = 1
+            A_STR    = "A"
             B        = 2
+            B_STR    = "B"
             C_UP     = 9
+            C_UP_STR = "C_UP"
             C_DOWN   = 0
+            C_DOWN_STR = "C_DOWN"
             C_LEFT   = 3
+            C_LEFT_STR = "C_LEFT"
             C_RIGHT  = 8
+            C_RIGHT_STR = "C_RIGHT"
             L        = 4
+            L_STR    = "L"
             R        = 5
+            R_STR    = "R"
             Z        = 6
+            Z_STR    = "Z"
             START    = 12
+            START_STR = "START"
             DP_UP    = 20
+            DP_UP_STR = "DP_UP"
             DP_DOWN  = 21
+            DP_DOWN_STR = "DP_DOWN"
             DP_LEFT  = 22
+            DP_LEFT_STR = "DP_LEFT"
             DP_RIGHT = 23
+            DP_RIGHT_STR = "DP_RIGHT"
 
         class JOYPAD:
             UP = (0, 1)

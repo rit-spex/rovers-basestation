@@ -14,5 +14,5 @@ __all__ = [
     'ControllerState', 
     'InputProcessor',
     'MessageFormatter', 
-    'CommunicationManager'
+    'CommunicationManager',
 ]

@@ -28,7 +28,6 @@ from .tkinter_display import TkinterDisplay
 from .heartbeat import HeartbeatManager
 from .controller_manager import ControllerManager, InputProcessor
 from .communication import CommunicationManager
-from .udp_communication import SimulationCommunicationManager
 
 
 class BaseStationCommunication:
