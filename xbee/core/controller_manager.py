@@ -119,7 +119,7 @@ class ControllerState:
         """
 
         if controller_type in self.values:
-            self.values[controller_type][self.indexConversion[key]] = value
+            self.values[controller_type][self.indexConversion[controller_type][key]] = value
 
 
 class ControllerManager:
@@ -157,7 +157,7 @@ class ControllerManager:
             self.joysticks[joy.get_instance_id()] = joy
             
             # Map controller type based on name
-            if "xbox" in joy.get_name().lower():
+            if "xbox" in joy.get_name().lower() or "x-box" in joy.get_name().lower():
                 self.instance_id_values_map[joy.get_instance_id()] = CONSTANTS.XBOX.NAME
             elif "dinput" in joy.get_name().lower():
                 self.instance_id_values_map[joy.get_instance_id()] = CONSTANTS.N64.NAME
@@ -325,7 +325,7 @@ class InputProcessor:
         # Calc button key offset
         key_offset = 6 if controller_type == CONSTANTS.XBOX.NAME else 0
         button_key = event.button + key_offset
-        
+
         self.controller_manager.controller_state.update_value(
             controller_type, button_key, button_value + 1)
             

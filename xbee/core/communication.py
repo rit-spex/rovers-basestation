@@ -19,7 +19,8 @@ class MessageFormatter:
         """
         Init the msg formatter.
         """
-        
+        self.encoder = BaseStationCommunication()
+
     def create_xbox_message(self, values: Dict, reverse_mode: bool = False) -> bytes:
         """
         Create Xbox controller msg for transmission.
@@ -43,7 +44,8 @@ class MessageFormatter:
             temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_LY] = right_y
             temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_RY] = left_y
 
-        return BaseStationCommunication.encode_data(temp_dict, CONSTANTS.COMPACT_MESSAGES.XBOX_ID)
+
+        return self.encoder.encode_data(temp_dict, CONSTANTS.COMPACT_MESSAGES.XBOX_ID)
 
     def create_n64_message(self, values: Dict) -> bytes:
         """
@@ -57,8 +59,8 @@ class MessageFormatter:
         """
 
         # Pack N64 button data
-        
-        return BaseStationCommunication.encode_data(values, CONSTANTS.COMPACT_MESSAGES.N64_ID)
+
+        return self.encoder.encode_data(values, CONSTANTS.COMPACT_MESSAGES.N64_ID)
 
 
 class CommunicationManager:
@@ -97,8 +99,6 @@ class CommunicationManager:
         Returns:
             bool: True if message was sent, False if skipped/failed
         """
-        if not self.enabled or not self.xbee_device or not self.remote_xbee:
-            return False
             
         try:
             message_send = False
@@ -135,7 +135,7 @@ class CommunicationManager:
             bool: True if sent successfully, False otherwise
         """
 
-        quit_message = BaseStationCommunication.encode_data({}, CONSTANTS.COMPACT_MESSAGES.QUIT_ID)
+        quit_message = self.formatter.encoder.encode_data({}, CONSTANTS.COMPACT_MESSAGES.QUIT_ID)
 
         return self.send_package(quit_message)
     
@@ -159,8 +159,8 @@ class CommunicationManager:
         if timestamp_ms == 0:
             import time
             timestamp_ms = int(time.time() * 1000) % 65536  # Keep in 2-byte range
-        
-        heartbeat_data = BaseStationCommunication.encode_data({
+
+        heartbeat_data = self.encoder.encode_data({
             CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE: timestamp_ms
         }, CONSTANTS.COMPACT_MESSAGES.HEARTBEAT_ID)
 
@@ -190,7 +190,7 @@ class CommunicationManager:
             bool: True if sent successfully, False otherwise
         """
 
-        if not self.enabled or not self.xbee_device or not self.remote_xbee or not self.simulation_mode:
+        if not self.enabled or not self.simulation_mode:
             return self.hardware_com.send_package(data, skip_duplicate_check)
         elif self.simulation_mode and self.enabled:
             return self.hardware_com.send_package(data, skip_duplicate_check)

@@ -271,17 +271,17 @@ class BaseStationCommunication:
         """
         return self.controller_manager.reverse_mode
 
-def _process_controller_events(xbee_control, display):
+def _process_controller_events(self, display):
     """
     Process pygame controller events and update display.
     """
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             print("Pygame QUIT event received")
-            xbee_control.quit = True
+            self.quit = True
         else:
-            xbee_control.send_command(event)
-            
+            self.send_command(event)
+
             # Update display with controller info
             if event.type == pygame.JOYDEVICEADDED:
                 controller = pygame.joystick.Joystick(event.device_index)
@@ -327,7 +327,7 @@ def _create_control_loop(baseStation, display):
                 current_time = time.time_ns()
                 
                 # Check if enough time has passed for the next update
-                if current_time >= timer + baseStation.frequency:
+                if current_time >= timer + baseStation.frequency:                    
                     # Process controller events
                     _process_controller_events(baseStation, display)
 

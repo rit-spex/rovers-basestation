@@ -171,7 +171,7 @@ class UdpCommunicationManager:
             'running': self.running
         }
 
-def send_package(self, data: bytes, skip_duplicate_check: bool = False) -> bool:
+    def send_package(self, data: bytes, skip_duplicate_check: bool = False) -> bool:
         """
         Send a compact custom message (as few bytes as possible).
         
@@ -201,8 +201,6 @@ def send_package(self, data: bytes, skip_duplicate_check: bool = False) -> bool:
             lon_bytes = struct.pack('>f', -74.0060)  # longitude as float
             comm.send_compact_message([0xCC] + list(lat_bytes) + list(lon_bytes))
         """
-        if not self.enabled or not self.xbee_device or not self.remote_xbee:
-            return False
             
         try:
             # Convert everything to bytearray
@@ -219,7 +217,7 @@ def send_package(self, data: bytes, skip_duplicate_check: bool = False) -> bool:
             # if not skip_duplicate_check and message == self.last_message:
             #     return False
 
-            self._send_data(message)
+            self._send_message(message)
             # self.last_message = message
             return True
             

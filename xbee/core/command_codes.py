@@ -19,7 +19,7 @@ class CONSTANTS:
         FIVE_HUNDRED_MS_TO_NS = 500_000_000
     
     class HEARTBEAT:
-        NAME: "heartbeat"
+        NAME = "heartbeat"
 
         MESSAGE = b'\xAA'  # Heartbeat signal identifier
         MESSAGE_LENGTH = 3  # Length of heartbeat message in bytes

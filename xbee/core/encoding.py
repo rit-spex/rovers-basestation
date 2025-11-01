@@ -79,6 +79,9 @@ class BaseStationCommunication:
 
         bytes_data = b''
 
+        if ID is bytes:
+            ID = int.from_bytes(ID, byteorder='big')
+
         # the first byte is always the ID
         bytes_data += ID.to_bytes(1, byteorder='big')
 
@@ -96,7 +99,10 @@ class BaseStationCommunication:
             signal_value = 0
 
             if key in data:
-                signal_value = data[key]
+                if isinstance(data[key], bytes):
+                    signal_value = int.from_bytes(data[key], byteorder='big')
+                else:
+                    signal_value = data[key]
 
             # repeat in case of 16 bit values or larger
             while(signal_bits_size > 0):
