@@ -1,32 +1,39 @@
-import serial
 import time
-from digi.xbee.devices import XBeeDevice # Assuming you are using the Digi XBee Python Library
-import xbee.Xbee
+import subprocess
+from digi.xbee.devices import XBeeDevice, XBeeException
 
-# XBee configuration
-PORT = "/dev/ttyUSB0"  # Replace with your XBee's serial port
-BAUD_RATE = 9600
+# --- Configuration ---
+PORT = "/dev/ttyUSB0"          # Replace with your XBee's serial port (e.g., '/dev/ttyUSB0' on Linux)
+BAUD_RATE = 9600       # Adjust to your XBee's baud rate
+RETRY_DELAY = 5        # seconds between connection attempts
 
-xbee = None # Initialize xbee device as None
+def wait_for_xbee_connection():
+    """Loop until XBee successfully connects to the robot."""
+    print("Waiting for Digi XBee to connect to robot...")
 
-# Loop to continuously try connecting to XBee
-while xbee is None:
-    try:
-        print(f"Attempting to connect to XBee on {PORT} at {BAUD_RATE}...")
-        xbee = XBeeDevice(PORT, BAUD_RATE)
-        xbee.open()
-        print("XBee connected successfully!")
-    except serial.SerialException as e:
-        print(f"Serial port error: {e}. Retrying in 5 seconds...")
-        xbee = None # Ensure xbee remains None if connection failed
-        time.sleep(5)
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}. Retrying in 5 seconds...")
-        xbee = None
-        time.sleep(5)
+    while True:
+        try:
+            # Try to open a connection
+            device = XBeeDevice(PORT, BAUD_RATE)
+            device.open()
 
-# Once connected, proceed with the rest of your script
-print("Moving to the next part of the script...")
+            # Optionally test a ping or read parameter to ensure it's responsive
+            node_id = device.get_node_id()
+            print(f"✅ XBee connected successfully (Node ID: {node_id})")
 
-# executing the xbee python file
-xbee.__init__()
+            device.close()
+            return True
+
+        except (XBeeException, OSError) as e:
+            print(f"⚠️ Connection failed: {e}")
+            print(f"Retrying in {RETRY_DELAY} seconds...")
+            time.sleep(RETRY_DELAY)
+
+def launch_xbee_script():
+    """Launch the main Xbee.py script."""
+    print("🚀 Launching Xbee.py...")
+    subprocess.run(["python", "Xbee.py"], check=True)
+
+if __name__ == "__main__":
+    wait_for_xbee_connection()
+    launch_xbee_script()
