@@ -10,6 +10,8 @@ RETRY_DELAY = 1        # seconds between connection attempts
 XBEE_SCRIPT_DIR = "~/rovers-basestation/xbee"   # Replace with actual folder containing Xbee.py
 XBEE_SCRIPT_NAME = "Xbee.py"
 
+remote_xbee = "0013A200423A7DDD"
+
 def wait_for_xbee_connection():
     """Loop until XBee successfully connects to the robot."""
     print("Waiting for Digi XBee to connect to robot...")
@@ -20,9 +22,13 @@ def wait_for_xbee_connection():
             device = XBeeDevice(PORT, BAUD_RATE)
             device.open()
 
-            # Optionally test a ping or read parameter to ensure it's responsive
-            node_id = device.get_node_id()
-            print(f"✅ XBee connected successfully (Node ID: {node_id})")
+            try:
+                device.send_data(remote_xbee, "ping")
+                print("✅ Robot XBee reachable! Connection established.")
+                device.close()
+                return True
+            except XBeeException as e:
+                print("⚠️ Robot XBee not responding yet:", e)
 
             device.close()
             return True
