@@ -37,10 +37,17 @@ class CONSTANTS:
         QUIT_ID = int(0xFE)  # QUIT_MESSAGE
         HEARTBEAT_ID = int(0xAA)  # Heartbeat
 
+        class DATA_TYPE:
+            def __init__(self, num_bits: int, id: int) -> None:
+                self.num_bits = num_bits
+                self.id = id
+
         # enum of data types in bits
-        UINT_2 = 2
-        UINT_8 = 8
-        UINT_16 = 16
+        UINT_2_BOOL     = DATA_TYPE(2,  0x01)
+        UINT_8          = DATA_TYPE(8,  0x02)
+        UINT_16         = DATA_TYPE(16, 0x03)
+        UINT_8_JOYSTICK = DATA_TYPE(8,  0x04) # convert to float on decoding
+        BOOLEAN         = DATA_TYPE(1,  0x05)
 
         # Available message IDs for custom messages
         STATUS = 0xB0  # System status update
@@ -70,21 +77,22 @@ class CONSTANTS:
         # UDP settings for simulation mode
         UDP_HOST = "127.0.0.1" # localhost
         UDP_BASESTATION_PORT = 5000 # Port for basestation to send from
-        UDP_ROVER_PORT = 5001 # Port to send rover commands to
+        UDP_ROVER_PORT = 5005 # Port to send rover commands to
         UDP_TELEMETRY_PORT = 5002 # Port to receive telemetry data
 
     class CONTROLLER_MODES:
         # Controller mode multipliers
-        NORMAL_MULTIPLIER = 100
-        CREEP_MULTIPLIER = 20
-        REVERSE_MULTIPLIER = -100  # Will be applied to normal/creep multiplier
+        NORMAL_MULTIPLIER = 1.0
+        CREEP_MULTIPLIER = 0.2
+        REVERSE_MULTIPLIER = -1.0  # Will be applied to normal/creep multiplier
 
     class QUIT:
-        NAME = "quit"
+        NAME = "QUIT"
+        VALUE = 1
 
     class XBOX:
         # number of processed buttons and axes
-        NAME = "xbox"
+        NAME = "XBOX"
         NUM_AXES = 6
         NUM_USED_AXES = 2
         NUM_TRIGGER = 2
@@ -100,6 +108,7 @@ class CONSTANTS:
             MIN_VALUE = 0
             NEUTRAL_HEX = b'\x64'
             NEUTRAL_INT   = 100
+            NEUTRAL_FLOAT = 0.0
             MAX_VALUE = 200
 
             AXIS_LX = 0

@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from pygame.event import Event
 
 from .command_codes import CONSTANTS
+from .encoding import BaseStationCommunication, Signal
 
 class ControllerState:
     """
@@ -31,81 +32,59 @@ class ControllerState:
                 CONSTANTS.XBOX.TRIGGER.AXIS_LT: CONSTANTS.XBOX.TRIGGER.AXIS_LT_STR,
                 CONSTANTS.XBOX.TRIGGER.AXIS_RT: CONSTANTS.XBOX.TRIGGER.AXIS_RT_STR,
 
-                CONSTANTS.XBOX.BUTTON.A + 6: CONSTANTS.XBOX.BUTTON.A_STR,
-                CONSTANTS.XBOX.BUTTON.B + 6: CONSTANTS.XBOX.BUTTON.B_STR,
-                CONSTANTS.XBOX.BUTTON.X + 6: CONSTANTS.XBOX.BUTTON.X_STR,
-                CONSTANTS.XBOX.BUTTON.Y + 6: CONSTANTS.XBOX.BUTTON.Y_STR,
-                CONSTANTS.XBOX.BUTTON.LEFT_BUMPER + 6: CONSTANTS.XBOX.BUTTON.LEFT_BUMPER_STR,
+                CONSTANTS.XBOX.BUTTON.A + 6:            CONSTANTS.XBOX.BUTTON.A_STR,
+                CONSTANTS.XBOX.BUTTON.B + 6:            CONSTANTS.XBOX.BUTTON.B_STR,
+                CONSTANTS.XBOX.BUTTON.X + 6:            CONSTANTS.XBOX.BUTTON.X_STR,
+                CONSTANTS.XBOX.BUTTON.Y + 6:            CONSTANTS.XBOX.BUTTON.Y_STR,
+                CONSTANTS.XBOX.BUTTON.LEFT_BUMPER + 6:  CONSTANTS.XBOX.BUTTON.LEFT_BUMPER_STR,
                 CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER + 6: CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER_STR,
-                CONSTANTS.XBOX.BUTTON.START + 6: CONSTANTS.XBOX.BUTTON.START_STR,
-                CONSTANTS.XBOX.BUTTON.SELECT + 6: CONSTANTS.XBOX.BUTTON.SELECT_STR,
+                CONSTANTS.XBOX.BUTTON.START + 6:        CONSTANTS.XBOX.BUTTON.START_STR,
+                CONSTANTS.XBOX.BUTTON.SELECT + 6:       CONSTANTS.XBOX.BUTTON.SELECT_STR,
             },
             CONSTANTS.N64.NAME: {
                 # Buttons
-                CONSTANTS.N64.BUTTON.A: CONSTANTS.N64.BUTTON.A_STR,
-                CONSTANTS.N64.BUTTON.B: CONSTANTS.N64.BUTTON.B_STR,
-                CONSTANTS.N64.BUTTON.C_UP: CONSTANTS.N64.BUTTON.C_UP_STR,
-                CONSTANTS.N64.BUTTON.C_DOWN: CONSTANTS.N64.BUTTON.C_DOWN_STR,
-                CONSTANTS.N64.BUTTON.C_LEFT: CONSTANTS.N64.BUTTON.C_LEFT_STR,
-                CONSTANTS.N64.BUTTON.C_RIGHT: CONSTANTS.N64.BUTTON.C_RIGHT_STR,
-                CONSTANTS.N64.BUTTON.L: CONSTANTS.N64.BUTTON.L_STR,
-                CONSTANTS.N64.BUTTON.R: CONSTANTS.N64.BUTTON.R_STR,
-                CONSTANTS.N64.BUTTON.Z: CONSTANTS.N64.BUTTON.Z_STR,
-                CONSTANTS.N64.BUTTON.DP_UP: CONSTANTS.N64.BUTTON.DP_UP_STR,
-                CONSTANTS.N64.BUTTON.DP_DOWN: CONSTANTS.N64.BUTTON.DP_DOWN_STR,
-                CONSTANTS.N64.BUTTON.DP_LEFT: CONSTANTS.N64.BUTTON.DP_LEFT_STR,
+                CONSTANTS.N64.BUTTON.A:        CONSTANTS.N64.BUTTON.A_STR,
+                CONSTANTS.N64.BUTTON.B:        CONSTANTS.N64.BUTTON.B_STR,
+                CONSTANTS.N64.BUTTON.C_UP:     CONSTANTS.N64.BUTTON.C_UP_STR,
+                CONSTANTS.N64.BUTTON.C_DOWN:   CONSTANTS.N64.BUTTON.C_DOWN_STR,
+                CONSTANTS.N64.BUTTON.C_LEFT:   CONSTANTS.N64.BUTTON.C_LEFT_STR,
+                CONSTANTS.N64.BUTTON.C_RIGHT:  CONSTANTS.N64.BUTTON.C_RIGHT_STR,
+                CONSTANTS.N64.BUTTON.L:        CONSTANTS.N64.BUTTON.L_STR,
+                CONSTANTS.N64.BUTTON.R:        CONSTANTS.N64.BUTTON.R_STR,
+                CONSTANTS.N64.BUTTON.Z:        CONSTANTS.N64.BUTTON.Z_STR,
+                CONSTANTS.N64.BUTTON.DP_UP:    CONSTANTS.N64.BUTTON.DP_UP_STR,
+                CONSTANTS.N64.BUTTON.DP_DOWN:  CONSTANTS.N64.BUTTON.DP_DOWN_STR,
+                CONSTANTS.N64.BUTTON.DP_LEFT:  CONSTANTS.N64.BUTTON.DP_LEFT_STR,
                 CONSTANTS.N64.BUTTON.DP_RIGHT: CONSTANTS.N64.BUTTON.DP_RIGHT_STR,
             }
         }
 
-        self.values = {
-            CONSTANTS.XBOX.NAME: {
-                # Axis
-                CONSTANTS.XBOX.JOYSTICK.AXIS_LX_STR: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_RX_STR: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR: CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
-                # Buttons
-                CONSTANTS.XBOX.TRIGGER.AXIS_LT_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.TRIGGER.AXIS_RT_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.A_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.B_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.X_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.Y_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.LEFT_BUMPER_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.START_STR: CONSTANTS.XBOX.BUTTON.OFF,
-                CONSTANTS.XBOX.BUTTON.SELECT_STR: CONSTANTS.XBOX.BUTTON.OFF,
-            },
-            CONSTANTS.N64.NAME: {
-                # Buttons
-                CONSTANTS.N64.BUTTON.A_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.B_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.C_UP_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.C_DOWN_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.C_LEFT_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.C_RIGHT_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.L_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.R_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.Z_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.DP_UP_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.DP_DOWN_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.DP_LEFT_STR: CONSTANTS.N64.BUTTON.OFF,
-                CONSTANTS.N64.BUTTON.DP_RIGHT_STR: CONSTANTS.N64.BUTTON.OFF,
-            }
-        }
-        
+        self.values: Dict[str, str] = {}
+
+        baseStation = BaseStationCommunication()
+
+        # Initialize default values based on encoding messages
+        for message_id, message in baseStation.get_messages().items():
+            
+            # only init known controller types
+            if message["name"] in self.indexConversion.keys():
+                self.values[message["name"]] = {}
+            else:
+                continue
+
+            for signal_name, signal in message["values"].items():
+                self.values[message["name"]][signal_name] = signal.default_value
+
     def get_controller_values(self, controller_type: str) -> Dict:
         """
         Get the current values for a controller type.
         
         Args:
             controller_type: Either "xbox" or "n64"
-            
-        Returns:
-            Dict: Current controller vals
-        """
 
+        Returns:
+            Dict: Current controller values
+        """
         return self.values.get(controller_type, {})
         
     def update_value(self, controller_type: str, key: int, value) -> None:
@@ -224,10 +203,12 @@ class ControllerManager:
             
         # Check button states
         select_pressed = (self.controller_state.values[CONSTANTS.XBOX.NAME].get(
-            CONSTANTS.XBOX.BUTTON.SELECT + 6) == CONSTANTS.XBOX.BUTTON.ON)
+            CONSTANTS.XBOX.BUTTON.SELECT_STR) == True)
         start_pressed = (self.controller_state.values[CONSTANTS.XBOX.NAME].get(
-            CONSTANTS.XBOX.BUTTON.START + 6) == CONSTANTS.XBOX.BUTTON.ON)
-            
+            CONSTANTS.XBOX.BUTTON.START_STR) == True)
+
+        print(f"Joypad direction: {joypad_direction}, Select: {select_pressed}, Start: {start_pressed}")
+
         # Handle mode changes based on joypad direction
         if joypad_direction == CONSTANTS.XBOX.JOYPAD.DOWN:
             if select_pressed:
@@ -282,13 +263,14 @@ class InputProcessor:
         # Apply deadband
         value = event.value if abs(event.value) >= self.deadband else 0
         
-        # Convert to int with mult
-        new_value = self._convert_axis_value(value, multiplier, working_const)
+        # Apply mult 
+        new_value = multiplier * value 
+        # new_value = self._convert_axis_value(value, multiplier, working_const)
         
         # Update controller state
         self.controller_manager.controller_state.update_value(
-            controller_type, event.axis, new_value.to_bytes(1,'big'))
-            
+            controller_type, event.axis, new_value)
+
     def process_trigger_axis(self, event: Event) -> None:
         """
         Process trigger axis events.
@@ -302,8 +284,8 @@ class InputProcessor:
             return
             
         # Treat trigger like button
-        value = CONSTANTS.XBOX.BUTTON.ON if event.value > 0 else CONSTANTS.XBOX.BUTTON.OFF
-        
+        value = True if event.value > 0 else False
+
         self.controller_manager.controller_state.update_value(
             controller_type, event.axis, value)
             
@@ -327,7 +309,7 @@ class InputProcessor:
         button_key = event.button + key_offset
 
         self.controller_manager.controller_state.update_value(
-            controller_type, button_key, button_value + 1)
+            controller_type, button_key, button_value)
             
     def process_joypad(self, event: Event) -> None:
         """
@@ -446,4 +428,4 @@ class InputProcessor:
             event: Joypad event
         """
 
-        self.controller_manager.update_mode_flags(event.value, "xbox")
+        self.controller_manager.update_mode_flags(event.value, CONSTANTS.XBOX.NAME)
