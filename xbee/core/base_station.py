@@ -84,8 +84,8 @@ class BaseStationCommunication:
                     raise ImportError("XBee classes not properly imported")
                 
                 # Init managers with XBee devices
-                self.heartbeat_manager = HeartbeatManager(self.xbee_device, self.remote_xbee)
                 self.communication_manager = CommunicationManager(self.xbee_device, self.remote_xbee, simulation_mode=False)
+                self.heartbeat_manager = HeartbeatManager(self.communication_manager)
 
                 print("XBee comms init success")
                 
@@ -93,15 +93,16 @@ class BaseStationCommunication:
                 print(f"Failed to init XBee communication: {e}")
                 # Fall back to simulation mode
                 self.xbee_enabled = False
-                self.heartbeat_manager = HeartbeatManager()
                 self.communication_manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=True)
+                self.heartbeat_manager = HeartbeatManager(self.communication_manager)
         else:
             if self.simulation_mode:
                 print("SIMULATION MODE - Using UDP communication for testing")
             else:
                 print("XBee libraries not available - running in simulation mode")
-            self.heartbeat_manager = HeartbeatManager()
             self.communication_manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=True)
+            self.heartbeat_manager = HeartbeatManager(self.communication_manager)
+
             
     def _setup_telemetry_handlers(self):
         """
@@ -236,8 +237,8 @@ class BaseStationCommunication:
         """
         if self.communication_manager:
             self.communication_manager.send_quit_message()
-    
-    def cleanup(self):
+
+    def cleanup(self, display: TkinterDisplay):
         """
         Clean up resources when shutting down.
         """
@@ -256,7 +257,9 @@ class BaseStationCommunication:
                 cleanup_fn()
             except Exception as e:
                 print(f"Error during communication manager cleanup: {e}")
-    
+        # Close any other resources here
+        display.quit()
+
     @property # For readonly and make it accessible like an attribute
     def creep_mode(self) -> bool:
         """
@@ -355,7 +358,7 @@ def _create_control_loop(baseStation, display):
         finally:
             print("Quitting - Now cleaning...")
             baseStation.send_quit_message()
-            baseStation.cleanup()
+            baseStation.cleanup(display)
             pygame.quit()
             print("Cleanup complete")
             
@@ -377,7 +380,7 @@ def main():
 
     print("BaseStation Control System started - is waiting for input...")
     print(f"Update frequency: {baseStation.frequency / CONSTANTS.CONVERSION.NS_PER_MS:.1f}ms")
-    print(f"Heartbeat interval: {baseStation.heartbeat_manager.heartbeat_interval / CONSTANTS.CONVERSION.NS_PER_S:.1f}s")
+    print(f"Heartbeat interval: {baseStation.heartbeat_manager.get_interval() / CONSTANTS.CONVERSION.NS_PER_S:.1f}s")
 
     # Set initial display state
     display.update_communication_status(baseStation.xbee_enabled, 0)
@@ -386,7 +389,7 @@ def main():
     control_loop = _create_control_loop(baseStation, display)
     control_thread = threading.Thread(target=control_loop, daemon=True)
     control_thread.start()
-    
+
     # Run tkinter main loop (blocks until window is closed)
     try:
         display.run()

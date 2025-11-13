@@ -160,7 +160,7 @@ class CommunicationManager:
             import time
             timestamp_ms = int(time.time() * 1000) % 65536  # Keep in 2-byte range
 
-        heartbeat_data = self.encoder.encode_data({
+        heartbeat_data = self.formatter.encoder.encode_data({
             CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE: timestamp_ms
         }, CONSTANTS.COMPACT_MESSAGES.HEARTBEAT_ID)
 

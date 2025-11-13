@@ -8,13 +8,14 @@ import struct
 from typing import Optional
 
 from .command_codes import CONSTANTS
+from .communication import CommunicationManager
 
 class HeartbeatManager:
     """
     Manages heartbeat signals for XBee comms.
     """
     
-    def __init__(self, xbee_device = None, remote_xbee = None):
+    def __init__(self, communicationManager: CommunicationManager):
         """
         Init heartbeat manager.
         
@@ -22,11 +23,9 @@ class HeartbeatManager:
             xbee_device: XBee device instance for comms
             remote_xbee: Remote XBee device to send the heartbeat to
         """
-        self.xbee_device = xbee_device
-        self.remote_xbee = remote_xbee
-        self.last_heartbeat_time = 0
-        self.heartbeat_interval = CONSTANTS.HEARTBEAT.INTERVAL
-        self.enabled = True
+        self.__communicationManager = communicationManager
+        self.__last_heartbeat_time = 0
+        self.__heartbeat_interval = CONSTANTS.HEARTBEAT.INTERVAL
         
     def should_send_heartbeat(self) -> bool:
         """
@@ -36,30 +35,8 @@ class HeartbeatManager:
             bool: True if heartbeat should be sent, False otherwise
         """
         current_time = time.time_ns() # Truely so incredibly necessary to be in ns trust
-        return (current_time - self.last_heartbeat_time) >= self.heartbeat_interval
-    
-    def create_heartbeat_message(self) -> bytearray:
-        """
-        Create a heartbeat message with timestamp data.
-        Uses the last 2 bytes of unix timestamp.
-        
-        Returns:
-            bytearray: Heartbeat message containing identifier and timestamp
-        """
-        # Current unix timestamp
-        unix_timestamp = int(time.time())
-        
-        # Get last 2 bytes of timestamp
-        # 4 byte big-edian binary
-        timestamp_bytes = struct.pack('>I', unix_timestamp)[-2:]
-        
-        # Create message: heartbeat identifier + timestamp (last 2 bytes)
-        message = bytearray()
-        message.extend(CONSTANTS.HEARTBEAT.MESSAGE)
-        message.extend(timestamp_bytes)
-        
-        return message
-    
+        return (current_time - self.__last_heartbeat_time) >= self.__heartbeat_interval
+
     def send_heartbeat(self) -> bool:
         """
         Sends a heartbeat message if XBee comms is available.
@@ -67,17 +44,15 @@ class HeartbeatManager:
         Returns:
             bool: True if heartbeat sent successfully, False otherwise
         """
-        if not self.enabled or not self.xbee_device or not self.remote_xbee:
+        if not self.__communicationManager.enabled:
             return False
+
+        success = self.__communicationManager.send_heartbeat()
+
+        if success:
+            self.__last_heartbeat_time = time.time_ns()
         
-        try:
-            heartbeat_msg = self.create_heartbeat_message()
-            self.xbee_device.send_data(self.remote_xbee, heartbeat_msg)
-            self.last_heartbeat_time = time.time_ns()
-            return True
-        except Exception as e:
-            print(f"Failed to send heartbeat: {e}")
-            return False
+        return success
     
     def update(self) -> bool:
         """
@@ -89,19 +64,7 @@ class HeartbeatManager:
         if self.should_send_heartbeat():
             return self.send_heartbeat()
         return False
-    
-    def enable(self):
-        """
-        Enable heartbeat functionality.
-        """
-        self.enabled = True
-        
-    def disable(self):
-        """
-        Disable heartbeat functionality.
-        """
-        self.enabled = False
-        
+
     def set_interval(self, interval_ns: int):
         """
         Sets the heartbeat interval.
@@ -109,8 +72,16 @@ class HeartbeatManager:
         Args:
             interval_ns: Interval in nanoseconds between heartbeats
         """
-        self.heartbeat_interval = interval_ns
+        self.__heartbeat_interval = interval_ns
 
+    def get_interval(self) -> int:
+        """
+        Gets the current heartbeat interval.
+        
+        Returns:
+            int: Heartbeat interval in nanoseconds
+        """
+        return self.__heartbeat_interval
 class HeartbeatTester:
     """
     Test class for heartbeat functionality when actual hardware isn't available.
@@ -152,37 +123,37 @@ class HeartbeatTester:
         self.received_heartbeats.append(heartbeat_data)
         return heartbeat_data
         
-    def test_heartbeat_creation(self):
-        """
-        Test heartbeat message creation.
-        """
-        print("Testing heartbeat message creation...")
+    # def test_heartbeat_creation(self):
+    #     """
+    #     Test heartbeat message creation.
+    #     """
+    #     print("Testing heartbeat message creation...")
         
-        message = self.manager.create_heartbeat_message()
-        print(f"Created heartbeat message: {message.hex()}")
-        print(f"Message length: {len(message)} bytes")
+    #     message = self.manager.create_heartbeat_message()
+    #     print(f"Created heartbeat message: {message.hex()}")
+    #     print(f"Message length: {len(message)} bytes")
         
-        # Verify message is correctly formatted
-        if message[0:1] == CONSTANTS.HEARTBEAT.MESSAGE:
-            print("Heartbeat identifier: CORRECT")
-        else:
-            print("Heartbeat identifier: INCORRECT")
+    #     # Verify message is correctly formatted
+    #     if message[0:1] == CONSTANTS.HEARTBEAT.MESSAGE:
+    #         print("Heartbeat identifier: CORRECT")
+    #     else:
+    #         print("Heartbeat identifier: INCORRECT")
             
-        if len(message) == CONSTANTS.HEARTBEAT.MESSAGE_LENGTH:
-            print(f"Message length: CORRECT ({CONSTANTS.HEARTBEAT.MESSAGE_LENGTH} bytes)")
-        else:
-            print("Message length: INCORRECT",
-                  f"(expected {CONSTANTS.HEARTBEAT.MESSAGE_LENGTH} bytes, got {len(message)} bytes)")
+    #     if len(message) == CONSTANTS.HEARTBEAT.MESSAGE_LENGTH:
+    #         print(f"Message length: CORRECT ({CONSTANTS.HEARTBEAT.MESSAGE_LENGTH} bytes)")
+    #     else:
+    #         print("Message length: INCORRECT",
+    #               f"(expected {CONSTANTS.HEARTBEAT.MESSAGE_LENGTH} bytes, got {len(message)} bytes)")
             
-        # Parse and display timestamp
-        parsed = self.simulate_receive_heartbeat(message)
-        if parsed:
-            print(f"SUCCESS:\nTimestamp extracted: {parsed['timestamp']}")
-            current_time = int(time.time())
-            print(f"Current unix timestamp: {current_time}")
-            print(f"Last 2 bytes of current time: {current_time & 0xFFFF}")
+    #     # Parse and display timestamp
+    #     parsed = self.simulate_receive_heartbeat(message)
+    #     if parsed:
+    #         print(f"SUCCESS:\nTimestamp extracted: {parsed['timestamp']}")
+    #         current_time = int(time.time())
+    #         print(f"Current unix timestamp: {current_time}")
+    #         print(f"Last 2 bytes of current time: {current_time & 0xFFFF}")
         
-        return message
+    #     return message
         
     def test_interval_timing(self, test_duration_seconds=5):
         """
@@ -201,10 +172,10 @@ class HeartbeatTester:
         
         while time.time() - start_time < test_duration_seconds:
             if self.manager.should_send_heartbeat():
-                message = self.manager.create_heartbeat_message()
+                message = self.manager.send_heartbeat()
                 print(f"Heartbeat {heartbeat_count + 1}: {message.hex()}")
                 heartbeat_count += 1
-                self.manager.last_heartbeat_time = time.time_ns()
+                self.manager.__last_heartbeat_time = time.time_ns()
                 
             time.sleep(0.1)  # Prevent busy waiting
             
@@ -219,6 +190,6 @@ if __name__ == "__main__":
     tester = HeartbeatTester()
     
     print("=== Heartbeat System Test ===")
-    tester.test_heartbeat_creation()
+    # tester.test_heartbeat_creation()
     tester.test_interval_timing()
     print("\n=== Test Complete ===")
