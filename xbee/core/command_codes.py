@@ -1,6 +1,6 @@
 class CONSTANTS:
     # Set to True to run simulator with UDP, False for actual XBee communication
-    SIMULATION_MODE = True  # Change this to False when trying to communicate with real rover
+    SIMULATION_MODE = False  # Change this to False when trying to communicate with real rover
     
     # message to send to show start of new values
     START_MESSAGE = b'\xDE'
@@ -26,7 +26,7 @@ class CONSTANTS:
 
         TIMESTAMP_MESSAGE = "timestamp"
 
-        INTERVAL = 1_000_000_000  # 1 second heartbeat interval
+        INTERVAL = 500_000_000  # 500ms heartbeat interval
         # Heartbeat consists of 1 byte identifier + 2 bytes timestamp
     
     class COMPACT_MESSAGES:
@@ -69,7 +69,7 @@ class CONSTANTS:
     
     class COMMUNICATION:
         # Communication settings
-        DEFAULT_PORT = "COM9"
+        DEFAULT_PORT = "/dev/ttyUSB0"#"COM9"
         DEFAULT_BAUD_RATE = 230400
         FALLBACK_BAUD_RATE = 921600
         REMOTE_XBEE_ADDRESS = "0013A200423A7DDD"
