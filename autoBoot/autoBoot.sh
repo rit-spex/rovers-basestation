@@ -12,5 +12,6 @@ dir=$(pwd)
 
 cd xbee
 
-python3 autoBoot.py
-#python3 Xbee.py
+#python3 autoBoot.py
+cd ~/rovers-basestation/xbee
+python3 Xbee.py

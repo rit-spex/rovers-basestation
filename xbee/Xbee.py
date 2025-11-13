@@ -23,7 +23,7 @@ class XbeeControl:
         # flag to hold program runtime
         self.start_time = time.time()
         # stop the kill code from activating when program activated in second
-        self.delay_time = 5.0
+        self.delay_time = 1.0
 
         # flag to half the speed
         self.creepMode = False
