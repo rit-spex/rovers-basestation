@@ -5,6 +5,8 @@ import os
 import time
 from pygame.event import Event
 from pygame.joystick import Joystick
+from pygame.time import delay
+
 from CommandCodes import CONSTANTS
 from JoystickFeedback import Display
 from digi.xbee.devices import XBeeDevice, RemoteXBeeDevice, XBee64BitAddress
@@ -18,6 +20,11 @@ class XbeeControl:
 
         # flag to quit the program
         self.quit = False
+
+        # flag to hold program runtime
+        self.start_time = time.time()
+        # stop the kill code from activating when program activated in second
+        self.delay_time = 1.0
 
         # flag to half the speed
         self.creepMode = False
@@ -144,7 +151,7 @@ class XbeeControl:
             # joystick, filling up the list without needing to create them manually.
             joy = pygame.joystick.Joystick(newEvent.device_index)
             self.joysticks[joy.get_instance_id()] = joy
-            if "xbox" in joy.get_name().lower():
+            if "x-box" in joy.get_name().lower():
                 # self.joysticks[joy.get_instance_id()].__setattr__("values_name", "xbox")
                 self.instance_id_values_map[joy.get_instance_id()] = "xbox"
             elif "dinput" in joy.get_name().lower():
@@ -228,7 +235,7 @@ class XbeeControl:
         )
 
         # if button is home kill the code; ignore if n64
-        if values_name == "xbox" and newEvent.dict["button"] == CONSTANTS.XBOX.BUTTONS.HOME or values_name == "n64" and newEvent.dict["button"] == CONSTANTS.N64.BUTTONS.START:
+        if values_name == "xbox" and newEvent.dict["button"] == CONSTANTS.XBOX.BUTTONS.HOME and time.time() > self.start_time + self.delay_time or values_name == "n64" and newEvent.dict["button"] == CONSTANTS.N64.BUTTONS.START:
             self.quit = True
 
         self.values[values_name][newEvent.dict["button"] + (6 if values_name == "xbox" else 0)] = newValue + 1
@@ -425,6 +432,7 @@ if __name__ == "__main__":
     xbee = XbeeControl()
 
     timer = time.time_ns()
+
     while not xbee.quit:
         while timer + xbee.FREQUENCY > time.time_ns() and not xbee.quit:
             for event in pygame.event.get():
