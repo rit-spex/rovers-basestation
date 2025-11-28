@@ -149,7 +149,7 @@ The basestation is organized into modules, including ones to handle controller i
       |                      v                         |
       |      .---------[encoding.py]                   |
       |      |                                         |
-      |      *-> [MessageEncoder]                     |
+      |      *-> [MessageEncoder]                      |
       |          [Signal]                              |
       |          Technically for both encoding         |
       |          and decoding, I didn't make           |
