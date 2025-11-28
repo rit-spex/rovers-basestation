@@ -2,17 +2,25 @@
 Core XBee modules - refactored components for the base station.
 """
 
-# Just makes the imports one thing instead of like multiple things
-from .heartbeat import HeartbeatManager, HeartbeatTester
+from .communication import CommunicationManager, MessageFormatter
 from .controller_manager import ControllerManager, ControllerState, InputProcessor
-from .communication import MessageFormatter, CommunicationManager
+from .encoding import MessageEncoder
+from .heartbeat import HeartbeatManager
+from .udp_communication import (
+    SimulationCommunicationManager,
+    UdpCommunicationManager,
+    UdpMessage,
+)
 
 __all__ = [
-    'HeartbeatManager', 
-    'HeartbeatTester',
-    'ControllerManager', 
-    'ControllerState', 
-    'InputProcessor',
-    'MessageFormatter', 
-    'CommunicationManager',
+    "HeartbeatManager",
+    "ControllerManager",
+    "ControllerState",
+    "InputProcessor",
+    "MessageFormatter",
+    "MessageEncoder",
+    "CommunicationManager",
+    "UdpMessage",
+    "UdpCommunicationManager",
+    "SimulationCommunicationManager",
 ]

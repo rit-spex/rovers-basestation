@@ -1,0 +1,70 @@
+{
+    "controller_inputs": {
+        "xbox_neutral": {
+            "ly": 0.0,
+            "ry": 0.0,
+            "A": false,
+            "B": false,
+            "X": false,
+            "Y": false,
+            "LB": false,
+            "RB": false,
+            "LT": false,
+            "RT": false
+        },
+        "xbox_forward": {
+            "ly": 1.0,
+            "ry": 1.0,
+            "A": false,
+            "B": false,
+            "X": false,
+            "Y": false,
+            "LB": false,
+            "RB": false,
+            "LT": false,
+            "RT": false
+        },
+        "xbox_buttons_pressed": {
+            "ly": 0.0,
+            "ry": 0.0,
+            "A": true,
+            "B": true,
+            "X": false,
+            "Y": false,
+            "LB": true,
+            "RB": true,
+            "LT": true,
+            "RT": true
+        },
+        "n64_neutral": {
+            "A": false,
+            "B": false,
+            "L": false,
+            "R": false,
+            "C_UP": false,
+            "C_DOWN": false,
+            "C_LEFT": false,
+            "C_RIGHT": false,
+            "DP_UP": false,
+            "DP_DOWN": false,
+            "DP_LEFT": false,
+            "DP_RIGHT": false,
+            "Z": false
+        },
+        "n64_all_pressed": {
+            "A": true,
+            "B": true,
+            "L": true,
+            "R": true,
+            "C_UP": true,
+            "C_DOWN": true,
+            "C_LEFT": true,
+            "C_RIGHT": true,
+            "DP_UP": true,
+            "DP_DOWN": true,
+            "DP_LEFT": true,
+            "DP_RIGHT": true,
+            "Z": true
+        }
+    }
+}

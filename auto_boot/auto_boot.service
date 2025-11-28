@@ -1,0 +1,22 @@
+[Unit]
+Description=autoBoot systemd service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rover
+Group=rover
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+TimeoutStartSec=30
+TimeoutStopSec=10
+Environment=HOME=/home/rover
+Environment=XBEE_NO_GUI=1
+WorkingDirectory=/home/rover/rovers-basestation
+ExecStart=/bin/bash /home/rover/rovers-basestation/auto_boot/auto_boot.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,93 @@
+name: Python package
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest-cov
+
+    - name: Run tests with coverage
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        Xvfb :99 -screen 0 1024x768x24 &
+        export DISPLAY=:99
+        python -m pytest --cov=xbee --cov=utils --cov=auto_boot --cov-report=term --cov-report=html tests/
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: htmlcov/
+        if-no-files-found: ignore
+
+  type-check:
+    runs-on: ubuntu-22.04
+    continue-on-error: false
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install mypy & coverage
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    - name: Run mypy
+      run: |
+        # Ignore missing imports in third-party libs and focus on repo typing
+        mypy --ignore-missing-imports .
+
+  lint:
+    runs-on: ubuntu-22.04
+    needs: type-check
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install linting & formatting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    - name: Run ruff
+      run: |
+        ruff check .
+    - name: Run black (format check)
+      run: |
+        black --check .
+    - name: Run isort (import sorting check)
+      run: |
+        isort --check-only .

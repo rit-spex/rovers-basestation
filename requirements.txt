@@ -14,4 +14,4 @@ pytest
 pyyaml
 pygame
 lark
-digi-xbee
+digi-xbee==1.5.0

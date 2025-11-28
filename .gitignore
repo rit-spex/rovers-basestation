@@ -1,7 +1,12 @@
 # Virtualenv
-.venv
+.venv/
+venv/
+env/
+ENV/
+
 # Node lock
 package-lock.json
+
 # Nix shell
 shell.nix
 
@@ -11,5 +16,36 @@ __pycache__/
 *.pyc
 *$py.class
 
+# Python packaging
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+wheels/
+
 # Pytest cache
 .pytest_cache/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Other caches
+.mypy_cache/
+.ruff_cache/
+
+# Test output
+test_*.txt
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,37 @@
+{
+    "telemetry_messages": {
+        "basic_telemetry": {
+            "battery_voltage": 12.6,
+            "current_draw": 2.5,
+            "temperature": 25.0,
+            "timestamp": 1234567890
+        },
+        "low_battery": {
+            "battery_voltage": 10.2,
+            "current_draw": 3.8,
+            "temperature": 30.0,
+            "timestamp": 1234567900
+        },
+        "with_gps": {
+            "battery_voltage": 12.6,
+            "current_draw": 2.5,
+            "temperature": 25.0,
+            "gps_lat": 40.7128,
+            "gps_lon": -74.0060,
+            "gps_alt": 10.5,
+            "timestamp": 1234567910
+        },
+        "high_temp": {
+            "battery_voltage": 12.0,
+            "current_draw": 4.2,
+            "temperature": 45.5,
+            "timestamp": 1234567920
+        }
+    },
+    "udp_messages": {
+        "telemetry_json": "{\"type\": \"telemetry\", \"data\": {\"battery_voltage\": 12.6, \"current_draw\": 2.5}, \"timestamp\": 1234567890}",
+        "status_json": "{\"type\": \"status\", \"data\": {\"state\": \"running\"}, \"timestamp\": 1234567891}",
+        "malformed_no_type": "{\"data\": {\"value\": 123}}",
+        "malformed_no_data": "{\"type\": \"test\"}"
+    }
+}
