@@ -1,15 +1,17 @@
 """
 Tests for auto_boot.py advanced functionality.
+
+NOTE: Basic launch script tests are in test_auto_boot.py. This module
+contains specialized tests for stubs and config value helpers.
 """
 
-import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
 
 
-class TestAutoBoot:
-    """Test auto_boot module functionality."""
+class TestWaitForXBeeConnection:
+    """Test wait_for_xbee_connection edge cases."""
 
     @patch("auto_boot.auto_boot.time.sleep")
     def test_wait_for_xbee_connection_no_libs(self, mock_sleep):
@@ -24,75 +26,9 @@ class TestAutoBoot:
 
         assert result is False
 
-    @patch("auto_boot.auto_boot.os.chdir")
-    @patch("auto_boot.auto_boot.subprocess.run")
-    def test_launch_xbee_script_success(self, mock_run, mock_chdir):
-        """Test launch_xbee_script succeeds."""
-        from auto_boot.auto_boot import launch_xbee_script
 
-        mock_run.return_value = Mock(returncode=0)
-
-        result = launch_xbee_script()
-
-        assert result is True
-        mock_chdir.assert_called_once()
-        mock_run.assert_called_once()
-
-    @patch("auto_boot.auto_boot.os.chdir")
-    def test_launch_xbee_script_chdir_fails(self, mock_chdir):
-        """Test launch_xbee_script handles chdir failure."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_chdir.side_effect = OSError("Directory not found")
-
-        with patch("auto_boot.auto_boot.logger"):
-            result = launch_xbee_script()
-
-        assert result is False
-
-    @patch("auto_boot.auto_boot.os.chdir")
-    def test_launch_xbee_script_chdir_fails_exit(self, mock_chdir):
-        """Test launch_xbee_script exits on chdir failure with exit_on_error."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_chdir.side_effect = OSError("Directory not found")
-
-        with (
-            patch("auto_boot.auto_boot.logger"),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            launch_xbee_script(exit_on_error=True)
-
-        assert exc_info.value.code == 1
-
-    @patch("auto_boot.auto_boot.os.chdir")
-    @patch("auto_boot.auto_boot.subprocess.run")
-    def test_launch_xbee_script_called_process_error(self, mock_run, mock_chdir):
-        """Test launch_xbee_script handles CalledProcessError."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_run.side_effect = subprocess.CalledProcessError(1, "test")
-
-        with patch("auto_boot.auto_boot.logger"):
-            result = launch_xbee_script()
-
-        assert result is False
-
-    @patch("auto_boot.auto_boot.os.chdir")
-    @patch("auto_boot.auto_boot.subprocess.run")
-    def test_launch_xbee_script_called_process_error_exit(self, mock_run, mock_chdir):
-        """Test launch_xbee_script exits on CalledProcessError with exit_on_error."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_run.side_effect = subprocess.CalledProcessError(42, "test")
-
-        with (
-            patch("auto_boot.auto_boot.logger"),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            launch_xbee_script(exit_on_error=True)
-
-        assert exc_info.value.code == 42
+class TestLaunchXBeeScriptInterrupt:
+    """Test interrupt handling in launch_xbee_script."""
 
     @patch("auto_boot.auto_boot.os.chdir")
     @patch("auto_boot.auto_boot.subprocess.run")
@@ -105,42 +41,13 @@ class TestAutoBoot:
         with pytest.raises(KeyboardInterrupt):
             launch_xbee_script()
 
-    @patch("auto_boot.auto_boot.os.chdir")
-    @patch("auto_boot.auto_boot.subprocess.run")
-    def test_launch_xbee_script_generic_exception(self, mock_run, mock_chdir):
-        """Test launch_xbee_script handles generic exceptions."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_run.side_effect = RuntimeError("Unknown error")
-
-        with patch("auto_boot.auto_boot.logger"):
-            result = launch_xbee_script()
-
-        assert result is False
-
-    @patch("auto_boot.auto_boot.os.chdir")
-    @patch("auto_boot.auto_boot.subprocess.run")
-    def test_launch_xbee_script_generic_exception_exit(self, mock_run, mock_chdir):
-        """Test launch_xbee_script exits on generic exception with exit_on_error."""
-        from auto_boot.auto_boot import launch_xbee_script
-
-        mock_run.side_effect = RuntimeError("Unknown error")
-
-        with (
-            patch("auto_boot.auto_boot.logger"),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            launch_xbee_script(exit_on_error=True)
-
-        assert exc_info.value.code == 1
-
 
 class TestXBeeDeviceStub:
     """Test _XBeeDeviceStub class."""
 
     def test_stub_open_raises(self):
         """Test stub open raises XBeeException."""
-        from auto_boot.auto_boot import _XBeeDeviceStub, XBeeException
+        from auto_boot.auto_boot import XBeeException, _XBeeDeviceStub
 
         stub = _XBeeDeviceStub()
 
@@ -149,7 +56,7 @@ class TestXBeeDeviceStub:
 
     def test_stub_send_data_raises(self):
         """Test stub send_data raises XBeeException."""
-        from auto_boot.auto_boot import _XBeeDeviceStub, XBeeException
+        from auto_boot.auto_boot import XBeeException, _XBeeDeviceStub
 
         stub = _XBeeDeviceStub()
 

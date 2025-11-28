@@ -7,8 +7,8 @@ from __future__ import annotations
 import threading
 from unittest.mock import Mock, patch
 
-import pytest
 import pygame
+import pytest
 
 from xbee.core.base_station import (
     BaseStation,

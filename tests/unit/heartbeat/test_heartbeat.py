@@ -1,3 +1,10 @@
+"""
+Core heartbeat manager tests.
+
+Basic functionality tests are here. See test_heartbeat_edge_cases.py for
+more comprehensive boundary testing and concurrency tests.
+"""
+
 import time
 from unittest.mock import Mock
 
@@ -21,8 +28,8 @@ def heartbeat_manager():
 
 
 def test_heartbeat_manager_creation_and_send(heartbeat_manager):
+    """Test HeartbeatManager can be created and sends heartbeat successfully."""
     manager, mock_comm = heartbeat_manager
-    # Reset last heartbeat time so we know send_heartbeat will set it
     manager.reset_heartbeat()
 
     result = manager.send_heartbeat()
@@ -31,14 +38,13 @@ def test_heartbeat_manager_creation_and_send(heartbeat_manager):
     assert manager._last_heartbeat_time > 0
 
 
-def test_heartbeat_manager_timing_short(heartbeat_manager, monkeypatch):
+def test_heartbeat_manager_timing_simulation(heartbeat_manager, monkeypatch):
+    """Test heartbeat timing with simulated clock to avoid flaky wall-clock tests."""
     manager, mock_comm = heartbeat_manager
     manager.set_interval(100_000_000)  # 100ms in ns
-    # Reset the private time to force sending immediately
     manager.reset_heartbeat()
 
-    # Patch time.time_ns to control time deterministically instead of
-    # relying on wall-clock time or sleeps which may be flaky on CI.
+    # Patch time.time_ns for deterministic simulation
     now_ns = [int(time.time_ns())]
 
     def fake_time_ns():
@@ -47,7 +53,7 @@ def test_heartbeat_manager_timing_short(heartbeat_manager, monkeypatch):
     monkeypatch.setattr("time.time_ns", fake_time_ns, raising=True)
 
     sent_count = 0
-    # Simulate 1 second of time passing by advancing time in 10ms steps
+    # Simulate 1 second of time in 10ms steps
     for _ in range(100):
         now_ns[0] += 10_000_000  # 10ms
         if manager.should_send_heartbeat():
@@ -55,6 +61,6 @@ def test_heartbeat_manager_timing_short(heartbeat_manager, monkeypatch):
             if ok:
                 sent_count += 1
 
-    # around 10
+    # With 100ms interval over 1 second, should send ~10 heartbeats
     assert 8 <= sent_count <= 12, f"Expected 8-12 sends, got {sent_count}"
     assert mock_comm.send_heartbeat.call_count == sent_count

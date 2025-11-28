@@ -2,8 +2,8 @@
 Tests for xbee/__main__.py entry point.
 """
 
-from unittest.mock import Mock
 import sys
+from unittest.mock import Mock
 
 
 class TestXbeeMain:
@@ -13,8 +13,8 @@ class TestXbeeMain:
         """Test that running the package as a script calls base_station.main()."""
         # Inject a stub module so that executing `python -m xbee` does not call the real base_station
         import importlib
-        import types
         import runpy
+        import types
 
         stub_mod = types.ModuleType("xbee.core.base_station")
         stub_mod.main = Mock()  # type: ignore[attr-defined]
