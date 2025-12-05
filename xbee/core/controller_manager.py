@@ -839,7 +839,7 @@ class InputProcessor:
             int: Converted value
         """
 
-        new_value = floor(multiplier * value + constants.JOYSTICK.NEUTRAL_INT)
+        new_value = floor(multiplier * value * 100 + constants.JOYSTICK.NEUTRAL_INT)
 
         # Clamp to valid range
         if new_value < constants.JOYSTICK.MIN_VALUE:

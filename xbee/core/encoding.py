@@ -115,12 +115,12 @@ class MessageEncoder:
                     # byte 1
                     CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR: Signal(
                         CONSTANTS.COMPACT_MESSAGES.UINT_8_JOYSTICK,
-                        CONSTANTS.XBOX.JOYSTICK.NEUTRAL_FLOAT,
+                        CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
                     ),  # bits 0-7
                     # byte 2
                     CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR: Signal(
                         CONSTANTS.COMPACT_MESSAGES.UINT_8_JOYSTICK,
-                        CONSTANTS.XBOX.JOYSTICK.NEUTRAL_FLOAT,
+                        CONSTANTS.XBOX.JOYSTICK.NEUTRAL_HEX,
                     ),  # bits 0-7
                     # byte 3
                     CONSTANTS.XBOX.BUTTON.A_STR: Signal(
