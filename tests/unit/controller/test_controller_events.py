@@ -109,8 +109,8 @@ class TestControllerState:
 
         state.update_value(CONSTANTS.XBOX.NAME, "A", True)
 
-        # Value should be updated (button press should be encoded as int 1 when True is passed)
-        assert state.values[CONSTANTS.XBOX.NAME]["A"] == 1
+        # Value should be updatted (button press should be encoded as int 2 (ON) when True is passed)
+        assert state.values[CONSTANTS.XBOX.NAME]["A"] == CONSTANTS.XBOX.BUTTON.ON
 
     def test_get_controller_values(self):
         """Test retrieving controller values."""

@@ -63,14 +63,16 @@ class TestControllerStateBoundaryValues:
             )
 
     def test_update_value_button_at_255(self):
-        """Test button value at maximum."""
+        """
+        Test button value at maximum
+        (out of range should raise error)
+        """
         state = ControllerState()
         button_key = CONSTANTS.XBOX.BUTTON.A + CONSTANTS.XBOX.BUTTON_INDEX_OFFSET
 
-        state.update_value(CONSTANTS.XBOX.NAME, button_key, 255)
-
-        values = state.get_controller_values(CONSTANTS.XBOX.NAME)
-        assert values[button_key] == 255
+        # Button values should be 0, 1, or 2 only (pygame values or encoded values)
+        with pytest.raises(ValueError, match="Button value out of range"):
+            state.update_value(CONSTANTS.XBOX.NAME, button_key, 255)
 
     def test_get_controller_values_unknown_controller(self):
         """Test getting values for unknown controller returns empty dict."""

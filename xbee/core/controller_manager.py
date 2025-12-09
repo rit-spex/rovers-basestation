@@ -160,7 +160,8 @@ class ControllerState:
                 continue
             numeric_key = self._find_numeric_key_for_signal(name, signal_name)
             key = numeric_key if numeric_key is not None else signal_name
-            self.values[name][key] = signal.default_value
+            # Use update_value to make sur that default values are normalized consstently
+            self.update_value(name, key, signal.default_value)
 
     def _find_numeric_key_for_signal(self, name: str, signal_name: str):
         """
@@ -404,16 +405,20 @@ class ControllerState:
 
     def _normalize_button_value(self, key: Union[int, str], value) -> int:
         """
-        Normalize button values to integers.
+        Normalize button values to integers using 2-bit encoding (1=OFF, 2=ON).
+        Expects already encoded values or booleans.
         """
         if isinstance(value, bool):
-            return int(value)
+            # Convert bool to 2bit encoding: False -> 1 (OFF), True -> 2 (ON)
+            return CONSTANTS.XBOX.BUTTON.ON if value else CONSTANTS.XBOX.BUTTON.OFF
         if isinstance(value, int):
-            if value < 0 or value > 255:
+            # Accept already encoded values (1=OFF, 2=ON)
+            if value == CONSTANTS.XBOX.BUTTON.OFF or value == CONSTANTS.XBOX.BUTTON.ON:
+                return int(value)
+            else:
                 raise ValueError(
-                    f"Button value out of range for key {key}: {value} (expected 0..255)"
+                    f"Button value out of range for key {key}: {value} (expected {CONSTANTS.XBOX.BUTTON.OFF} or {CONSTANTS.XBOX.BUTTON.ON})"
                 )
-            return int(value)
         raise ValueError(f"Unsupported button value type for key {key}: {type(value)}")
 
 
@@ -773,6 +778,11 @@ class InputProcessor:
             return
         button_value = joystick.get_button(event.button)
 
+        # Convert pygame's 0/1 to 2-bit encoding (1=OFF, 2=ON)
+        # pygame returns: 0 = not pressed, 1 = presed
+        # so therefore we  need: 1 = OFF, 2 = ON
+        encoded_value = CONSTANTS.XBOX.BUTTON.ON if button_value else CONSTANTS.XBOX.BUTTON.OFF
+
         # Calc button key offset; use the constant to avoid magic numbers
         key_offset = (
             CONSTANTS.XBOX.BUTTON_INDEX_OFFSET
@@ -782,7 +792,7 @@ class InputProcessor:
         button_key = event.button + key_offset
 
         self.controller_manager.controller_state.update_value(
-            controller_type, button_key, button_value
+            controller_type, button_key, encoded_value
         )
 
     def process_joypad(self, event: Event) -> None:

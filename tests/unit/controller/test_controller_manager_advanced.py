@@ -126,7 +126,7 @@ class TestControllerStateAdvanced:
         state.update_value(CONSTANTS.XBOX.NAME, button_key, True)
 
         values = state.get_controller_values(CONSTANTS.XBOX.NAME)
-        assert values[button_key] == 1
+        assert values[button_key] == CONSTANTS.XBOX.BUTTON.ON
 
     def test_update_value_button_out_of_range(self):
         """Test updating button value with out of range value raises error."""
