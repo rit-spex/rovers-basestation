@@ -146,6 +146,36 @@ class TestControllerStateAdvanced:
         values = state.get_controller_values(CONSTANTS.XBOX.NAME)
         assert values["unknown_key"] == 42
 
+    def test_n64_numeric_button_indices_not_treated_as_axes(self):
+        """N64 button indices overlap with joystick axis indices (0/1).
+
+        Regression: ensure updating N64 button index 0/1 stores 2-bit button
+        values (1/2), not axis bytes.
+        """
+        state = ControllerState()
+
+        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.C_DOWN, CONSTANTS.N64.BUTTON.ON)
+        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.A, CONSTANTS.N64.BUTTON.OFF)
+
+        values = state.get_controller_values(CONSTANTS.N64.NAME)
+
+        assert values[CONSTANTS.N64.BUTTON.C_DOWN] == CONSTANTS.N64.BUTTON.ON
+        assert values[CONSTANTS.N64.BUTTON.C_DOWN_STR] == CONSTANTS.N64.BUTTON.ON
+        assert values[CONSTANTS.N64.BUTTON.A] == CONSTANTS.N64.BUTTON.OFF
+        assert values[CONSTANTS.N64.BUTTON.A_STR] == CONSTANTS.N64.BUTTON.OFF
+
+    def test_n64_joystick_axes_can_be_stored_under_string_keys(self):
+        """N64 joystick axis values should be storable without colliding with buttons."""
+        state = ControllerState()
+
+        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.JOYSTICK.AXIS_X_STR, 173)
+        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.JOYSTICK.AXIS_Y_STR, 100)
+
+        values = state.get_controller_values(CONSTANTS.N64.NAME)
+
+        assert values[CONSTANTS.N64.JOYSTICK.AXIS_X_STR] == b"\xad"
+        assert values[CONSTANTS.N64.JOYSTICK.AXIS_Y_STR] == b"\x64"
+
 
 class TestControllerManagerAdvanced:
     """Test ControllerManager advanced functionality."""
@@ -309,21 +339,29 @@ class TestControllerManagerAdvanced:
 class TestInputProcessorAdvanced:
     """Test InputProcessor advanced functionality."""
 
-    def test_process_joystick_axis_n64_ignored(self):
-        """Test joystick axis processing ignores N64."""
+    def test_process_joystick_axis_n64_processed(self):
+        """Test joystick axis processing correctly handles N64 controller."""
         manager = ControllerManager()
         manager.instance_id_values_map[0] = CONSTANTS.N64.NAME
         processor = InputProcessor(manager)
 
         event = Mock()
         event.instance_id = 0
-        event.axis = 0
+        event.axis = CONSTANTS.N64.JOYSTICK.AXIS_X  # N64 joystick X axis
         event.value = 0.5
 
-        # Should return early without processing
+        # Should process the N64 axis movement
         processor.process_joystick_axis(event)
 
-        # No exception means success
+        # Verify the value was updated
+        values = manager.controller_state.get_controller_values(CONSTANTS.N64.NAME)
+        # Value should be around 150 (neutral 100 + 0.5 * 100 = 150)
+        axis_value = values.get(CONSTANTS.N64.JOYSTICK.AXIS_X_STR)
+        assert axis_value is not None
+        # The value is stored as bytes, convert to int for comparison
+        if isinstance(axis_value, bytes):
+            axis_value = int.from_bytes(axis_value, "big")
+        assert axis_value == 150  # neutral + 0.5 * 100
 
     def test_process_trigger_axis_n64_ignored(self):
         """Test trigger axis processing ignores N64."""

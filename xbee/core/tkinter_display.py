@@ -187,8 +187,20 @@ class HeadlessDisplay(BaseDisplay):
         # Default: enable creep mode on startup
         self.creep_mode = True
         self.reverse_mode = False
+        self.simulation_mode = False
         self.telemetry_data = {}
         self._telemetry_lock = threading.Lock()
+
+    def set_simulation_mode(self, is_simulation: bool):
+        """
+        Set simulation mode status (for API compatibility with TkinterDisplay).
+        
+        Args:
+            is_simulation: True if running in simulation mode
+        """
+        self.simulation_mode = is_simulation
+        if is_simulation:
+            logger.info("HeadlessDisplay: SIMULATION MODE ACTIVE - No rover communication")
 
     def update_controller_display(
         self, controller_id: int, controller_data: Dict[str, Any]
@@ -201,7 +213,15 @@ class HeadlessDisplay(BaseDisplay):
 
     def update_controller_values(self, values: Dict[str, Any]):
         with self._controller_lock:
-            self.controller_values = values
+            # Handle both old (flat) and new (nested per-controller) format
+            # New format: {"xbox": {...}, "n64": {...}}
+            # Old format: {"ly": 0.5, "lx": 0.0, ...} (flat dict)
+            if values and isinstance(next(iter(values.values()), None), dict):
+                # New nested format - deep copy each controller's values
+                self.controller_values = {k: dict(v) for k, v in values.items()}
+            else:
+                # Old flat format - store as-is for backward compatibility
+                self.controller_values = dict(values) if values else {}
         logger.debug(f"HeadlessDisplay controller values: {values}")
 
     def update_modes(self, creep: bool = False, reverse: bool = False):
@@ -274,7 +294,10 @@ class TkinterDisplay(BaseDisplay):
         # Mode flags - default to creep mode enabled on startup
         self.creep_mode = True
         self.reverse_mode = False
+        # Start with CONSTANTS value but allow runtime override via set_simulation_mode
         self.simulation_mode = CONSTANTS.SIMULATION_MODE
+        # Track if simulation mode banner should be shown (set at runtime)
+        self._show_simulation_banner = False
 
         # Telemetry data (protected by a lock for thread-safety)
         self.telemetry_data = {}
@@ -347,9 +370,9 @@ class TkinterDisplay(BaseDisplay):
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
 
-        # Simulation mode warning (if enabled)
-        if self.simulation_mode:
-            self._create_warning_banner(main_frame)
+        # Placeholder for simulation mode warning banner (created dynamically)
+        self._warning_banner_frame = None
+        self._warning_banner_parent = main_frame
 
         # Status section
         self._create_status_section(main_frame)
@@ -379,12 +402,35 @@ class TkinterDisplay(BaseDisplay):
         # Make warning frame expand
         warning_frame.columnconfigure(0, weight=1)
         parent.columnconfigure(0, weight=1)
+        
+        return warning_frame
+
+    def set_simulation_mode(self, is_simulation: bool):
+        """
+        Set simulation mode status and update the warning banner visibility.
+        Call this after initialization to show/hide simulation banner based on actual connection status.
+        
+        Args:
+            is_simulation: True if running in simulation mode (no real XBee connection)
+        """
+        self._show_simulation_banner = is_simulation
+        self.simulation_mode = is_simulation
+        
+        # Create or destroy the warning banner based on simulation status
+        if is_simulation and self._warning_banner_frame is None:
+            # Create the banner
+            self._warning_banner_frame = self._create_warning_banner(self._warning_banner_parent)
+        elif not is_simulation and self._warning_banner_frame is not None:
+            # Destroy the banner
+            self._warning_banner_frame.destroy()
+            self._warning_banner_frame = None
 
     def _create_status_section(self, parent):
         """
         Create the status indicators section.
         """
-        row_offset = 1 if self.simulation_mode else 0
+        # Always use row 1 since banner may be added/removed dynamically
+        row_offset = 1
 
         status_frame = ttk.LabelFrame(parent, text="System Status", padding="10")
         status_frame.grid(row=row_offset, column=0, sticky="new", padx=(0, 10))
@@ -410,7 +456,8 @@ class TkinterDisplay(BaseDisplay):
         """
         Create the controller information section.
         """
-        row_offset = 1 if self.simulation_mode else 0
+        # Always use row 1 since banner may be added/removed dynamically
+        row_offset = 1
 
         controller_frame = ttk.LabelFrame(
             parent, text="Controller Status", padding="10"
@@ -439,7 +486,8 @@ class TkinterDisplay(BaseDisplay):
         """
         Create the telemetry display section.
         """
-        row_offset = 2 if self.simulation_mode else 1
+        # Always use row 2 since banner may be added/removed dynamically
+        row_offset = 2
 
         telemetry_frame = ttk.LabelFrame(parent, text="Telemetry Data", padding="10")
         telemetry_frame.grid(
@@ -485,12 +533,20 @@ class TkinterDisplay(BaseDisplay):
         Update controller values display.
 
         Args:
-            values: Dictionary of current controller values
+            values: Dictionary mapping controller type name to its values dict.
+                    e.g., {"Xbox": {...}, "N64": {...}}
+                    Also supports old flat format: {"ly": 0.5, ...} for compatibility.
         """
         # Protect updates to controller values with a lock to avoid concurrent
         # modification while UI readers iterate or copy the data.
         with self._controller_lock:
-            self.controller_values = values
+            # Handle both old (flat) and new (nested per-controller) format
+            if values and isinstance(next(iter(values.values()), None), dict):
+                # New nested format - deep copy each controller's values
+                self.controller_values = {k: dict(v) for k, v in values.items()}
+            else:
+                # Old flat format - store as-is for backward compatibility
+                self.controller_values = dict(values) if values else {}
 
     def update_modes(self, creep: bool = False, reverse: bool = False):
         """
@@ -557,10 +613,16 @@ class TkinterDisplay(BaseDisplay):
 
     def _update_controller_text(self):
         """
-        Update the controller text display.
+        Update the controller text display while preserving scroll position.
         """
         if not getattr(self, "controller_text", None):
             return
+
+        # Save current scroll position before updating
+        try:
+            scroll_pos = self.controller_text.yview()
+        except Exception:
+            scroll_pos = (0.0, 1.0)
 
         self.controller_text.delete(1.0, tk.END)
 
@@ -568,7 +630,7 @@ class TkinterDisplay(BaseDisplay):
         # updating the UI and to prevent concurrent modification while iterating.
         with self._controller_lock:
             controllers_copy = self.controllers.copy()
-            controller_values_copy = self.controller_values.copy()
+            controller_values_copy = {k: dict(v) for k, v in self.controller_values.items()}
 
         if not controllers_copy:
             self.controller_text.insert(tk.END, "No controllers connected\n")
@@ -577,6 +639,12 @@ class TkinterDisplay(BaseDisplay):
         for controller_id, data in controllers_copy.items():
             self._insert_controller_info(controller_id, data, controller_values_copy)
 
+        # Restore scroll position after updating content
+        try:
+            self.controller_text.yview_moveto(scroll_pos[0])
+        except Exception:
+            pass
+
     def _insert_controller_info(
         self,
         controller_id: int,
@@ -584,19 +652,41 @@ class TkinterDisplay(BaseDisplay):
         controller_values_copy: Dict[str, Any],
     ):
         """Helper method to insert individual controller information."""
-        self.controller_text.insert(tk.END, f"Controller {controller_id}:\n")
-        self.controller_text.insert(tk.END, f"  Name: {data.get('name', 'Unknown')}\n")
+        controller_name = data.get('name', 'Unknown')
+        self.controller_text.insert(tk.END, f"{controller_name}:\n")
         self.controller_text.insert(tk.END, f"  GUID: {data.get('guid', 'Unknown')}\n")
 
-        if controller_values_copy:
-            self._insert_controller_values(controller_values_copy)
+        # Determine controller type from name to get the correct values
+        controller_type = self._detect_controller_type_from_name(controller_name)
+        if controller_type and controller_type in controller_values_copy:
+            self._insert_controller_values(controller_values_copy[controller_type])
+        elif controller_values_copy:
+            # Fallback: try first matching values
+            for ctype in controller_values_copy:
+                if ctype.lower() in controller_name.lower() or controller_name.lower() in ctype.lower():
+                    self._insert_controller_values(controller_values_copy[ctype])
+                    break
 
         self.controller_text.insert(tk.END, "\n")
 
+    def _detect_controller_type_from_name(self, name: str) -> Optional[str]:
+        """Detect controller type from its name string."""
+        if not isinstance(name, str):
+            return None
+        lname = name.lower()
+        if "xbox" in lname or "x-box" in lname:
+            return CONSTANTS.XBOX.NAME
+        if "dinput" in lname or "n64" in lname:
+            return CONSTANTS.N64.NAME
+        return None
+
     def _insert_controller_values(self, controller_values_copy: Dict[str, Any]):
-        """Helper method to insert controller values."""
+        """Helper method to insert controller values, showing only string key aliases."""
         self.controller_text.insert(tk.END, "  Current Values:\n")
         for key, value in controller_values_copy.items():
+            # Only show string keys (human-readable aliases), skip numeric keys
+            if not isinstance(key, str):
+                continue
             if isinstance(value, bytes):
                 try:
                     # Empty bytes evaluate to False; interpret as 0.

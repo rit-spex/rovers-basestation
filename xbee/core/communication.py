@@ -73,9 +73,19 @@ class MessageFormatter:
             list[int]: Formatted msg data (each element is a single byte integer)
         """
 
-        # Pack N64 button data
+        # Pack N64 button data.
+        #
+        # IMPORTANT: N64 joystick axis indices overlap with N64 button indices
+        # (e.g., AXIS_X=0 conflicts with C_DOWN=0). To prevent accidental axis
+        # values being interpreted as 2-bit button values, only pass the
+        # expected N64 button fields (string keys) to the encoder.
 
-        return list(self.encoder.encode_data(values, CONSTANTS.COMPACT_MESSAGES.N64_ID))
+        expected_keys = self.encoder.get_messages()[CONSTANTS.COMPACT_MESSAGES.N64_ID]["values"].keys()
+        filtered_values = {k: values[k] for k in expected_keys if k in values}
+
+        return list(
+            self.encoder.encode_data(filtered_values, CONSTANTS.COMPACT_MESSAGES.N64_ID)
+        )
 
     def create_combined_message(self, xbox_values: Dict, n64_values: Dict) -> list:
         """

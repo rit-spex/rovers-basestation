@@ -347,12 +347,18 @@ class BaseStation:
         Handle joystick axis motion events.
         """
         # Check if is either joystick axis or trigger axis
-        if event.axis in [
+        # Include both Xbox and N64 joystick axes
+        joystick_axes = [
+            # Xbox joystick axes
             CONSTANTS.XBOX.JOYSTICK.AXIS_LX,
             CONSTANTS.XBOX.JOYSTICK.AXIS_LY,
             CONSTANTS.XBOX.JOYSTICK.AXIS_RX,
             CONSTANTS.XBOX.JOYSTICK.AXIS_RY,
-        ]:
+            # N64 joystick axes
+            CONSTANTS.N64.JOYSTICK.AXIS_X,
+            CONSTANTS.N64.JOYSTICK.AXIS_Y,
+        ]
+        if event.axis in joystick_axes:
             self.input_processor.process_joystick_axis(event)
         else:
             self.input_processor.process_trigger_axis(event)
@@ -532,14 +538,24 @@ def _update_display_data(base_station, display, update_count):
     )
     display.update_communication_status(base_station.xbee_enabled, update_count)
 
-    # Update controller values if available
+    # Update controller values if available - pass both Xbox and N64 values
     if hasattr(base_station.controller_manager, "controller_state"):
         xbox_values = (
             base_station.controller_manager.controller_state.get_controller_values(
                 CONSTANTS.XBOX.NAME
             )
         )
-        display.update_controller_values(xbox_values)
+        n64_values = (
+            base_station.controller_manager.controller_state.get_controller_values(
+                CONSTANTS.N64.NAME
+            )
+        )
+        # Pass a dict mapping controller type to its values
+        all_values = {
+            CONSTANTS.XBOX.NAME: xbox_values,
+            CONSTANTS.N64.NAME: n64_values,
+        }
+        display.update_controller_values(all_values)
 
     # Update telemetry display
     telemetry = base_station.get_telemetry_data()
@@ -686,6 +702,10 @@ def main():
         display.update_modes(
             creep=base_station.creep_mode, reverse=base_station.reverse_mode
         )
+    # Set simulation mode on display based on actual XBee connection status
+    # (show banner if NOT connected to real XBee)
+    if hasattr(display, "set_simulation_mode"):
+        display.set_simulation_mode(not base_station.xbee_enabled)
 
     # Create and start control loop in separate thread
     control_loop = _create_control_loop(base_station, display)

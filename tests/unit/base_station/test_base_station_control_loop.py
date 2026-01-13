@@ -256,6 +256,8 @@ class TestUpdateDisplayData:
 
     def test_update_display_data_with_telemetry(self):
         """Test display data update with telemetry."""
+        from xbee.core.command_codes import CONSTANTS
+
         mock_base = Mock()
         mock_base.creep_mode = True
         mock_base.reverse_mode = False
@@ -271,7 +273,11 @@ class TestUpdateDisplayData:
 
         mock_display.update_modes.assert_called_once_with(creep=True, reverse=False)
         mock_display.update_communication_status.assert_called_once_with(True, 42)
-        mock_display.update_controller_values.assert_called_once_with({"ly": 0.5})
+        # Now passes both Xbox and N64 values in a nested dict
+        mock_display.update_controller_values.assert_called_once_with({
+            CONSTANTS.XBOX.NAME: {"ly": 0.5},
+            CONSTANTS.N64.NAME: {"ly": 0.5},
+        })
         mock_display.update_telemetry.assert_called_once_with({"battery": 12.6})
 
     def test_update_display_data_no_telemetry(self):

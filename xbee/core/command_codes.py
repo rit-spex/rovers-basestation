@@ -127,14 +127,14 @@ class CONSTANTS:
             AXIS_LX_STR = "AXIS_LX"
             AXIS_LY = 1
             AXIS_LY_STR = "AXIS_LY"
-            AXIS_RX = 3
+            AXIS_RX = 2
             AXIS_RX_STR = "AXIS_RX"
-            AXIS_RY = 4
+            AXIS_RY = 3
             AXIS_RY_STR = "AXIS_RY"
 
         # these are treated like buttons for transfer msgs but are classified as axis
         class TRIGGER:
-            AXIS_LT = 2
+            AXIS_LT = 4
             AXIS_LT_STR = "AXIS_LT"
             AXIS_RT = 5
             AXIS_RT_STR = "AXIS_RT"

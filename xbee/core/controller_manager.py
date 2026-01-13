@@ -77,6 +77,9 @@ class ControllerState:
                 + CONSTANTS.XBOX.BUTTON_INDEX_OFFSET: CONSTANTS.XBOX.BUTTON.SELECT_STR,
             },
             CONSTANTS.N64.NAME: {
+                # Note: N64 joystick axes (AXIS_X=0, AXIS_Y=1) are NOT included here
+                # because they conflict with button indices (C_DOWN=0, A=1).
+                # N64 axis handling is done specially in _convert_and_validate_value.
                 # Buttons
                 CONSTANTS.N64.BUTTON.A: CONSTANTS.N64.BUTTON.A_STR,
                 CONSTANTS.N64.BUTTON.B: CONSTANTS.N64.BUTTON.B_STR,
@@ -519,11 +522,16 @@ class ControllerManager:
         """
 
         # Determine if this is a joystick axis or trigger axis
+        # Include both Xbox and N64 joystick axes
         joystick_axes = [
+            # Xbox joystick axes
             CONSTANTS.XBOX.JOYSTICK.AXIS_LX,
             CONSTANTS.XBOX.JOYSTICK.AXIS_LY,
             CONSTANTS.XBOX.JOYSTICK.AXIS_RX,
             CONSTANTS.XBOX.JOYSTICK.AXIS_RY,
+            # N64 joystick axes
+            CONSTANTS.N64.JOYSTICK.AXIS_X,
+            CONSTANTS.N64.JOYSTICK.AXIS_Y,
         ]
 
         if event.axis in joystick_axes:
@@ -723,7 +731,27 @@ class InputProcessor:
         """
 
         controller_type = self.controller_manager.get_controller_type(event.instance_id)
-        if not controller_type or controller_type == CONSTANTS.N64.NAME:
+        if not controller_type:
+            return
+
+        # Determine valid joystick axes for this controller type
+        if controller_type == CONSTANTS.XBOX.NAME:
+            valid_axes = [
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_LY,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RX,
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RY,
+            ]
+        elif controller_type == CONSTANTS.N64.NAME:
+            valid_axes = [
+                CONSTANTS.N64.JOYSTICK.AXIS_X,
+                CONSTANTS.N64.JOYSTICK.AXIS_Y,
+            ]
+        else:
+            return
+
+        # Check if this axis is a valid joystick axis for this controller
+        if event.axis not in valid_axes:
             return
 
         # Calc mult based on modes
@@ -737,20 +765,45 @@ class InputProcessor:
             CONSTANTS.XBOX if controller_type == CONSTANTS.XBOX.NAME else CONSTANTS.N64
         )
         int_val = self._convert_axis_value(value, multiplier, constants)
+
+        # IMPORTANT: For N64, pygame axis indices (0/1) overlap with N64 button
+        # indices (e.g., C_DOWN=0, A=1). To avoid collisions, store N64 axes under
+        # their string aliases instead of numeric indices.
+        axis_key: Union[int, str]
+        if controller_type == CONSTANTS.N64.NAME:
+            if event.axis == CONSTANTS.N64.JOYSTICK.AXIS_X:
+                axis_key = CONSTANTS.N64.JOYSTICK.AXIS_X_STR
+            elif event.axis == CONSTANTS.N64.JOYSTICK.AXIS_Y:
+                axis_key = CONSTANTS.N64.JOYSTICK.AXIS_Y_STR
+            else:
+                return
+        else:
+            axis_key = event.axis
+
         self.controller_manager.controller_state.update_value(
-            controller_type, event.axis, int_val
+            controller_type, axis_key, int_val
         )
 
     def process_trigger_axis(self, event: Event) -> None:
         """
         Process trigger axis events.
+        Note: N64 controller has no triggers, only Xbox does.
 
         Args:
             event: Trigger event
         """
 
         controller_type = self.controller_manager.get_controller_type(event.instance_id)
+        # N64 has no triggers, so skip if N64 or unknown
         if not controller_type or controller_type == CONSTANTS.N64.NAME:
+            return
+
+        # Verify this is actually a trigger axis for Xbox (not a joystick axis)
+        xbox_trigger_axes = [
+            CONSTANTS.XBOX.TRIGGER.AXIS_LT,
+            CONSTANTS.XBOX.TRIGGER.AXIS_RT,
+        ]
+        if event.axis not in xbox_trigger_axes:
             return
 
         # Treat trigger like button

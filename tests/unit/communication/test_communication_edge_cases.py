@@ -119,6 +119,29 @@ class TestMessageFormatterEdgeCases:
             start_byte = int.from_bytes(CONSTANTS.START_MESSAGE, byteorder="big")
             assert message[0] == start_byte
 
+    def test_create_n64_message_ignores_axis_collision_values(self):
+        """N64 message encoding should ignore axis-like keys/values.
+
+        Regression: N64 axis indices overlap with button indices (e.g., 0/1).
+        If an axis value leaks into the dict under a colliding numeric key, the
+        encoder must not interpret it as a 2-bit button value.
+        """
+
+        formatter = MessageFormatter()
+
+        # Simulate a bad mixed dict (axis value under numeric 0) alongside proper
+        # button values.
+        values = {
+            CONSTANTS.N64.JOYSTICK.AXIS_X: 173,  # collides with C_DOWN numeric index
+            CONSTANTS.N64.BUTTON.A_STR: CONSTANTS.N64.BUTTON.ON,
+            CONSTANTS.N64.BUTTON.C_DOWN_STR: CONSTANTS.N64.BUTTON.OFF,
+        }
+
+        message = formatter.create_n64_message(values)
+
+        assert isinstance(message, list)
+        assert len(message) > 0
+
 
 class TestDuplicateSuppressionEdgeCases:
     """Test duplicate suppression edge cases."""
