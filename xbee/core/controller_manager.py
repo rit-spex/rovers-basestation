@@ -557,17 +557,17 @@ class ControllerManager:
         """
         self.input_processor.process_joypad(event)
 
-    def handle_controller_added(self, event: Event) -> None:
+    def handle_controller_added(self, event: Event) -> bool:
         """
         Handle controller hotplug add events.
         """
-        self.handle_hotplug_event(event)
+        return self.handle_hotplug_event(event)
 
-    def handle_controller_removed(self, event: Event) -> None:
+    def handle_controller_removed(self, event: Event) -> bool:
         """
         Handle controller hotplug remove events.
         """
-        self.handle_hotplug_event(event)
+        return self.handle_hotplug_event(event)
 
     def should_quit_on_button(self, event: Event) -> bool:
         """

@@ -384,3 +384,57 @@ class TestSendCommand:
         result = base.send_command(event)
 
         assert result is None
+
+
+class TestControllerDisconnect:
+    """Tests for controller disconnection behavior."""
+
+    @patch("xbee.core.base_station.CommunicationManager")
+    @patch("xbee.core.base_station.HeartbeatManager")
+    @patch("pygame.joystick.Joystick")
+    def test_disconnect_triggers_quit_with_multiple_controllers(
+        self, mock_joy, mock_heartbeat, mock_comm
+    ):
+        """Test that disconnecting one of multiple controllers triggers base station quit."""
+        from xbee.core.base_station import BaseStation
+
+        base = BaseStation()
+
+        # Add two joysticks
+        joy1 = Mock()
+        joy1.get_instance_id.return_value = 1
+        joy1.get_name.return_value = "Xbox Controller"
+
+        joy2 = Mock()
+        joy2.get_instance_id.return_value = 2
+        joy2.get_name.return_value = "N64 Controller"
+
+        with patch("pygame.joystick.Joystick", side_effect=[joy1, joy2]):
+            event_add1 = Mock(spec=pygame.event.Event)
+            event_add1.type = pygame.JOYDEVICEADDED
+            event_add1.device_index = 0
+            base.send_command(event_add1)
+
+            event_add2 = Mock(spec=pygame.event.Event)
+            event_add2.type = pygame.JOYDEVICEADDED
+            event_add2.device_index = 1
+            base.send_command(event_add2)
+
+        assert base.controller_manager.has_joysticks() is True
+        assert len(base.controller_manager.joysticks) == 2
+
+        # Initially base.quit should be False
+        assert base.quit is False
+
+        # Disconnect one
+        event_remove = Mock(spec=pygame.event.Event)
+        event_remove.type = pygame.JOYDEVICEREMOVED
+        event_remove.instance_id = 1
+
+        base.send_command(event_remove)
+
+        # Now base.quit SHOULD be True
+        assert (
+            base.quit is True
+        ), "BaseStation should quit when one of the controllers is disconnected"
+        assert len(base.controller_manager.joysticks) == 1

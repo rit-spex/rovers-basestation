@@ -265,16 +265,20 @@ class BaseStation:
 
     def _dispatch_hotplug_event(self, event):
         """Dispatch controller hotplug events (add/remove)."""
+        should_quit = False
         if event.type == pygame.JOYDEVICEADDED:
             if self._has_handler(self.controller_manager, "handle_controller_added"):
-                self.controller_manager.handle_controller_added(event)
+                should_quit = self.controller_manager.handle_controller_added(event)
             else:
                 self._handle_controller_hotplug(event)
         elif event.type == pygame.JOYDEVICEREMOVED:
             if self._has_handler(self.controller_manager, "handle_controller_removed"):
-                self.controller_manager.handle_controller_removed(event)
+                should_quit = self.controller_manager.handle_controller_removed(event)
             else:
                 self._handle_controller_hotplug(event)
+
+        if should_quit:
+            self.quit = True
 
     def _dispatch_axis_event(self, event):
         """Dispatch axis motion event."""
@@ -313,7 +317,7 @@ class BaseStation:
         # Skip if no controllers are connected and not a device event
         if (
             not self.controller_manager.has_joysticks()
-            and new_event.type != pygame.JOYDEVICEADDED
+            and new_event.type not in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED)
         ):
             return None
 
@@ -341,6 +345,7 @@ class BaseStation:
         if should_quit:
             logger.info("Controller hotplug event triggered quit")
             self.quit = True  # would be a good meme REM ---------
+        return should_quit
 
     def _handle_axis_motion(self, event: Event):
         """
