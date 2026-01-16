@@ -828,3 +828,4 @@ def create_display(prefer_gui: Optional[bool] = None) -> BaseDisplay:
 
 
 __all__ = ["BaseDisplay", "TkinterDisplay", "HeadlessDisplay", "create_display"]
+
