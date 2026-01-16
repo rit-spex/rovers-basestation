@@ -189,13 +189,15 @@ The basestation is organized into modules, including ones to handle controller i
 ### File Connections
 
 1. **Startup**:
+```
 `launch_xbee.py`
     V
 `base_station.main()`
     V
 Makes a `BaseStation` instance
-
-2. **Controller Input**:
+```
+3. **Controller Input**:
+```
 Pygame events
     V
 `BaseStation._process_controller_events()`
@@ -205,8 +207,9 @@ Pygame events
 `InputProcessor`
     V
 Update controller state
-
-3. **Msg Transmission**: 
+```
+4. **Msg Transmission**: 
+```
 Controller state
     V
 `CommunicationManager.send_controller_data()`
@@ -216,21 +219,23 @@ Controller state
 `MessageEncoder.encode_data()` (in encoding.py)
     V
 Hardware (`XbeeCommunicationManager` or `UdpCommunicationManager`)
-
-4. **Show Updates**:
+```
+5. **Show Updates**:
+```
 `BaseStation._update_display_data()`
     V
 `TkinterDisplay.update_*()` methods
     V
 GUI Thingamajigs, Doohickies, Thingamabobs, Doodads, and Whatchamacallits
-
-5. **Heartbeat**:
+```
+6. **Heartbeat**:
+```
 `HeartbeatManager.update()`
     V
 `CommunicationManager.send_heartbeat()`
     V
 Hardware
-
+```
 ## Message Protocol
 
 ### Format
