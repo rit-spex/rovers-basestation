@@ -7,7 +7,6 @@ from __future__ import annotations
 import threading
 from unittest.mock import Mock, patch
 
-import pygame
 import pytest
 
 from xbee.core.base_station import (
@@ -15,6 +14,12 @@ from xbee.core.base_station import (
     _create_control_loop,
     _process_controller_events,
     _update_display_data,
+)
+from xbee.core.input_events import (
+    JOYAXISMOTION,
+    JOYBUTTONDOWN,
+    JOYDEVICEADDED,
+    InputEvent,
 )
 
 
@@ -157,7 +162,7 @@ class TestControllerEventProcessing:
         base.input_processor = Mock()
 
         event = Mock()
-        event.type = pygame.JOYAXISMOTION
+        event.type = JOYAXISMOTION
 
         # Mock constants
         from xbee.core.command_codes import CONSTANTS
@@ -179,7 +184,7 @@ class TestControllerEventProcessing:
         base.input_processor = Mock()
 
         event = Mock()
-        event.type = pygame.JOYBUTTONDOWN
+        event.type = JOYBUTTONDOWN
 
         base.send_command(event)
         base.controller_manager.handle_button_down.assert_called_once_with(event)
@@ -198,7 +203,7 @@ class TestControllerEventProcessing:
         # Controller hotplug is handled by _handle_controller_hotplug which calls controller_manager
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
         base.send_command(event)
         base.controller_manager.handle_controller_added.assert_called_once_with(event)
@@ -305,15 +310,15 @@ class TestHelperFunctions:
     def test_process_controller_events(self):
         """Test controller event processing helper."""
         mock_base = Mock()
+        mock_base.input_source = Mock()
         mock_display = Mock()
 
-        with patch("pygame.event.get") as mock_get_events:
-            mock_event = Mock()
-            mock_get_events.return_value = [mock_event]
+        mock_event = InputEvent(type=JOYAXISMOTION)
+        mock_base.input_source.poll_events.return_value = [mock_event]
 
-            _process_controller_events(mock_base, mock_display)
+        _process_controller_events(mock_base, mock_display)
 
-            mock_base.send_command.assert_called_once_with(mock_event)
+        mock_base.send_command.assert_called_once_with(mock_event)
 
     def test_update_display_data(self):
         """Test display data update helper."""
@@ -336,11 +341,12 @@ def test_control_loop_exits_and_cleanup_called():
         patch("xbee.core.base_station.CommunicationManager"),
         patch("xbee.core.base_station.HeartbeatManager"),
         patch("xbee.core.base_station.ControllerManager"),
-        patch("pygame.event.get", return_value=[]),
     ):
         # Create base station and replace the communication manager with a mock
         base = BaseStation()
         base.communication_manager = Mock()
+        base.input_source = Mock()
+        base.input_source.poll_events.return_value = []
         base.send_quit_message = Mock()
         base.cleanup = Mock()
         display = Mock()

@@ -80,7 +80,9 @@ class MessageFormatter:
         # values being interpreted as 2-bit button values, only pass the
         # expected N64 button fields (string keys) to the encoder.
 
-        expected_keys = self.encoder.get_messages()[CONSTANTS.COMPACT_MESSAGES.N64_ID]["values"].keys()
+        expected_keys = self.encoder.get_messages()[CONSTANTS.COMPACT_MESSAGES.N64_ID][
+            "values"
+        ].keys()
         filtered_values = {k: values[k] for k in expected_keys if k in values}
 
         return list(

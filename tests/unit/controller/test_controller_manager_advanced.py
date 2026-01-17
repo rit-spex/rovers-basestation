@@ -154,8 +154,12 @@ class TestControllerStateAdvanced:
         """
         state = ControllerState()
 
-        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.C_DOWN, CONSTANTS.N64.BUTTON.ON)
-        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.A, CONSTANTS.N64.BUTTON.OFF)
+        state.update_value(
+            CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.C_DOWN, CONSTANTS.N64.BUTTON.ON
+        )
+        state.update_value(
+            CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.A, CONSTANTS.N64.BUTTON.OFF
+        )
 
         values = state.get_controller_values(CONSTANTS.N64.NAME)
 

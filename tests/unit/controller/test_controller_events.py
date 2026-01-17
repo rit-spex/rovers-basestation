@@ -6,29 +6,23 @@ Tests cover joystick connect/disconnect, mode flags, and controller state update
 
 from unittest.mock import Mock, patch
 
-import pygame
-
 from xbee.core.command_codes import CONSTANTS
 from xbee.core.controller_manager import ControllerManager, ControllerState
+from xbee.core.input_events import JOYDEVICEADDED, JOYDEVICEREMOVED
 
 
 class TestControllerHotplug:
     """Test controller connection and disconnection events."""
 
     @patch("xbee.core.controller_manager.logger")
-    @patch("xbee.core.controller_manager.pygame.joystick.Joystick")
-    def test_controller_added_logged(self, mock_joystick_class, mock_logger):
+    def test_controller_added_logged(self, mock_logger):
         """Test controller connection is logged."""
         manager = ControllerManager()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
-        event.device_index = 0
-
-        mock_joy = Mock()
-        mock_joy.get_instance_id.return_value = 0
-        mock_joy.get_name.return_value = "Xbox Controller"
-        mock_joystick_class.return_value = mock_joy
+        event.type = JOYDEVICEADDED
+        event.instance_id = 0
+        event.name = "Xbox Controller"
 
         manager.handle_hotplug_event(event)
 
@@ -41,7 +35,7 @@ class TestControllerHotplug:
         manager = ControllerManager()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEREMOVED
+        event.type = JOYDEVICEREMOVED
         event.instance_id = 0
 
         manager.handle_hotplug_event(event)
@@ -131,10 +125,10 @@ class TestControllerProcessing:
         manager = ControllerManager()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
-        event.device_index = 0
+        event.type = JOYDEVICEADDED
+        event.instance_id = 0
+        event.name = "Xbox Controller"
 
-        with patch("xbee.core.controller_manager.pygame.joystick.Joystick"):
-            result = manager.handle_hotplug_event(event)
+        result = manager.handle_hotplug_event(event)
 
-            assert isinstance(result, bool)
+        assert isinstance(result, bool)

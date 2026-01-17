@@ -4,7 +4,13 @@ Tests for BaseStation event dispatching.
 
 from unittest.mock import Mock, patch
 
-import pygame
+from xbee.core.input_events import (
+    JOYAXISMOTION,
+    JOYBUTTONDOWN,
+    JOYBUTTONUP,
+    JOYDEVICEADDED,
+    JOYDEVICEREMOVED,
+)
 
 
 class TestEventDispatching:
@@ -24,7 +30,7 @@ class TestEventDispatching:
         base.controller_manager.handle_controller_added = Mock()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
         base._dispatch_hotplug_event(event)
 
@@ -44,7 +50,7 @@ class TestEventDispatching:
         base.controller_manager.handle_controller_removed = Mock()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEREMOVED
+        event.type = JOYDEVICEREMOVED
 
         base._dispatch_hotplug_event(event)
 
@@ -64,7 +70,7 @@ class TestEventDispatching:
         base._handle_controller_hotplug = Mock()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
         base._dispatch_hotplug_event(event)
 
@@ -120,7 +126,7 @@ class TestEventDispatching:
         base.controller_manager.handle_button_down = Mock()
 
         event = Mock()
-        event.type = pygame.JOYBUTTONDOWN
+        event.type = JOYBUTTONDOWN
 
         base._dispatch_button_event(event)
 
@@ -138,7 +144,7 @@ class TestEventDispatching:
         base.controller_manager.handle_button_up = Mock()
 
         event = Mock()
-        event.type = pygame.JOYBUTTONUP
+        event.type = JOYBUTTONUP
 
         base._dispatch_button_event(event)
 
@@ -158,7 +164,7 @@ class TestEventDispatching:
         base._handle_button_event = Mock()
 
         event = Mock()
-        event.type = pygame.JOYBUTTONDOWN
+        event.type = JOYBUTTONDOWN
 
         base._dispatch_button_event(event)
 
@@ -338,7 +344,7 @@ class TestSendCommand:
         base.controller_manager.has_joysticks.return_value = False
 
         event = Mock()
-        event.type = pygame.JOYAXISMOTION
+        event.type = JOYAXISMOTION
 
         result = base.send_command(event)
 
@@ -359,7 +365,7 @@ class TestSendCommand:
         base.controller_manager.handle_controller_added = Mock()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
         _ = base.send_command(event)
 
@@ -391,9 +397,8 @@ class TestControllerDisconnect:
 
     @patch("xbee.core.base_station.CommunicationManager")
     @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("pygame.joystick.Joystick")
     def test_disconnect_triggers_quit_with_multiple_controllers(
-        self, mock_joy, mock_heartbeat, mock_comm
+        self, mock_heartbeat, mock_comm
     ):
         """Test that disconnecting one of multiple controllers triggers base station quit."""
         from xbee.core.base_station import BaseStation
@@ -401,24 +406,17 @@ class TestControllerDisconnect:
         base = BaseStation()
 
         # Add two joysticks
-        joy1 = Mock()
-        joy1.get_instance_id.return_value = 1
-        joy1.get_name.return_value = "Xbox Controller"
+        event_add1 = Mock()
+        event_add1.type = JOYDEVICEADDED
+        event_add1.instance_id = 1
+        event_add1.name = "Xbox Controller"
+        base.send_command(event_add1)
 
-        joy2 = Mock()
-        joy2.get_instance_id.return_value = 2
-        joy2.get_name.return_value = "N64 Controller"
-
-        with patch("pygame.joystick.Joystick", side_effect=[joy1, joy2]):
-            event_add1 = Mock(spec=pygame.event.Event)
-            event_add1.type = pygame.JOYDEVICEADDED
-            event_add1.device_index = 0
-            base.send_command(event_add1)
-
-            event_add2 = Mock(spec=pygame.event.Event)
-            event_add2.type = pygame.JOYDEVICEADDED
-            event_add2.device_index = 1
-            base.send_command(event_add2)
+        event_add2 = Mock()
+        event_add2.type = JOYDEVICEADDED
+        event_add2.instance_id = 2
+        event_add2.name = "N64 Controller"
+        base.send_command(event_add2)
 
         assert base.controller_manager.has_joysticks() is True
         assert len(base.controller_manager.joysticks) == 2
@@ -427,8 +425,8 @@ class TestControllerDisconnect:
         assert base.quit is False
 
         # Disconnect one
-        event_remove = Mock(spec=pygame.event.Event)
-        event_remove.type = pygame.JOYDEVICEREMOVED
+        event_remove = Mock()
+        event_remove.type = JOYDEVICEREMOVED
         event_remove.instance_id = 1
 
         base.send_command(event_remove)

@@ -5,8 +5,6 @@ Tests for BaseStation control loop and helper functions.
 import time
 from unittest.mock import Mock, patch
 
-import pygame
-
 from xbee.core.base_station import (
     _cleanup_on_exit,
     _handle_fatal_error,
@@ -19,6 +17,8 @@ from xbee.core.base_station import (
     _should_run_update,
     _update_display_data,
 )
+from xbee.core.input_events import JOYDEVICEADDED, QUIT, InputEvent
+from xbee.core.input_source import InputSourceError
 
 
 class TestControlLoopHelpers:
@@ -90,8 +90,7 @@ class TestCleanupOnExit:
     """Test cleanup_on_exit function."""
 
     @patch("xbee.core.base_station.logger")
-    @patch("pygame.quit")
-    def test_cleanup_on_exit(self, mock_pygame_quit, mock_logger):
+    def test_cleanup_on_exit(self, mock_logger):
         """Test cleanup_on_exit calls all cleanup functions."""
         mock_base = Mock()
         mock_display = Mock()
@@ -100,7 +99,6 @@ class TestCleanupOnExit:
 
         mock_base.send_quit_message.assert_called_once()
         mock_base.cleanup.assert_called_once_with(mock_display)
-        mock_pygame_quit.assert_called_once()
         assert mock_logger.info.call_count == 2
 
 
@@ -126,11 +124,12 @@ class TestProcessSingleIteration:
         assert should_break is False
         mock_sleep.assert_called_once_with(0.001)
 
-    @patch("pygame.event.get", return_value=[])
-    def test_process_single_iteration_runs_update(self, mock_events):
+    def test_process_single_iteration_runs_update(self):
         """Test iteration runs update cycle when time has passed."""
         mock_base = Mock()
         mock_base.frequency = 0  # Always run
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = []
         mock_base.controller_manager.controller_state.get_controller_values.return_value = (
             {}
         )
@@ -151,11 +150,12 @@ class TestProcessSingleIteration:
         assert new_count == 1
         assert should_break is False
 
-    @patch("pygame.event.get", return_value=[])
-    def test_process_single_iteration_handles_oserror(self, mock_events):
+    def test_process_single_iteration_handles_oserror(self):
         """Test iteration handles OSError without breaking."""
         mock_base = Mock()
         mock_base.frequency = 0
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = []
         mock_base.update_info.side_effect = OSError("Connection lost")
         mock_display = Mock()
 
@@ -170,12 +170,14 @@ class TestProcessSingleIteration:
 
         assert should_break is False
 
-    @patch("pygame.event.get", return_value=[])
-    def test_process_single_iteration_handles_pygame_error(self, mock_events):
-        """Test iteration handles pygame.error without breaking."""
+    @patch("time.time_ns")
+    def test_process_single_iteration_handles_input_source_error(self, mock_time):
+        """Test iteration handles InputSourceError without breaking."""
         mock_base = Mock()
         mock_base.frequency = 0
-        mock_base.update_info.side_effect = pygame.error("Pygame error")
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = []
+        mock_base.update_info.side_effect = InputSourceError("Input error")
         mock_display = Mock()
 
         with (
@@ -189,11 +191,12 @@ class TestProcessSingleIteration:
 
         assert should_break is False
 
-    @patch("pygame.event.get", return_value=[])
-    def test_process_single_iteration_handles_fatal_exception(self, mock_events):
+    def test_process_single_iteration_handles_fatal_exception(self):
         """Test iteration handles fatal exceptions by breaking."""
         mock_base = Mock()
         mock_base.frequency = 0
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = []
         mock_base.update_info.side_effect = RuntimeError("Fatal error")
         mock_display = Mock()
 
@@ -212,14 +215,12 @@ class TestProcessSingleIteration:
 class TestProcessControllerEvents:
     """Test _process_controller_events function."""
 
-    @patch("pygame.event.get")
-    def test_process_quit_event(self, mock_events):
+    def test_process_quit_event(self):
         """Test QUIT event sets base_station.quit."""
-        quit_event = Mock()
-        quit_event.type = pygame.QUIT
-        mock_events.return_value = [quit_event]
-
+        quit_event = InputEvent(type=QUIT)
         mock_base = Mock()
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = [quit_event]
         mock_display = Mock()
 
         with patch("xbee.core.base_station.logger"):
@@ -227,22 +228,17 @@ class TestProcessControllerEvents:
 
         assert mock_base.quit is True
 
-    @patch("pygame.event.get")
-    @patch("pygame.joystick.Joystick")
-    def test_process_joydeviceadded_event(self, mock_joystick_class, mock_events):
+    def test_process_joydeviceadded_event(self):
         """Test JOYDEVICEADDED event updates display."""
-        add_event = Mock()
-        add_event.type = pygame.JOYDEVICEADDED
-        add_event.device_index = 0
-        mock_events.return_value = [add_event]
-
-        mock_joystick = Mock()
-        mock_joystick.get_name.return_value = "Xbox Controller"
-        mock_joystick.get_guid.return_value = "12345"
-        mock_joystick.get_instance_id.return_value = 0
-        mock_joystick_class.return_value = mock_joystick
-
+        add_event = InputEvent(
+            type=JOYDEVICEADDED,
+            instance_id=0,
+            name="Xbox Controller",
+            guid="12345",
+        )
         mock_base = Mock()
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = [add_event]
         mock_display = Mock()
 
         _process_controller_events(mock_base, mock_display)
@@ -263,9 +259,10 @@ class TestUpdateDisplayData:
         mock_base.reverse_mode = False
         mock_base.xbee_enabled = True
         mock_base.get_telemetry_data.return_value = {"battery": 12.6}
-        mock_base.controller_manager.controller_state.get_controller_values.return_value = {
-            "ly": 0.5
-        }
+        mock_base.controller_manager.controller_state.get_controller_values.side_effect = [
+            {"ly": 0.5},
+            {"cx": 0.1},
+        ]
 
         mock_display = Mock()
 
@@ -274,10 +271,12 @@ class TestUpdateDisplayData:
         mock_display.update_modes.assert_called_once_with(creep=True, reverse=False)
         mock_display.update_communication_status.assert_called_once_with(True, 42)
         # Now passes both Xbox and N64 values in a nested dict
-        mock_display.update_controller_values.assert_called_once_with({
-            CONSTANTS.XBOX.NAME: {"ly": 0.5},
-            CONSTANTS.N64.NAME: {"ly": 0.5},
-        })
+        mock_display.update_controller_values.assert_called_once_with(
+            {
+                CONSTANTS.XBOX.NAME: {"ly": 0.5},
+                CONSTANTS.N64.NAME: {"cx": 0.1},
+            }
+        )
         mock_display.update_telemetry.assert_called_once_with({"battery": 12.6})
 
     def test_update_display_data_no_telemetry(self):
@@ -304,13 +303,14 @@ class TestUpdateDisplayData:
 class TestRunUpdateCycle:
     """Test _run_update_cycle function."""
 
-    @patch("pygame.event.get", return_value=[])
-    def test_run_update_cycle_increments_count(self, mock_events):
+    def test_run_update_cycle_increments_count(self):
         """Test update cycle increments update count."""
         mock_base = Mock()
         mock_base.creep_mode = False
         mock_base.reverse_mode = False
         mock_base.xbee_enabled = True
+        mock_base.input_source = Mock()
+        mock_base.input_source.poll_events.return_value = []
         mock_base.get_telemetry_data.return_value = {}
         mock_base.controller_manager.controller_state.get_controller_values.return_value = (
             {}

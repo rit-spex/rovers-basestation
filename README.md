@@ -4,14 +4,9 @@ Control system for the RIT SPEX rover. Supports real XBee hardware or UDP simula
 
 ## Start
 
-### Python 3.12+ (in case basestation isnt check this)
+### Python 3.11+
 
-Basestation needs at least python 3.11, the ubuntu version we use for SPEX in the VM is 22.04 which has a default official python version of 3.10 which wont work due to changes with default parameters in 3.11 for int.to_bytes() specifically byteorder which defaults to Big-endian in 3.11 but doesn't have a default in 3.10 or below
-
-^
-though tbh i might just pass in the argument and supress warnings so that we dont gotta install a higher version every time someone new joins, but for now the ci-cd pipeline is gonna use ubuntu 22.04 and py 3.11.
-
-Install SDL2: `sudo apt-get install libsdl2-dev`
+Basestation requires Python 3.11+ (see `pyproject.toml`). Ubuntu 22.04 ships with 3.10 by default, so install 3.11+ when setting up the VM or CI.
 
 ### Setup
 
@@ -28,7 +23,7 @@ source .venv/bin/activate      # Linux/Mac
 pip install -r requirements.txt
 ```
 
-**Note**: XBee libraries are optional. If not installed, the system automatically uses simulation mode.
+**Note**: XBee libraries are optional at runtime. `requirements.txt` includes them by default, but simulation-only setups can omit those packages and the system will use UDP simulation mode.
 
 ### Running
 
@@ -96,7 +91,7 @@ The basestation is organized into modules, including ones to handle controller i
 
                     [BaseStation]
                     Main control loop is here and also handles
-                    pygame events for controller and cleanup
+                    input events for controller and cleanup
                     on shutdown
                                      ^
                                      | explanation
@@ -116,7 +111,7 @@ The basestation is organized into modules, including ones to handle controller i
       |   [ControllerManager]                              GUI display using tkinter
       |   [ControllerState]                                for controller stuff,
       |   [InputProcessor]                                 telemetry, and modes.
-      |   Control also communicates the pygame             Goes to headless mode for
+      |   Control also communicates the input              Goes to headless mode for
       |   events to controller_manager.py which            daemon/service operation.
       |   processes the inputs from the controller
       |   and tracks the connected controller(s)                    Simulation
@@ -198,7 +193,7 @@ Makes a `BaseStation` instance
 ```
 3. **Controller Input**:
 ```
-Pygame events
+Input events (inputs library)
     V
 `BaseStation._process_controller_events()`
     V
@@ -345,5 +340,8 @@ mypy .           # Type check
 |----------|-------------|---------|
 | `XBEE_NO_GUI` | Run headless | `0` |
 | `XBEE_DEFAULT_CREEP` | Enable creep on startup | `1` |
+| `XBEE_TEST_ENABLE_INPUTS` | Allow controller inputs under pytest | `0` |
+| `XBEE_INPUTS_ALLOW_BLOCKING_READ` | Allow blocking gamepad reads in inputs backend | `0` |
+| `XBEE_INPUTS_FORCE_NONBLOCKING` | Force non-blocking reads even if timeouts are unsupported | `0` |
 | `XBEE_PORT` | XBee serial port | From config |
 | `XBEE_BAUD` | XBee baud rate | From config |

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from xbee.core.command_codes import CONSTANTS
 from xbee.core.tkinter_display import (
     HeadlessDisplay,
     TkinterDisplay,
@@ -237,6 +238,35 @@ class TestTkinterDisplayAdvanced:
         # mainloop should end and running flag cleared
         assert display.running is False
         # Ensure we clean up and join the update thread
+        display.quit()
+
+    @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
+    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
+    @patch("xbee.core.tkinter_display.ttk")
+    @patch("xbee.core.tkinter_display.tk")
+    def test_controller_type_metadata_drives_value_mapping(self, mock_tk, mock_ttk):
+        """Controller type metadata should override name-based detection."""
+        mock_root = Mock()
+        mock_tk.Tk.return_value = mock_root
+
+        display = TkinterDisplay()
+        display._insert_controller_values = Mock()
+
+        controller_data = {
+            "name": "Generic Gamepad",
+            "guid": "123",
+            "type": CONSTANTS.XBOX.NAME,
+        }
+        controller_values = {
+            CONSTANTS.XBOX.NAME: {"A": 2},
+            CONSTANTS.N64.NAME: {"B": 1},
+        }
+
+        display._insert_controller_info(0, controller_data, controller_values, True)
+
+        display._insert_controller_values.assert_called_once_with(
+            controller_values[CONSTANTS.XBOX.NAME]
+        )
         display.quit()
 
 

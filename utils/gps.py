@@ -32,6 +32,18 @@ def stop_gps_reader() -> None:
 
 
 try:
+    import warnings
+
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources is deprecated as an API.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources package is slated for removal.*",
+    )
     import board  # type: ignore
     import busio  # type: ignore
 except (ImportError, NotImplementedError):

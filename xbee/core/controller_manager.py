@@ -9,11 +9,9 @@ import threading
 from math import floor
 from typing import Any, Dict, Optional, Union
 
-import pygame
-from pygame.event import Event
-
 from .command_codes import CONSTANTS
 from .encoding import MessageEncoder
+from .input_events import JOYBUTTONDOWN, JOYDEVICEADDED, JOYDEVICEREMOVED, InputEvent
 
 logger = logging.getLogger(__name__)
 
@@ -416,7 +414,9 @@ class ControllerState:
             return CONSTANTS.XBOX.BUTTON.ON if value else CONSTANTS.XBOX.BUTTON.OFF
         if isinstance(value, int):
             # Accept already encoded values (1=OFF, 2=ON)
-            if value == CONSTANTS.XBOX.BUTTON.OFF or value == CONSTANTS.XBOX.BUTTON.ON:
+            if value in (0, CONSTANTS.XBOX.BUTTON.OFF, CONSTANTS.XBOX.BUTTON.ON):
+                if value == 0:
+                    return CONSTANTS.XBOX.BUTTON.OFF
                 return int(value)
             else:
                 raise ValueError(
@@ -459,41 +459,60 @@ class ControllerManager:
         # handlers were exposed on the controller manager.
         self.input_processor = InputProcessor(self)
 
-    def handle_hotplug_event(self, event: Event) -> bool:
+    def handle_hotplug_event(self, event: InputEvent) -> bool:
         """
         Handle controller connection/disconnection events.
 
         Args:
-            event: Pygame event
+            event: Input event
 
         Returns:
             bool: True if should quit (controller dc), False otherwise
         """
 
         # If new device is added
-        if event.type == pygame.JOYDEVICEADDED:
-            joy = pygame.joystick.Joystick(event.device_index)
-            self._add_joystick(joy)
-            logger.info("Joystick %d connected", joy.get_instance_id())
+        if event.type == JOYDEVICEADDED:
+            instance_id = getattr(event, "instance_id", None)
+            if instance_id is None:
+                instance_id = getattr(event, "device_index", None)
+            name = getattr(event, "name", None) or "Unknown"
+            guid = getattr(event, "guid", None)
+            if instance_id is not None:
+                self._add_device(instance_id, name, guid)
+                logger.info("Joystick %d connected", instance_id)
             return False
 
         # If a device is removed
-        if event.type == pygame.JOYDEVICEREMOVED:
-            self._remove_joystick_instance(event.instance_id)
-            logger.info("Joystick %d disconnected", event.instance_id)
+        if event.type == JOYDEVICEREMOVED:
+            instance_id = getattr(event, "instance_id", None)
+            if instance_id is not None:
+                self._remove_joystick_instance(instance_id)
+                logger.info("Joystick %d disconnected", instance_id)
             return True
 
         return False
 
-    def _add_joystick(self, joy):
-        """
-        Add joystick to internal mappings and detect controller type.
-        """
+    def _add_device(self, instance_id: int, name: str, guid: Optional[str] = None):
+        """Add a device entry to internal mappings and detect controller type."""
         with self._joystick_lock:
-            self.joysticks[joy.get_instance_id()] = joy
-            controller_type = self._detect_controller_type(joy.get_name())
-            if controller_type:
-                self.instance_id_values_map[joy.get_instance_id()] = controller_type
+            self.joysticks[instance_id] = {"name": name, "guid": guid}
+            controller_type = self._detect_controller_type(name)
+            if not controller_type:
+                controller_type = CONSTANTS.XBOX.NAME
+                logger.warning(
+                    "Unknown controller type for '%s'; defaulting to xbox",
+                    name,
+                )
+            self.instance_id_values_map[instance_id] = controller_type
+
+    def _add_joystick(self, joy):
+        """Backward-compatible helper for tests that pass joystick-like mocks."""
+        instance_id = getattr(joy, "get_instance_id", lambda: None)()
+        name = getattr(joy, "get_name", lambda: "Unknown")()
+        guid = getattr(joy, "get_guid", lambda: None)()
+        if instance_id is None:
+            return
+        self._add_device(instance_id, name, guid)
 
     def _remove_joystick_instance(self, instance_id: int):
         """
@@ -512,11 +531,16 @@ class ControllerManager:
         lname = name.lower()
         if "xbox" in lname or "x-box" in lname:
             return CONSTANTS.XBOX.NAME
-        if "dinput" in lname:
+        if (
+            "n64" in lname
+            or "dinput" in lname
+            or "directinput" in lname
+            or "direct input" in lname
+        ):
             return CONSTANTS.N64.NAME
         return None
 
-    def handle_axis_motion(self, event: Event) -> None:
+    def handle_axis_motion(self, event: InputEvent) -> None:
         """
         Process axis motions via the attached input processor.
         """
@@ -539,37 +563,37 @@ class ControllerManager:
         else:
             self.input_processor.process_trigger_axis(event)
 
-    def handle_button_down(self, event: Event) -> None:
+    def handle_button_down(self, event: InputEvent) -> None:
         """
         Handle button down events via the input processor.
         """
         self.input_processor.process_button(event)
 
-    def handle_button_up(self, event: Event) -> None:
+    def handle_button_up(self, event: InputEvent) -> None:
         """
         Handle button release events via the input processor.
         """
         self.input_processor.process_button(event)
 
-    def handle_joypad(self, event: Event) -> None:
+    def handle_joypad(self, event: InputEvent) -> None:
         """
         Handle D-Pad/joypad events via the input processor.
         """
         self.input_processor.process_joypad(event)
 
-    def handle_controller_added(self, event: Event) -> bool:
+    def handle_controller_added(self, event: InputEvent) -> bool:
         """
         Handle controller hotplug add events.
         """
         return self.handle_hotplug_event(event)
 
-    def handle_controller_removed(self, event: Event) -> bool:
+    def handle_controller_removed(self, event: InputEvent) -> bool:
         """
         Handle controller hotplug remove events.
         """
         return self.handle_hotplug_event(event)
 
-    def should_quit_on_button(self, event: Event) -> bool:
+    def should_quit_on_button(self, event: InputEvent) -> bool:
         """
         Check if the home/start button was pressed to quit.
 
@@ -611,13 +635,13 @@ class ControllerManager:
             return self.instance_id_values_map.get(instance_id)
 
     def get_joystick(self, instance_id: int):
-        """Return the joystick object for a given instance id, or None if not found.
+        """Return the stored device info for a given instance id, or None if not found.
 
         Args:
             instance_id: Instance id of the joystick
 
         Returns:
-            Joystick object or None
+            Device info dict or None
         """
         with self._joystick_lock:
             return self.joysticks.get(instance_id)
@@ -722,15 +746,18 @@ class InputProcessor:
         self.controller_manager = controller_manager
         self.deadband = CONSTANTS.TIMING.DEADBAND_THRESHOLD
 
-    def process_joystick_axis(self, event: Event) -> None:
+    def process_joystick_axis(self, event: InputEvent) -> None:
         """
         Processes joystick axis movement events.
 
         Args:
             event: The axis movement event
         """
+        instance_id = getattr(event, "instance_id", None)
+        if instance_id is None or event.axis is None or event.value is None:
+            return
 
-        controller_type = self.controller_manager.get_controller_type(event.instance_id)
+        controller_type = self.controller_manager.get_controller_type(instance_id)
         if not controller_type:
             return
 
@@ -784,7 +811,7 @@ class InputProcessor:
             controller_type, axis_key, int_val
         )
 
-    def process_trigger_axis(self, event: Event) -> None:
+    def process_trigger_axis(self, event: InputEvent) -> None:
         """
         Process trigger axis events.
         Note: N64 controller has no triggers, only Xbox does.
@@ -792,8 +819,11 @@ class InputProcessor:
         Args:
             event: Trigger event
         """
+        instance_id = getattr(event, "instance_id", None)
+        if instance_id is None or event.axis is None or event.value is None:
+            return
 
-        controller_type = self.controller_manager.get_controller_type(event.instance_id)
+        controller_type = self.controller_manager.get_controller_type(instance_id)
         # N64 has no triggers, so skip if N64 or unknown
         if not controller_type or controller_type == CONSTANTS.N64.NAME:
             return
@@ -813,28 +843,31 @@ class InputProcessor:
             controller_type, event.axis, value
         )
 
-    def process_button(self, event: Event) -> None:
+    def process_button(self, event: InputEvent) -> None:
         """
         Process button press/release events.
 
         Args:
             event: Button event
         """
+        instance_id = getattr(event, "instance_id", None)
+        if instance_id is None or event.button is None:
+            return
 
-        controller_type = self.controller_manager.get_controller_type(event.instance_id)
+        controller_type = self.controller_manager.get_controller_type(instance_id)
         if not controller_type:
             return
 
-        joystick = self.controller_manager.get_joystick(event.instance_id)
-        if joystick is None:
-            # If joystick disappeared concurrently, ignore the event.
-            return
-        button_value = joystick.get_button(event.button)
+        pressed = (
+            bool(getattr(event, "value", None))
+            if getattr(event, "value", None) is not None
+            else event.type == JOYBUTTONDOWN
+        )
 
-        # Convert pygame's 0/1 to 2-bit encoding (1=OFF, 2=ON)
-        # pygame returns: 0 = not pressed, 1 = presed
-        # so therefore we  need: 1 = OFF, 2 = ON
-        encoded_value = CONSTANTS.XBOX.BUTTON.ON if button_value else CONSTANTS.XBOX.BUTTON.OFF
+        # Convert press state to 2-bit encoding (1=OFF, 2=ON)
+        encoded_value = (
+            CONSTANTS.XBOX.BUTTON.ON if pressed else CONSTANTS.XBOX.BUTTON.OFF
+        )
 
         # Calc button key offset; use the constant to avoid magic numbers
         key_offset = (
@@ -848,15 +881,18 @@ class InputProcessor:
             controller_type, button_key, encoded_value
         )
 
-    def process_joypad(self, event: Event) -> None:
+    def process_joypad(self, event: InputEvent) -> None:
         """
         Process D-pad/joypad events.
 
         Args:
             event: Joypad event
         """
+        instance_id = getattr(event, "instance_id", None)
+        if instance_id is None or event.value is None:
+            return
 
-        controller_type = self.controller_manager.get_controller_type(event.instance_id)
+        controller_type = self.controller_manager.get_controller_type(instance_id)
         if not controller_type:
             return
 
@@ -912,7 +948,7 @@ class InputProcessor:
 
         return new_value
 
-    def _process_n64_joypad(self, event: Event) -> None:
+    def _process_n64_joypad(self, event: InputEvent) -> None:
         """
         Process N64 controller joypad events.
 
@@ -987,7 +1023,7 @@ class InputProcessor:
                 working_const.NAME, working_const.BUTTON.DP_UP, working_const.BUTTON.ON
             )
 
-    def _process_xbox_joypad(self, event: Event) -> None:
+    def _process_xbox_joypad(self, event: InputEvent) -> None:
         """
         Process Xbox controller joypad events for mode switching.
 

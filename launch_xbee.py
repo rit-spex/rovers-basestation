@@ -11,12 +11,16 @@ import os
 import sys
 import warnings
 
-if __name__ == "__main__":
-    # Suppress pygame pkg_resources deprecation warning
-    warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning
-    )
+warnings.filterwarnings(
+    "ignore", category=UserWarning, message="pkg_resources is deprecated as an API.*"
+)
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message="pkg_resources package is slated for removal.*",
+)
 
+if __name__ == "__main__":
     # Add current dir to py path
     current_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, current_dir)

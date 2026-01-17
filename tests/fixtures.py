@@ -217,25 +217,6 @@ def sample_encoded_heartbeat() -> bytes:
 
 
 @pytest.fixture
-def mock_pygame_controller():
-    """
-    Provides a mock pygame joystick for controller testing.
-
-    Returns:
-        Mock pygame joystick with common methods.
-    """
-    controller = Mock()
-    controller.get_instance_id = Mock(return_value=0)
-    controller.get_name = Mock(return_value="Xbox 360 Controller")
-    controller.get_numaxes = Mock(return_value=6)
-    controller.get_numbuttons = Mock(return_value=11)
-    controller.get_axis = Mock(return_value=0.0)
-    controller.get_button = Mock(return_value=False)
-    controller.quit = Mock()
-    return controller
-
-
-@pytest.fixture
 def load_mock_json():
     """
     Provides a helper function to load JSON from mock_data directory.

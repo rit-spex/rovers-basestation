@@ -10,8 +10,8 @@ pyftdi==0.56.0
 pyserial==3.5
 pyusb==1.3.1
 typing_extensions==4.12.2
-pytest
-pyyaml
-pygame
-lark
+inputs==0.5
 digi-xbee==1.5.0
+setuptools==80.9.0
+importlib_resources>=6.5.0
+importlib_metadata>=8.7.0

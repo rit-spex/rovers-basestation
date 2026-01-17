@@ -58,8 +58,5 @@ def test_main_re_raises_system_exit(monkeypatch):
         bs, "_create_control_loop", lambda base_station, display: (lambda: None)
     )
 
-    # Ensure pygame.init is a no-op
-    monkeypatch.setattr(bs.pygame, "init", lambda: None)
-
     with pytest.raises(SystemExit):
         bs.main()
