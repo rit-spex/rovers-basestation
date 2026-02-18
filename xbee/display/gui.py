@@ -150,6 +150,7 @@ class TkinterDisplay(BaseDisplay):
         # Skip UI setup if root is a test mock
         try:
             import unittest.mock as _unittest_mock
+
             mock_cls = getattr(_unittest_mock, "Mock", None)
         except Exception:
             mock_cls = None
@@ -243,19 +244,27 @@ class TkinterDisplay(BaseDisplay):
         for x in range(-height, width + height + stripe_width, stripe_step):
             try:
                 canvas.create_polygon(
-                    x, 0,
-                    x + stripe_width, 0,
-                    x + stripe_width + height, height,
-                    x + height, height,
-                    fill="#d22", outline="",
+                    x,
+                    0,
+                    x + stripe_width,
+                    0,
+                    x + stripe_width + height,
+                    height,
+                    x + height,
+                    height,
+                    fill="#d22",
+                    outline="",
                 )
             except Exception:
                 break
 
         try:
             canvas.create_text(
-                16, height // 2, anchor="w",
-                text="Simulation Mode", fill="black",
+                16,
+                height // 2,
+                anchor="w",
+                text="Simulation Mode",
+                fill="black",
                 font=("Arial", 16, "bold"),
             )
         except Exception:
@@ -264,8 +273,10 @@ class TkinterDisplay(BaseDisplay):
         if self._sim_view_dropdown is not None:
             try:
                 canvas.create_window(
-                    width - 12, height // 2,
-                    anchor="e", window=self._sim_view_dropdown,
+                    width - 12,
+                    height // 2,
+                    anchor="e",
+                    window=self._sim_view_dropdown,
                 )
             except Exception:
                 pass
@@ -308,27 +319,37 @@ class TkinterDisplay(BaseDisplay):
         sidebar.grid_propagate(False)
 
         row = 0
-        self.creep_indicator, _label, row = self._add_indicator_row(sidebar, row, "Creep Mode")
-        self.reverse_indicator, _label, row = self._add_indicator_row(sidebar, row, "Reverse")
-        row = self._add_sidebar_separator(sidebar, row)
-
-        self.auto_status_indicator, self.auto_status_text_label, row = self._add_indicator_row(
-            sidebar, row, "Auto Status", show_state_label=True
+        self.creep_indicator, _label, row = self._add_indicator_row(
+            sidebar, row, "Creep Mode"
         )
-        self.auto_toggle_indicator, _label, row = self._add_indicator_row(sidebar, row, "Auto Toggle")
-        row = self._add_sidebar_separator(sidebar, row)
-
-        self.rover_status_indicator, self.rover_status_text_label, row = self._add_indicator_row(
-            sidebar, row, "Rover Status", show_state_label=True
+        self.reverse_indicator, _label, row = self._add_indicator_row(
+            sidebar, row, "Reverse"
         )
         row = self._add_sidebar_separator(sidebar, row)
 
-        self.life_toggle_indicator, _label, row = self._add_indicator_row(sidebar, row, "Life Toggle")
+        self.auto_status_indicator, self.auto_status_text_label, row = (
+            self._add_indicator_row(sidebar, row, "Auto Status", show_state_label=True)
+        )
+        self.auto_toggle_indicator, _label, row = self._add_indicator_row(
+            sidebar, row, "Auto Toggle"
+        )
+        row = self._add_sidebar_separator(sidebar, row)
+
+        self.rover_status_indicator, self.rover_status_text_label, row = (
+            self._add_indicator_row(sidebar, row, "Rover Status", show_state_label=True)
+        )
+        row = self._add_sidebar_separator(sidebar, row)
+
+        self.life_toggle_indicator, _label, row = self._add_indicator_row(
+            sidebar, row, "Life Toggle"
+        )
         row = self._add_sidebar_separator(sidebar, row)
 
         self.comm_status_label = ttk.Label(
-            sidebar, text=self._format_comm_status(False),
-            style=SIDEBAR_SMALL_STYLE, justify="left",
+            sidebar,
+            text=self._format_comm_status(False),
+            style=SIDEBAR_SMALL_STYLE,
+            justify="left",
             wraplength=SIDEBAR_WIDTH - 16,
         )
         self.comm_status_label.grid(row=row, column=0, sticky="w")
@@ -339,7 +360,9 @@ class TkinterDisplay(BaseDisplay):
         )
         self.update_counter_label.grid(row=row, column=0, sticky="w")
 
-    def _add_indicator_row(self, parent, row: int, label_text: str, show_state_label: bool = False):
+    def _add_indicator_row(
+        self, parent, row: int, label_text: str, show_state_label: bool = False
+    ):
         row_frame = ttk.Frame(parent)
         row_frame.grid(row=row, column=0, sticky="ew", pady=2)
         row_frame.columnconfigure(0, weight=1)
@@ -349,8 +372,12 @@ class TkinterDisplay(BaseDisplay):
         label.grid(row=0, column=0, sticky="w")
 
         indicator = tk.Frame(
-            row_frame, width=INDICATOR_SIZE, height=INDICATOR_SIZE,
-            background="#aa0000", highlightthickness=1, highlightbackground="#333",
+            row_frame,
+            width=INDICATOR_SIZE,
+            height=INDICATOR_SIZE,
+            background="#aa0000",
+            highlightthickness=1,
+            highlightbackground="#333",
         )
         indicator.grid(row=0, column=1, sticky="e", padx=(8, 0))
         indicator.grid_propagate(False)
@@ -379,7 +406,9 @@ class TkinterDisplay(BaseDisplay):
         main_frame.rowconfigure(0, weight=1)
 
         # Controller panel
-        controller_frame = ttk.LabelFrame(main_frame, text="Controller Info", style=PANEL_STYLE)
+        controller_frame = ttk.LabelFrame(
+            main_frame, text="Controller Info", style=PANEL_STYLE
+        )
         controller_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         controller_frame.columnconfigure(0, weight=1)
         controller_frame.rowconfigure(0, weight=1)
@@ -389,14 +418,20 @@ class TkinterDisplay(BaseDisplay):
         controller_list.columnconfigure(0, weight=1)
         controller_list.rowconfigure(0, weight=1)
 
-        self.controller_text = tk.Text(controller_list, height=24, width=46, wrap=tk.WORD)
-        controller_scroll = ttk.Scrollbar(controller_list, orient=tk.VERTICAL, command=self.controller_text.yview)
+        self.controller_text = tk.Text(
+            controller_list, height=24, width=46, wrap=tk.WORD
+        )
+        controller_scroll = ttk.Scrollbar(
+            controller_list, orient=tk.VERTICAL, command=self.controller_text.yview
+        )
         self.controller_text.configure(yscrollcommand=controller_scroll.set)
         self.controller_text.grid(row=0, column=0, sticky="nsew")
         controller_scroll.grid(row=0, column=1, sticky="ns")
 
         # Module panel
-        self.module_frame = ttk.LabelFrame(main_frame, text="Module Info", style=PANEL_STYLE)
+        self.module_frame = ttk.LabelFrame(
+            main_frame, text="Module Info", style=PANEL_STYLE
+        )
         self.module_frame.grid(row=0, column=1, sticky="nsew")
         self.module_frame.columnconfigure(0, weight=1)
         self.module_frame.rowconfigure(0, weight=1)
@@ -407,7 +442,9 @@ class TkinterDisplay(BaseDisplay):
         module_list.rowconfigure(0, weight=1)
 
         self.module_text = tk.Text(module_list, height=24, wrap=tk.WORD)
-        module_scroll = ttk.Scrollbar(module_list, orient=tk.VERTICAL, command=self.module_text.yview)
+        module_scroll = ttk.Scrollbar(
+            module_list, orient=tk.VERTICAL, command=self.module_text.yview
+        )
         self.module_text.configure(yscrollcommand=module_scroll.set)
         self.module_text.grid(row=0, column=0, sticky="nsew")
         module_scroll.grid(row=0, column=1, sticky="ns")
@@ -434,7 +471,9 @@ class TkinterDisplay(BaseDisplay):
             self._warning_banner_frame.destroy()
             self._warning_banner_frame = None
 
-    def update_controller_display(self, controller_id: int, controller_data: Dict[str, Any]):
+    def update_controller_display(
+        self, controller_id: int, controller_data: Dict[str, Any]
+    ):
         with self._controller_lock:
             self.controllers[controller_id] = controller_data
 
@@ -467,6 +506,7 @@ class TkinterDisplay(BaseDisplay):
     def run(self):
         try:
             import sys
+
             override_gui = _env_flag_enabled("XBEE_TEST_OVERRIDE_GUI")
             if "pytest" in sys.modules and not override_gui:
                 logger.debug("Detected pytest: skipping tkinter mainloop")
@@ -610,7 +650,9 @@ class TkinterDisplay(BaseDisplay):
             if self.auto_status_text_label is not None:
                 self.auto_status_text_label.config(text="Arrived")
         else:
-            self._set_indicator_color(self.auto_status_indicator, True, on_color="#1c71d8")
+            self._set_indicator_color(
+                self.auto_status_indicator, True, on_color="#1c71d8"
+            )
             if self.auto_status_text_label is not None:
                 self.auto_status_text_label.config(text="Teleop")
 
@@ -674,7 +716,11 @@ class TkinterDisplay(BaseDisplay):
             return
 
         module_value = next(
-            (telemetry[key] for key in ("active_module", "module", "module_view") if key in telemetry),
+            (
+                telemetry[key]
+                for key in ("active_module", "module", "module_view")
+                if key in telemetry
+            ),
             None,
         )
         if module_value is None:
@@ -733,30 +779,40 @@ class TkinterDisplay(BaseDisplay):
         scroll_pos = self._get_text_scroll_pos(self.controller_text)
         self.controller_text.delete(1.0, tk.END)
 
-        controllers_copy, controller_values_copy, nested_values = self._snapshot_controller_state()
+        controllers_copy, controller_values_copy, nested_values = (
+            self._snapshot_controller_state()
+        )
         if not controllers_copy:
             self.controller_text.insert(tk.END, "No controllers connected\n")
             return
 
         for controller_id, data in controllers_copy.items():
-            self._insert_controller_info(controller_id, data, controller_values_copy, nested_values)
+            self._insert_controller_info(
+                controller_id, data, controller_values_copy, nested_values
+            )
 
         self._restore_text_scroll_pos(self.controller_text, scroll_pos)
 
-    def _snapshot_controller_state(self) -> tuple[Dict[int, Dict[str, Any]], Dict[str, Any], bool]:
+    def _snapshot_controller_state(
+        self,
+    ) -> tuple[Dict[int, Dict[str, Any]], Dict[str, Any], bool]:
         with self._controller_lock:
             controllers_copy = self.controllers.copy()
             nested_values = False
             if self.controller_values and isinstance(
                 next(iter(self.controller_values.values()), None), dict
             ):
-                controller_values_copy = {k: dict(v) for k, v in self.controller_values.items()}
+                controller_values_copy = {
+                    k: dict(v) for k, v in self.controller_values.items()
+                }
                 nested_values = True
             else:
                 controller_values_copy = dict(self.controller_values)
         return controllers_copy, controller_values_copy, nested_values
 
-    def _insert_controller_info(self, _controller_id, data, controller_values_copy, nested_values):
+    def _insert_controller_info(
+        self, _controller_id, data, controller_values_copy, nested_values
+    ):
         controller_name = data.get("name", "Unknown")
         self.controller_text.insert(tk.END, f"{controller_name}:\n")
         self.controller_text.insert(tk.END, f"  GUID: {data.get('guid', 'Unknown')}\n")
@@ -768,7 +824,9 @@ class TkinterDisplay(BaseDisplay):
             self._insert_controller_values(resolved_values)
         self.controller_text.insert(tk.END, "\n")
 
-    def _resolve_controller_values_for_display(self, controller_name, data, controller_values_copy, nested_values):
+    def _resolve_controller_values_for_display(
+        self, controller_name, data, controller_values_copy, nested_values
+    ):
         if not nested_values:
             return controller_values_copy or None
 

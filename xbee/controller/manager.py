@@ -63,6 +63,7 @@ def _default_trigger_activation_threshold() -> float:
         return default
     return max(0.0, min(1.0, value))
 
+
 # Joystick axis indices for quick lookup
 _XBOX_JOYSTICK_AXES = [
     CONSTANTS.XBOX.JOYSTICK.AXIS_LX,
@@ -126,7 +127,9 @@ class ControllerManager:
     def adjust_auto_state(self, delta: int) -> int:
         """Adjust autonomous state and clamp to protocol limits."""
         next_state = self.auto_state + int(delta)
-        next_state = max(CONSTANTS.AUTO_STATE.MIN, min(CONSTANTS.AUTO_STATE.MAX, next_state))
+        next_state = max(
+            CONSTANTS.AUTO_STATE.MIN, min(CONSTANTS.AUTO_STATE.MAX, next_state)
+        )
         self.auto_state = next_state
         return self.auto_state
 
@@ -242,8 +245,13 @@ class ControllerManager:
 
         values = self.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
         offset = CONSTANTS.XBOX.BUTTON_INDEX_OFFSET
-        select_on = values.get(CONSTANTS.XBOX.BUTTON.SELECT + offset) == CONSTANTS.XBOX.BUTTON.ON
-        start_on = values.get(CONSTANTS.XBOX.BUTTON.START + offset) == CONSTANTS.XBOX.BUTTON.ON
+        select_on = (
+            values.get(CONSTANTS.XBOX.BUTTON.SELECT + offset)
+            == CONSTANTS.XBOX.BUTTON.ON
+        )
+        start_on = (
+            values.get(CONSTANTS.XBOX.BUTTON.START + offset) == CONSTANTS.XBOX.BUTTON.ON
+        )
 
         direction_map = {
             CONSTANTS.XBOX.JOYPAD.UP: True,
@@ -354,11 +362,7 @@ class InputProcessor:
         )
         encoded = CONSTANTS.XBOX.BUTTON.ON if pressed else CONSTANTS.XBOX.BUTTON.OFF
 
-        if (
-            ct == CONSTANTS.XBOX.NAME
-            and pressed
-            and event.type == JOYBUTTONDOWN
-        ):
+        if ct == CONSTANTS.XBOX.NAME and pressed and event.type == JOYBUTTONDOWN:
             if event.button == CONSTANTS.XBOX.BUTTON.LEFT_BUMPER:
                 self.controller_manager.adjust_auto_state(-1)
             elif event.button == CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER:
@@ -402,7 +406,9 @@ class InputProcessor:
     def _convert_axis_value(self, value: float, multiplier: float, constants) -> int:
         """Convert a -1.0..1.0 float to 0..200 int with multiplier applied."""
         result = floor(multiplier * value * 100 + constants.JOYSTICK.NEUTRAL_INT)
-        return max(constants.JOYSTICK.MIN_VALUE, min(constants.JOYSTICK.MAX_VALUE, result))
+        return max(
+            constants.JOYSTICK.MIN_VALUE, min(constants.JOYSTICK.MAX_VALUE, result)
+        )
 
     def _process_n64_dpad(self, event: InputEvent) -> None:
         """Map N64 D-pad (x, y) tuple to button ON/OFF states.
@@ -411,13 +417,13 @@ class InputProcessor:
         """
         x, y = event.value
         n64 = CONSTANTS.N64
-        ON, OFF = n64.BUTTON.ON, n64.BUTTON.OFF
+        on, off = n64.BUTTON.ON, n64.BUTTON.OFF
         state = self.controller_manager.controller_state
 
         # Horizontal
-        state.update_value(n64.NAME, n64.BUTTON.DP_LEFT, ON if x == -1 else OFF)
-        state.update_value(n64.NAME, n64.BUTTON.DP_RIGHT, ON if x == 1 else OFF)
+        state.update_value(n64.NAME, n64.BUTTON.DP_LEFT, on if x == -1 else off)
+        state.update_value(n64.NAME, n64.BUTTON.DP_RIGHT, on if x == 1 else off)
 
         # Vertical
-        state.update_value(n64.NAME, n64.BUTTON.DP_DOWN, ON if y == -1 else OFF)
-        state.update_value(n64.NAME, n64.BUTTON.DP_UP, ON if y == 1 else OFF)
+        state.update_value(n64.NAME, n64.BUTTON.DP_DOWN, on if y == -1 else off)
+        state.update_value(n64.NAME, n64.BUTTON.DP_UP, on if y == 1 else off)

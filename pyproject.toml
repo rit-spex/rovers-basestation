@@ -25,7 +25,7 @@ python_version = "3.11"
 ignore_missing_imports = true
 follow_imports = "silent"
 show_error_codes = true
-exclude = "tests/.*"
+exclude = "tests/.*|lib/rovers-protocol/.*"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

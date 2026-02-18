@@ -8,4 +8,5 @@ Modules:
     constants - Protocol IDs, timing, communication settings,
                 and Xbox/N64 controller button/axis definitions
 """
+
 from .constants import *  # noqa: F401, F403

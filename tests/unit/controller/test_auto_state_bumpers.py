@@ -1,5 +1,5 @@
 from xbee.config.constants import CONSTANTS
-from xbee.controller.events import InputEvent, JOYBUTTONDOWN
+from xbee.controller.events import JOYBUTTONDOWN, InputEvent
 from xbee.controller.manager import ControllerManager
 
 

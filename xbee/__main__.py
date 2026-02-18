@@ -22,6 +22,7 @@ def run() -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+
 if __name__ == "__main__":
     exit_code = run()
     if exit_code != 0:

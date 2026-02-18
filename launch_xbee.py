@@ -7,9 +7,10 @@ entry point for running the basestation control system.
 Usage: python launch_xbee.py
 """
 
-import warnings
 import os
 import sys
+import warnings
+
 
 def _configure_warning_filters() -> None:
     warnings.filterwarnings(

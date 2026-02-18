@@ -13,8 +13,8 @@ Package layout:
 
 """
 
-from xbee.communication.manager import CommunicationManager, MessageFormatter
 from xbee.communication.heartbeat import HeartbeatManager
+from xbee.communication.manager import CommunicationManager, MessageFormatter
 from xbee.communication.udp_backend import (
     SimulationCommunicationManager,
     UdpCommunicationManager,

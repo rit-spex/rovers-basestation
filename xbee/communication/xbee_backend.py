@@ -52,17 +52,27 @@ class XbeeCommunicationManager:
                 f"Invalid XBEE_INFLIGHT_WAIT_TIMEOUT value: '{timeout_str}'"
             ) from e
         if self.inflight_wait_timeout <= 0:
-            raise ValueError(f"XBEE_INFLIGHT_WAIT_TIMEOUT must be a positive number, got: {self.inflight_wait_timeout}")
+            raise ValueError(
+                f"XBEE_INFLIGHT_WAIT_TIMEOUT must be a positive number, got: {self.inflight_wait_timeout}"
+            )
 
         # Stale entry cleanup threshold (default: 3x wait timeout)
         default_max_age = self.inflight_wait_timeout * 3.0
-        max_age_str = os.environ.get("XBEE_INFLIGHT_ENTRY_MAX_AGE", str(default_max_age))
+        max_age_str = os.environ.get(
+            "XBEE_INFLIGHT_ENTRY_MAX_AGE", str(default_max_age)
+        )
         try:
             self.inflight_entry_max_age = float(max_age_str)
             if self.inflight_entry_max_age <= 0:
-                raise ValueError(f"Must be a positive number, got: {self.inflight_entry_max_age}")
+                raise ValueError(
+                    f"Must be a positive number, got: {self.inflight_entry_max_age}"
+                )
         except ValueError:
-            logger.warning("Invalid XBEE_INFLIGHT_ENTRY_MAX_AGE '%s', using default %s", max_age_str, default_max_age)
+            logger.warning(
+                "Invalid XBEE_INFLIGHT_ENTRY_MAX_AGE '%s', using default %s",
+                max_age_str,
+                default_max_age,
+            )
             self.inflight_entry_max_age = default_max_age
 
     def send_package(
@@ -127,9 +137,7 @@ class XbeeCommunicationManager:
         """Register telemetry callback (reserved for future receive-path support)."""
         self._telemetry_handler = handler
 
-    def _convert_to_bytes(
-        self, data: PayloadLike
-    ) -> bytes:
+    def _convert_to_bytes(self, data: PayloadLike) -> bytes:
         """Convert data to bytes using the shared utility."""
         return convert_to_bytes(data)
 
@@ -162,7 +170,9 @@ class XbeeCommunicationManager:
             return False
         return result.get("sent", False)
 
-    def _perform_send(self, key: bytes, payload: bytes, our_event: threading.Event) -> bool:
+    def _perform_send(
+        self, key: bytes, payload: bytes, our_event: threading.Event
+    ) -> bool:
         sent = False
         try:
             if self.xbee_device:

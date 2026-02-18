@@ -2,7 +2,7 @@
 Controller type detection utility.
 
 Identifies whether a gamepad is an Xbox or N64 controller based on
-its reported name string. Used by controller/manager.py, 
+its reported name string. Used by controller/manager.py,
 controller/input_source.py, and display/gui.py.
 
 To add support for a new controller type:
@@ -26,6 +26,7 @@ def _get_controller_names():
     global _XBOX_NAME, _N64_NAME
     if _XBOX_NAME is None:
         from xbee.config.constants import CONSTANTS
+
         _XBOX_NAME = CONSTANTS.XBOX.NAME
         _N64_NAME = CONSTANTS.N64.NAME
     return _XBOX_NAME, _N64_NAME

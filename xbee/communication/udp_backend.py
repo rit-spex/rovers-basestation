@@ -19,7 +19,6 @@ import time
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
 
 from utils.bytes import convert_to_bytes, validate_byte_sequence
-
 from xbee.config.constants import CONSTANTS
 from xbee.protocol.encoding import MessageEncoder
 
@@ -210,16 +209,12 @@ class UdpCommunicationManager:
             logger.exception("Failed to send UDP message")
             return False
 
-    def _validate_payload(
-        self, data: PayloadLike
-    ):
+    def _validate_payload(self, data: PayloadLike):
         if isinstance(data, (bytes, bytearray, memoryview)):
             return
         validate_byte_sequence(data)
 
-    def _convert_to_bytes(
-        self, data: PayloadLike
-    ) -> bytes:
+    def _convert_to_bytes(self, data: PayloadLike) -> bytes:
         """Convert data to bytes using the shared utility."""
         return convert_to_bytes(data)
 
@@ -305,7 +300,9 @@ class UdpCommunicationManager:
 
             telemetry_payload = dict(decoded)
             telemetry_payload["_message_id"] = message_id
-            telemetry_payload["_message_name"] = self._decoder.get_message_name(message_id)
+            telemetry_payload["_message_name"] = self._decoder.get_message_name(
+                message_id
+            )
 
             with self._message_lock:
                 self.last_telemetry = telemetry_payload.copy()

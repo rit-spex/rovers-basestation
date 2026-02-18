@@ -18,6 +18,8 @@ Modules:
     manager      - ControllerManager + InputProcessor: event handling
     input_source - InputEventSource: reads gamepad events from the OS
 """
+
+from .detection import detect_controller_type
 from .events import (
     JOYAXISMOTION,
     JOYBUTTONDOWN,
@@ -28,10 +30,9 @@ from .events import (
     QUIT,
     InputEvent,
 )
-from .detection import detect_controller_type
-from .state import ControllerState
-from .manager import ControllerManager, InputProcessor
 from .input_source import InputEventSource, InputSourceError
+from .manager import ControllerManager, InputProcessor
+from .state import ControllerState
 
 __all__ = [
     "JOYAXISMOTION",

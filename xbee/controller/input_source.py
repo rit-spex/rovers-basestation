@@ -183,9 +183,12 @@ class InputEventSource:
             return False
         try:
             import sys
+
             if "pytest" in sys.modules:
                 return (os.getenv("XBEE_TEST_ENABLE_INPUTS") or "").lower() in (
-                    "1", "true", "yes",
+                    "1",
+                    "true",
+                    "yes",
                 )
         except Exception:
             pass
@@ -265,7 +268,9 @@ class InputEventSource:
             pass
         if not self._allow_blocking_read:
             if not self._warned_blocking_disabled:
-                logger.warning("Blocking fallback disabled; no inputs.get_gamepad() calls")
+                logger.warning(
+                    "Blocking fallback disabled; no inputs.get_gamepad() calls"
+                )
                 self._warned_blocking_disabled = True
             return []
         if not self._warned_blocking_fallback:
@@ -340,13 +345,23 @@ class InputEventSource:
             if value:
                 stable_parts.append(str(value))
         if len(stable_parts) > 1:
-            digest = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()[:8]
+            digest = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()[
+                :8
+            ]
             return f"{name}-{digest}"
         return f"{name}-{next(self.__class__._fallback_id_counter)}"
 
     def _device_signature(self, device: Any) -> Tuple[str, ...]:
         parts = []
-        for attr in ("name", "serial", "vendor", "vendor_id", "product", "product_id", "phys"):
+        for attr in (
+            "name",
+            "serial",
+            "vendor",
+            "vendor_id",
+            "product",
+            "product_id",
+            "phys",
+        ):
             value = getattr(device, attr, None)
             if value is not None:
                 parts.append(str(value))
@@ -435,22 +450,23 @@ class InputEventSource:
     def _cleanup_device_refs(self, current_ids: set[int]) -> None:
         with self._device_lock:
             ref_keys_to_remove = [
-                key for key, ref in self._key_to_device_ref.items()
+                key
+                for key, ref in self._key_to_device_ref.items()
                 if ref() is None or id(ref()) not in current_ids
             ]
             for key in ref_keys_to_remove:
                 self._key_to_device_ref.pop(key, None)
 
             id_keys_to_remove = [
-                key for key, device_id in self._key_to_device_id.items()
+                key
+                for key, device_id in self._key_to_device_id.items()
                 if device_id not in current_ids
             ]
             for key in id_keys_to_remove:
                 self._key_to_device_id.pop(key, None)
 
             for device_id in [
-                did for did in self._device_object_key_ids
-                if did not in current_ids
+                did for did in self._device_object_key_ids if did not in current_ids
             ]:
                 self._device_object_key_ids.pop(device_id, None)
 
@@ -491,7 +507,10 @@ class InputEventSource:
             self._device_info[instance_id] = {"name": name, "guid": guid}
             self._device_hat_state[instance_id] = (0, 0)
             self._device_dpad_state[instance_id] = {
-                "left": False, "right": False, "up": False, "down": False,
+                "left": False,
+                "right": False,
+                "up": False,
+                "down": False,
             }
             self._device_hat_source[instance_id] = None
 
@@ -520,7 +539,8 @@ class InputEventSource:
                     self._signature_to_keys[signature] = {key}
                 self._signature_last_seen[signature] = time.time()
             for device_id in [
-                did for did, cached_key in self._device_object_key_ids.items()
+                did
+                for did, cached_key in self._device_object_key_ids.items()
                 if cached_key == key
             ]:
                 self._device_object_key_ids.pop(device_id, None)
@@ -535,7 +555,9 @@ class InputEventSource:
                 k: v for k, v in self._axis_range_cache.items() if k[0] != instance_id
             }
             self._axis_joystick_mode_cache = {
-                k: v for k, v in self._axis_joystick_mode_cache.items() if k[0] != instance_id
+                k: v
+                for k, v in self._axis_joystick_mode_cache.items()
+                if k[0] != instance_id
             }
         self._enqueue_event(
             InputEvent(
@@ -572,8 +594,11 @@ class InputEventSource:
         controller_type = detect_controller_type(info.get("name", ""))
 
         event = self._map_raw_event(
-            raw_event, instance_id, controller_type,
-            info.get("name"), info.get("guid"),
+            raw_event,
+            instance_id,
+            controller_type,
+            info.get("name"),
+            info.get("guid"),
         )
         if event is not None:
             self._enqueue_event(event)
@@ -588,8 +613,12 @@ class InputEventSource:
             return self._fallback_device_stub
 
     def _map_raw_event(
-        self, raw_event: Any, instance_id: int,
-        controller_type: Optional[str], name: Optional[str], guid: Optional[str],
+        self,
+        raw_event: Any,
+        instance_id: int,
+        controller_type: Optional[str],
+        name: Optional[str],
+        guid: Optional[str],
     ) -> Optional[InputEvent]:
         code = getattr(raw_event, "code", None)
         state = getattr(raw_event, "state", None)
@@ -606,9 +635,14 @@ class InputEventSource:
         if axis_index is not None:
             value = self._normalize_axis_value(state, code, instance_id)
             return InputEvent(
-                type=JOYAXISMOTION, instance_id=instance_id,
-                axis=axis_index, value=value,
-                name=name, guid=guid, raw_code=code, raw_state=state,
+                type=JOYAXISMOTION,
+                instance_id=instance_id,
+                axis=axis_index,
+                value=value,
+                name=name,
+                guid=guid,
+                raw_code=code,
+                raw_state=state,
             )
 
         # Button events
@@ -617,8 +651,13 @@ class InputEventSource:
             pressed = bool(state)
             return InputEvent(
                 type=JOYBUTTONDOWN if pressed else JOYBUTTONUP,
-                instance_id=instance_id, button=button_index, value=pressed,
-                name=name, guid=guid, raw_code=code, raw_state=state,
+                instance_id=instance_id,
+                button=button_index,
+                value=pressed,
+                name=name,
+                guid=guid,
+                raw_code=code,
+                raw_state=state,
             )
 
         return None
@@ -628,12 +667,20 @@ class InputEventSource:
     # ------------------------------------------------------------------
 
     def _handle_hat_event(
-        self, code: str, state: Any, instance_id: int,
-        name: Optional[str], guid: Optional[str],
+        self,
+        code: str,
+        state: Any,
+        instance_id: int,
+        name: Optional[str],
+        guid: Optional[str],
     ) -> Optional[InputEvent]:
         if code not in (
-            "ABS_HAT0X", "ABS_HAT0Y",
-            "BTN_DPAD_UP", "BTN_DPAD_DOWN", "BTN_DPAD_LEFT", "BTN_DPAD_RIGHT",
+            "ABS_HAT0X",
+            "ABS_HAT0Y",
+            "BTN_DPAD_UP",
+            "BTN_DPAD_DOWN",
+            "BTN_DPAD_LEFT",
+            "BTN_DPAD_RIGHT",
         ):
             return None
 
@@ -661,9 +708,13 @@ class InputEventSource:
             self._device_hat_state[instance_id] = (x, y)
 
         return InputEvent(
-            type=JOYHATMOTION, instance_id=instance_id,
-            value=(x, y), name=name, guid=guid,
-            raw_code=code, raw_state=state,
+            type=JOYHATMOTION,
+            instance_id=instance_id,
+            value=(x, y),
+            name=name,
+            guid=guid,
+            raw_code=code,
+            raw_state=state,
         )
 
     @staticmethod
@@ -674,11 +725,15 @@ class InputEventSource:
             y = max(-1, min(1, val))
         return x, y
 
-    def _apply_dpad_button(self, code: str, pressed: bool, instance_id: int) -> Tuple[int, int]:
+    def _apply_dpad_button(
+        self, code: str, pressed: bool, instance_id: int
+    ) -> Tuple[int, int]:
         with self._device_lock:
             return self._apply_dpad_button_unlocked(code, pressed, instance_id)
 
-    def _apply_dpad_button_unlocked(self, code: str, pressed: bool, instance_id: int) -> Tuple[int, int]:
+    def _apply_dpad_button_unlocked(
+        self, code: str, pressed: bool, instance_id: int
+    ) -> Tuple[int, int]:
         mapping = {
             "BTN_DPAD_LEFT": "left",
             "BTN_DPAD_RIGHT": "right",
@@ -781,7 +836,9 @@ class InputEventSource:
             self._axis_max_cache[axis_key] = cached
         return max(cached, 1.0)
 
-    def _update_axis_range(self, axis_key: Tuple[int, str], value: float) -> Tuple[float, float]:
+    def _update_axis_range(
+        self, axis_key: Tuple[int, str], value: float
+    ) -> Tuple[float, float]:
         with self._device_lock:
             current = self._axis_range_cache.get(axis_key)
             if current is None:
@@ -796,9 +853,11 @@ class InputEventSource:
         stale_signatures: List[Tuple[str, ...]] = []
         for signature, keys in self._signature_to_keys.items():
             stale_keys = [
-                key for key in keys
+                key
+                for key in keys
                 if key not in self._device_map
-                and (now - self._signature_key_last_seen.get(key, now)) > self._signature_ttl_seconds
+                and (now - self._signature_key_last_seen.get(key, now))
+                > self._signature_ttl_seconds
             ]
             for key in stale_keys:
                 keys.discard(key)
@@ -821,10 +880,10 @@ class InputEventSource:
         Signed examples:   -32768..32767 (center near 0)
         Unsigned examples: 0..255 (center near 127.5)
         """
-        if self._forced_joystick_mode in ("signed", "unsigned"):
-            mode = self._forced_joystick_mode
-            self._axis_joystick_mode_cache[axis_key] = mode
-            return mode
+        forced_mode = self._forced_joystick_mode
+        if forced_mode in ("signed", "unsigned"):
+            self._axis_joystick_mode_cache[axis_key] = forced_mode
+            return forced_mode
 
         mode = self._axis_joystick_mode_cache.get(axis_key)
 

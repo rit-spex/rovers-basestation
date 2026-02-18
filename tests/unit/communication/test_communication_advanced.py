@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.config.constants import CONSTANTS
 from xbee.communication.manager import CommunicationManager, MessageFormatter
+from xbee.config.constants import CONSTANTS
 
 
 class TestMessageFormatterAdvanced:

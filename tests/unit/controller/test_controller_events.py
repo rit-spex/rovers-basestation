@@ -7,9 +7,9 @@ Tests cover joystick connect/disconnect, mode flags, and controller state update
 from unittest.mock import Mock, patch
 
 from xbee.config.constants import CONSTANTS
+from xbee.controller.events import JOYDEVICEADDED, JOYDEVICEREMOVED
 from xbee.controller.manager import ControllerManager
 from xbee.controller.state import ControllerState
-from xbee.controller.events import JOYDEVICEADDED, JOYDEVICEREMOVED
 
 
 class TestControllerHotplug:

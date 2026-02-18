@@ -14,6 +14,7 @@ Modules:
     gui        - TkinterDisplay: full tkinter GUI
     telemetry  - Helper functions for interpreting telemetry values
 """
+
 from .base import BaseDisplay, HeadlessDisplay, create_display
 
 __all__ = ["BaseDisplay", "HeadlessDisplay", "create_display"]

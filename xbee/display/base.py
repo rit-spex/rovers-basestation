@@ -26,6 +26,7 @@ def _env_flag_enabled(name: str) -> bool:
     raw = (os.getenv(name) or "").strip().lower()
     return raw in ("1", "true", "yes")
 
+
 # ---------------------------------------------------------------------------
 # Layout constants
 # ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ MODULE_VIEW_ORDER = ("life", "auto", "arm")
 # ---------------------------------------------------------------------------
 # Tkinter stubs (used when tkinter is unavailable or in headless mode)
 # ---------------------------------------------------------------------------
+
 
 class _GenericWidgetStub:
     """No-op widget used in headless / test environments."""
@@ -104,18 +106,25 @@ except ImportError:
     class _TkStub:
         def __init__(self, *args, **kwargs):
             pass  # Stub: intentionally empty
+
         def title(self, *args, **kwargs):
             return None
+
         def geometry(self, *args, **kwargs):
             return None
+
         def columnconfigure(self, *args, **kwargs):
             return None
+
         def rowconfigure(self, *args, **kwargs):
             return None
+
         def after_idle(self, *args, **kwargs):
             return None
+
         def mainloop(self, *args, **kwargs):
             return None
+
         def quit(self, *args, **kwargs):
             return None
 
@@ -147,8 +156,10 @@ except ImportError:
     class _StringVarStub:
         def __init__(self, value=None):
             self._value = value
+
         def get(self):
             return self._value
+
         def set(self, value):
             self._value = value
 
@@ -181,6 +192,7 @@ except ImportError:
 # Abstract display interface
 # ---------------------------------------------------------------------------
 
+
 class BaseDisplay(abc.ABC):
     """Abstract display interface used by BaseStation.
 
@@ -191,41 +203,34 @@ class BaseDisplay(abc.ABC):
     @abc.abstractmethod
     def update_controller_display(
         self, controller_id: int, controller_data: Dict[str, Any]
-    ):
-        ...
+    ): ...
 
     @abc.abstractmethod
-    def update_controller_values(self, values: Dict[str, Any]):
-        ...
+    def update_controller_values(self, values: Dict[str, Any]): ...
 
     @abc.abstractmethod
-    def update_modes(self, creep: bool = False, reverse: bool = False):
-        ...
+    def update_modes(self, creep: bool = False, reverse: bool = False): ...
 
     @abc.abstractmethod
-    def update_telemetry(self, telemetry: Dict[str, Any]):
-        ...
+    def update_telemetry(self, telemetry: Dict[str, Any]): ...
 
     @abc.abstractmethod
-    def update_communication_status(self, connected: bool, message_count: int = 0):
-        ...
+    def update_communication_status(self, connected: bool, message_count: int = 0): ...
 
     @abc.abstractmethod
-    def set_simulation_mode(self, is_simulation: bool):
-        ...
+    def set_simulation_mode(self, is_simulation: bool): ...
 
     @abc.abstractmethod
-    def run(self):
-        ...
+    def run(self): ...
 
     @abc.abstractmethod
-    def quit(self):
-        ...
+    def quit(self): ...
 
 
 # ---------------------------------------------------------------------------
 # Headless display (for daemons / systemd / tests)
 # ---------------------------------------------------------------------------
+
 
 class HeadlessDisplay(BaseDisplay):
     """Logs updates instead of rendering a GUI. Same API as TkinterDisplay."""
@@ -253,7 +258,9 @@ class HeadlessDisplay(BaseDisplay):
     ):
         with self._controller_lock:
             self.controllers[controller_id] = controller_data
-        logger.debug("HeadlessDisplay updated controller %d: %s", controller_id, controller_data)
+        logger.debug(
+            "HeadlessDisplay updated controller %d: %s", controller_id, controller_data
+        )
 
     def update_controller_values(self, values: Dict[str, Any]):
         with self._controller_lock:
@@ -293,6 +300,7 @@ class HeadlessDisplay(BaseDisplay):
 # Factory
 # ---------------------------------------------------------------------------
 
+
 def create_display(prefer_gui: Optional[bool] = None) -> BaseDisplay:
     """Return the appropriate display implementation.
 
@@ -304,6 +312,7 @@ def create_display(prefer_gui: Optional[bool] = None) -> BaseDisplay:
     # Default to headless under pytest
     try:
         import sys
+
         override_gui = _env_flag_enabled("XBEE_TEST_OVERRIDE_GUI")
         if "pytest" in sys.modules and not override_gui:
             env_no_gui = True
@@ -317,6 +326,7 @@ def create_display(prefer_gui: Optional[bool] = None) -> BaseDisplay:
     try:
         # Lazy import to avoid circular dependency
         from xbee.display.gui import TkinterDisplay
+
         return TkinterDisplay()
     except (ImportError, RuntimeError, ValueError) as e:
         logger.warning("Failed to init TkinterDisplay (%s). Using headless.", e)

@@ -30,28 +30,49 @@ BYTES_LIKE = (bytes, bytearray, memoryview)
 _XBOX = CONSTANTS.XBOX
 _N64 = CONSTANTS.N64
 
-AXIS_ALIASES = frozenset({
-    _XBOX.JOYSTICK.AXIS_LX_STR, _XBOX.JOYSTICK.AXIS_LY_STR,
-    _XBOX.JOYSTICK.AXIS_RX_STR, _XBOX.JOYSTICK.AXIS_RY_STR,
-    _N64.JOYSTICK.AXIS_X_STR, _N64.JOYSTICK.AXIS_Y_STR,
-})
+AXIS_ALIASES = frozenset(
+    {
+        _XBOX.JOYSTICK.AXIS_LX_STR,
+        _XBOX.JOYSTICK.AXIS_LY_STR,
+        _XBOX.JOYSTICK.AXIS_RX_STR,
+        _XBOX.JOYSTICK.AXIS_RY_STR,
+        _N64.JOYSTICK.AXIS_X_STR,
+        _N64.JOYSTICK.AXIS_Y_STR,
+    }
+)
 
-TRIGGER_ALIASES = frozenset({
-    _XBOX.TRIGGER.AXIS_LT_STR, _XBOX.TRIGGER.AXIS_RT_STR,
-})
+TRIGGER_ALIASES = frozenset(
+    {
+        _XBOX.TRIGGER.AXIS_LT_STR,
+        _XBOX.TRIGGER.AXIS_RT_STR,
+    }
+)
 
-BUTTON_ALIASES = frozenset({
-    _XBOX.BUTTON.A_STR, _XBOX.BUTTON.B_STR,
-    _XBOX.BUTTON.X_STR, _XBOX.BUTTON.Y_STR,
-    _XBOX.BUTTON.LEFT_BUMPER_STR, _XBOX.BUTTON.RIGHT_BUMPER_STR,
-    _XBOX.BUTTON.START_STR, _XBOX.BUTTON.SELECT_STR,
-    _N64.BUTTON.A_STR, _N64.BUTTON.B_STR,
-    _N64.BUTTON.C_UP_STR, _N64.BUTTON.C_DOWN_STR,
-    _N64.BUTTON.C_LEFT_STR, _N64.BUTTON.C_RIGHT_STR,
-    _N64.BUTTON.L_STR, _N64.BUTTON.R_STR, _N64.BUTTON.Z_STR,
-    _N64.BUTTON.DP_UP_STR, _N64.BUTTON.DP_DOWN_STR,
-    _N64.BUTTON.DP_LEFT_STR, _N64.BUTTON.DP_RIGHT_STR,
-})
+BUTTON_ALIASES = frozenset(
+    {
+        _XBOX.BUTTON.A_STR,
+        _XBOX.BUTTON.B_STR,
+        _XBOX.BUTTON.X_STR,
+        _XBOX.BUTTON.Y_STR,
+        _XBOX.BUTTON.LEFT_BUMPER_STR,
+        _XBOX.BUTTON.RIGHT_BUMPER_STR,
+        _XBOX.BUTTON.START_STR,
+        _XBOX.BUTTON.SELECT_STR,
+        _N64.BUTTON.A_STR,
+        _N64.BUTTON.B_STR,
+        _N64.BUTTON.C_UP_STR,
+        _N64.BUTTON.C_DOWN_STR,
+        _N64.BUTTON.C_LEFT_STR,
+        _N64.BUTTON.C_RIGHT_STR,
+        _N64.BUTTON.L_STR,
+        _N64.BUTTON.R_STR,
+        _N64.BUTTON.Z_STR,
+        _N64.BUTTON.DP_UP_STR,
+        _N64.BUTTON.DP_DOWN_STR,
+        _N64.BUTTON.DP_LEFT_STR,
+        _N64.BUTTON.DP_RIGHT_STR,
+    }
+)
 
 
 class ControllerState:
@@ -162,7 +183,9 @@ class ControllerState:
         name = self.canonical_controller_name(controller_type)
         return self.index_conversion.get(name, {}).get(index)
 
-    def get_numeric_key_for_alias(self, controller_type: str, alias: str) -> Optional[int]:
+    def get_numeric_key_for_alias(
+        self, controller_type: str, alias: str
+    ) -> Optional[int]:
         """Get the numeric index for a string alias (e.g., "A" -> 6 for xbox)."""
         name = self.canonical_controller_name(controller_type)
         return self.reverse_index_conversion.get(name, {}).get(alias)
@@ -257,7 +280,9 @@ class ControllerState:
         if isinstance(value, BYTES_LIKE):
             raw = bytes(value)
             if len(raw) != 1:
-                raise ValueError(f"Axis value must be single byte for key {key}; got {len(raw)}")
+                raise ValueError(
+                    f"Axis value must be single byte for key {key}; got {len(raw)}"
+                )
             return raw
         raise ValueError(f"Unsupported axis value type for key {key}: {type(value)}")
 

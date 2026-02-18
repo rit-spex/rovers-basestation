@@ -189,9 +189,7 @@ class TestControllerManagerAdvanced:
 
     def test_detect_controller_type_n64(self):
         """Test detecting N64 controller type (dinput)."""
-        assert (
-            detect_controller_type("DInput Controller") == CONSTANTS.N64.NAME
-        )
+        assert detect_controller_type("DInput Controller") == CONSTANTS.N64.NAME
 
     def test_detect_controller_type_unknown(self):
         """Test detecting unknown controller type."""

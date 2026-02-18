@@ -143,6 +143,7 @@ class TestCreateDisplayFactory:
         self, mock_tkinter_display, mock_getenv
     ):
         """Test create_display returns TkinterDisplay when GUI is available."""
+
         # Ensure our mock returns the correct values depending on the key asked
         def fake_getenv(key, default=None):
             if key == "XBEE_TEST_OVERRIDE_GUI":
@@ -167,6 +168,7 @@ class TestCreateDisplayFactory:
         self, mock_logger, mock_tkinter_display, mock_getenv
     ):
         """Test create_display falls back to HeadlessDisplay on TkinterDisplay error."""
+
         # Ensure the function correctly reports the XBEE_TEST_OVERRIDE_GUI variable so
         # the create_display function will attempt to instantiate a TkinterDisplay
         def fake_getenv(key, default=None):

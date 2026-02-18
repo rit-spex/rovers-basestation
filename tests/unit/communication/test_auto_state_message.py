@@ -4,7 +4,9 @@ from xbee.protocol.encoding import MessageEncoder
 
 
 def test_send_auto_state_encodes_and_clamps():
-    manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=False)
+    manager = CommunicationManager(
+        xbee_device=None, remote_xbee=None, simulation_mode=False
+    )
     encoder = MessageEncoder()
 
     sent_payloads = []
@@ -24,7 +26,9 @@ def test_send_auto_state_encodes_and_clamps():
 
 
 def test_send_auto_state_deduplicates_identical_payload():
-    manager = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=False)
+    manager = CommunicationManager(
+        xbee_device=None, remote_xbee=None, simulation_mode=False
+    )
 
     calls = {"count": 0}
 

@@ -23,9 +23,9 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
-from xbee.config.constants import CONSTANTS
 from xbee.communication.heartbeat import HeartbeatManager
 from xbee.communication.manager import CommunicationManager
+from xbee.config.constants import CONSTANTS
 from xbee.controller.events import (
     JOYAXISMOTION,
     JOYBUTTONDOWN,
@@ -58,6 +58,7 @@ try:
         XBeeDevice,
         XBeeException,
     )
+
     XBEE_AVAILABLE = True
 except ImportError:
     logger.info("XBee libraries not available – simulation mode will be used")
@@ -76,6 +77,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Environment helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_log_every_updates_default() -> int:
     """Parse BASESTATION_LOG_EVERY_UPDATES env var (default 0 = debug only)."""
@@ -105,6 +107,7 @@ BASESTATION_LOG_EVERY_UPDATES_DEFAULT = _get_log_every_updates_default()
 # ---------------------------------------------------------------------------
 # BaseStation
 # ---------------------------------------------------------------------------
+
 
 class BaseStation:
     """Central orchestrator that wires together controllers, comms, and display.
@@ -172,7 +175,9 @@ class BaseStation:
             return False
 
         if os.name == "nt" and port.startswith("/dev/"):
-            logger.info("Skipping XBee init: %s not valid on Windows; using simulation", port)
+            logger.info(
+                "Skipping XBee init: %s not valid on Windows; using simulation", port
+            )
             return True
         if port.startswith("/dev/") and not os.path.exists(port):
             logger.info("Skipping XBee init: %s not found; using simulation", port)
@@ -184,7 +189,9 @@ class BaseStation:
             raise ImportError("XBee classes not properly imported")
         return RemoteXBeeDevice(
             self.xbee_device,
-            XBee64BitAddress.from_hex_string(CONSTANTS.COMMUNICATION.REMOTE_XBEE_ADDRESS),
+            XBee64BitAddress.from_hex_string(
+                CONSTANTS.COMMUNICATION.REMOTE_XBEE_ADDRESS
+            ),
         )
 
     def _log_xbee_init_error(self, e):
@@ -230,7 +237,9 @@ class BaseStation:
                 try:
                     self.xbee_device.close()
                 except Exception:
-                    logger.exception("Failed to close partially initialized XBee device")
+                    logger.exception(
+                        "Failed to close partially initialized XBee device"
+                    )
             self.xbee_enabled = False
             self._init_simulation_mode()
 
@@ -282,7 +291,10 @@ class BaseStation:
 
     def send_command(self, event: InputEvent):
         """Route a single input event to the appropriate handler."""
-        if not self.controller_manager.has_joysticks() and event.type not in _HOTPLUG_EVENTS:
+        if (
+            not self.controller_manager.has_joysticks()
+            and event.type not in _HOTPLUG_EVENTS
+        ):
             return
 
         if event.type == JOYDEVICEADDED:
@@ -312,7 +324,9 @@ class BaseStation:
             else:
                 self._handle_controller_hotplug(event)
         elif event.type == JOYDEVICEREMOVED:
-            handler = getattr(self.controller_manager, "handle_controller_removed", None)
+            handler = getattr(
+                self.controller_manager, "handle_controller_removed", None
+            )
             if handler:
                 handler(event)
             else:
@@ -396,7 +410,10 @@ class BaseStation:
             return
         logger.debug("Heartbeat sent (update #%d)", self.update_loop)
         with self._log_lock:
-            if self.log_summary_every > 0 and self.update_loop % self.log_summary_every == 0:
+            if (
+                self.log_summary_every > 0
+                and self.update_loop % self.log_summary_every == 0
+            ):
                 logger.info("Heartbeat sent (update #%d)", self.update_loop)
 
     def _send_controller_data_if_available(self):
@@ -409,13 +426,18 @@ class BaseStation:
             CONSTANTS.N64.NAME
         )
         message_sent = self.communication_manager.send_controller_data(
-            xbox_values, n64_values, self.controller_manager.reverse_mode,
+            xbox_values,
+            n64_values,
+            self.controller_manager.reverse_mode,
         )
         if not message_sent:
             return
         logger.debug("Controller data sent (update #%d)", self.update_loop)
         with self._log_lock:
-            if self.log_summary_every > 0 and self.update_loop % self.log_summary_every == 0:
+            if (
+                self.log_summary_every > 0
+                and self.update_loop % self.log_summary_every == 0
+            ):
                 logger.info("Controller data sent (update #%d)", self.update_loop)
 
     def _send_auto_state_if_available(self):
@@ -492,6 +514,7 @@ class BaseStation:
 # Control-loop helpers (module-level to keep BaseStation lean)
 # ---------------------------------------------------------------------------
 
+
 def _process_controller_events(base_station: BaseStation, display: BaseDisplay):
     for event in base_station.input_source.poll_events():
         if event.type == QUIT:
@@ -504,33 +527,39 @@ def _process_controller_events(base_station: BaseStation, display: BaseDisplay):
 
 
 def _update_display_on_controller_add(
-    base_station: BaseStation, display: BaseDisplay, event: InputEvent,
+    base_station: BaseStation,
+    display: BaseDisplay,
+    event: InputEvent,
 ):
+    instance_id = getattr(event, "instance_id", None)
+    if not isinstance(instance_id, int):
+        return
+
     controller_info = {
         "name": getattr(event, "name", "Unknown"),
         "guid": getattr(event, "guid", "Unknown"),
-        "id": getattr(event, "instance_id", None),
+        "id": instance_id,
     }
-    if controller_info["id"] is None:
-        return
+
     ctype = None
     try:
-        ctype = base_station.controller_manager.get_controller_type(
-            int(controller_info["id"])
-        )
+        ctype = base_station.controller_manager.get_controller_type(instance_id)
     except Exception:
         pass
     if ctype:
         controller_info["type"] = ctype
     if callable(getattr(display, "update_controller_display", None)):
-        display.update_controller_display(controller_info["id"], controller_info)
+        display.update_controller_display(instance_id, controller_info)
 
 
 def _update_display_data(
-    base_station: BaseStation, display: BaseDisplay, update_count: int,
+    base_station: BaseStation,
+    display: BaseDisplay,
+    update_count: int,
 ):
     display.update_modes(
-        creep=base_station.creep_mode, reverse=base_station.reverse_mode,
+        creep=base_station.creep_mode,
+        reverse=base_station.reverse_mode,
     )
     display.update_communication_status(base_station.xbee_enabled, update_count)
 
@@ -541,10 +570,12 @@ def _update_display_data(
         n64 = base_station.controller_manager.controller_state.get_controller_values(
             CONSTANTS.N64.NAME
         )
-        display.update_controller_values({
-            CONSTANTS.XBOX.NAME: xbox,
-            CONSTANTS.N64.NAME: n64,
-        })
+        display.update_controller_values(
+            {
+                CONSTANTS.XBOX.NAME: xbox,
+                CONSTANTS.N64.NAME: n64,
+            }
+        )
 
     telemetry = base_station.get_telemetry_data()
     if telemetry:
@@ -556,7 +587,9 @@ def _should_run_update(current_time, timer, frequency):
 
 
 def _run_update_cycle(
-    base_station: BaseStation, display: BaseDisplay, update_count: int,
+    base_station: BaseStation,
+    display: BaseDisplay,
+    update_count: int,
 ) -> int:
     _process_controller_events(base_station, display)
     base_station.update_info()
@@ -621,7 +654,10 @@ def _create_control_loop(base_station: BaseStation, display: BaseDisplay):
         try:
             while not base_station.quit:
                 timer, update_count, should_break = _process_single_iteration(
-                    base_station, display, timer, update_count,
+                    base_station,
+                    display,
+                    timer,
+                    update_count,
                 )
                 if should_break:
                     break
@@ -639,6 +675,7 @@ def _create_control_loop(base_station: BaseStation, display: BaseDisplay):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     """Launch the basestation (GUI or headless)."""
@@ -658,7 +695,9 @@ def main():
     if hasattr(display, "update_communication_status"):
         display.update_communication_status(base_station.xbee_enabled, 0)
     if hasattr(display, "update_modes"):
-        display.update_modes(creep=base_station.creep_mode, reverse=base_station.reverse_mode)
+        display.update_modes(
+            creep=base_station.creep_mode, reverse=base_station.reverse_mode
+        )
     if hasattr(display, "set_simulation_mode"):
         display.set_simulation_mode(not base_station.xbee_enabled)
 

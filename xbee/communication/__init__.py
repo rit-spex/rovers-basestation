@@ -20,10 +20,15 @@ Modules:
     udp_backend   - UdpCommunicationManager: UDP simulation transport
     heartbeat     - HeartbeatManager: periodic heartbeat signals
 """
-from .manager import CommunicationManager, MessageFormatter
-from .xbee_backend import XbeeCommunicationManager
-from .udp_backend import UdpCommunicationManager, UdpMessage, SimulationCommunicationManager
+
 from .heartbeat import HeartbeatManager
+from .manager import CommunicationManager, MessageFormatter
+from .udp_backend import (
+    SimulationCommunicationManager,
+    UdpCommunicationManager,
+    UdpMessage,
+)
+from .xbee_backend import XbeeCommunicationManager
 
 __all__ = [
     "CommunicationManager",

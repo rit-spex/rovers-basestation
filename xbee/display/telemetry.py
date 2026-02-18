@@ -11,9 +11,7 @@ import re
 from typing import Any, Dict, Optional
 
 _TRUE_STRINGS = frozenset(("1", "true", "yes", "on", "enabled", "active"))
-_FALSE_STRINGS = frozenset(
-    ("0", "false", "no", "off", "disabled", "inactive")
-)
+_FALSE_STRINGS = frozenset(("0", "false", "no", "off", "disabled", "inactive"))
 
 _ESTOP_KEYS = ("estop", "e_stop", "rover_status", "rover_estop")
 _ESTOP_MARKERS = ("estop", "e-stop", "emergency stop")

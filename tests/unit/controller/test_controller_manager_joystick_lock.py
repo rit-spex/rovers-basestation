@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from xbee.controller.manager import ControllerManager, InputProcessor
 from xbee.controller.events import JOYBUTTONDOWN
+from xbee.controller.manager import ControllerManager, InputProcessor
 
 
 def test_joystick_add_remove_and_get_joystick():

@@ -24,11 +24,10 @@ from collections.abc import Sequence as AbcSequence
 from typing import Dict, Sequence, TypeAlias, Union
 
 from utils.bytes import convert_to_bytes
-
-from xbee.config.constants import CONSTANTS
-from xbee.protocol.encoding import MessageEncoder
 from xbee.communication.udp_backend import UdpCommunicationManager
 from xbee.communication.xbee_backend import XbeeCommunicationManager
+from xbee.config.constants import CONSTANTS
+from xbee.protocol.encoding import MessageEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +71,7 @@ class MessageFormatter:
             # sync so encoding preference for alias keys does not defeat reverse
             # mode swapping.
             left_y_alias = values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR, left_y_num)
-            right_y_alias = values.get(
-                CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR, right_y_num
-            )
+            right_y_alias = values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR, right_y_num)
 
             # update the values in the dict for packing
             temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_LY] = right_y_num
@@ -313,7 +310,9 @@ class CommunicationManager:
 
     def send_auto_state(self, auto_state: int) -> bool:
         """Send current autonomous state command (0..5) to rover."""
-        clamped = max(CONSTANTS.AUTO_STATE.MIN, min(CONSTANTS.AUTO_STATE.MAX, int(auto_state)))
+        clamped = max(
+            CONSTANTS.AUTO_STATE.MIN, min(CONSTANTS.AUTO_STATE.MAX, int(auto_state))
+        )
         payload = list(
             self.formatter.encoder.encode_data(
                 {CONSTANTS.AUTO_STATE.NAME: clamped},
@@ -499,9 +498,7 @@ class CommunicationManager:
             logger.exception("Failed to send compact message")
             return False
 
-    def _normalize_package_payload(
-        self, data: PayloadLike
-    ) -> PayloadLike:
+    def _normalize_package_payload(self, data: PayloadLike) -> PayloadLike:
         """Normalize package payloads for `send_package`.
 
         Accepts bytes-like objects and lists of ints (0..255). If a list contains

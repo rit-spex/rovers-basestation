@@ -32,6 +32,7 @@ _TKINTER_FONT_MODULE = "tkinter.font"
 # sys.modules with a lightweight stub below. Importing tkinter early can
 # trigger GUI initialisation and we explicitly want to avoid that during tests.
 
+
 # Define a tiny stub with required members used by the application
 class _TkStub:
     def __init__(self, *args, **kwargs):
