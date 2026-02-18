@@ -1,11 +1,7 @@
-"""
-Edge case tests for encoding.py covering boundary values and unusual inputs.
+"""Edge case tests for encoding.py — boundary values and unusual inputs."""
 
-These tests ensure the encoder handles edge cases correctly, not just happy paths.
-"""
-
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.encoding import MessageEncoder, Signal
+from xbee.config.constants import CONSTANTS
+from xbee.protocol.encoding import MessageEncoder, Signal
 
 
 class TestEncodingBoundaryValues:
@@ -197,7 +193,7 @@ class TestSignalEdgeCases:
 
     def test_signal_with_zero_bits_type(self):
         """Test Signal with minimal DataType."""
-        from xbee.core.command_codes import DataType
+        from xbee.config.constants import DataType
 
         zero_bit_type = DataType(num_bits=0, id=0xFF)
         signal = Signal(zero_bit_type, 0)
@@ -207,7 +203,7 @@ class TestSignalEdgeCases:
 
     def test_signal_with_large_bits_type(self):
         """Test Signal with large DataType (32 bits)."""
-        from xbee.core.command_codes import DataType
+        from xbee.config.constants import DataType
 
         large_type = DataType(num_bits=32, id=0xFE)
         signal = Signal(large_type, 0xDEADBEEF)

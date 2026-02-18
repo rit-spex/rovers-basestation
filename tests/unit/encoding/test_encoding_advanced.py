@@ -4,8 +4,8 @@ Tests for encoding.py advanced functionality.
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.encoding import MessageEncoder, Signal
+from xbee.config.constants import CONSTANTS
+from xbee.protocol.encoding import MessageEncoder, Signal
 
 
 class TestSignal:
@@ -132,103 +132,113 @@ class TestMessageEncoderEncoding:
         assert decoded[CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE] == 12345
 
 
-class TestNormalizeSignalValue:
-    """Test signal value normalization."""
+class TestConvertSignalValue:
+    """Test signal value conversion methods."""
 
-    def test_normalize_uint8_joystick_float(self):
-        """Test normalizing float joystick value."""
+    def test_convert_uint8_joystick_float(self):
+        """Test converting float joystick value."""
         comm = MessageEncoder()
 
         # 0.0 -> 100, 1.0 -> 200, -1.0 -> 0
-        assert comm._normalize_uint8_joystick_value(0.0) == 100
-        assert comm._normalize_uint8_joystick_value(1.0) == 200
-        assert comm._normalize_uint8_joystick_value(-1.0) == 0
+        assert comm._convert_uint8_joystick(0.0) == 100
+        assert comm._convert_uint8_joystick(1.0) == 200
+        assert comm._convert_uint8_joystick(-1.0) == 0
 
-    def test_normalize_uint8_joystick_int(self):
-        """Test normalizing int joystick value (already encoded)."""
+    def test_convert_uint8_joystick_int(self):
+        """Test converting int joystick value (already encoded)."""
         comm = MessageEncoder()
 
-        assert comm._normalize_uint8_joystick_value(150) == 150
+        assert comm._convert_uint8_joystick(150) == 150
 
-    def test_normalize_uint8_joystick_out_of_range(self):
-        """Test normalizing out of range joystick value raises error."""
+    def test_convert_uint8_joystick_out_of_range(self):
+        """Test converting out of range joystick value raises error."""
         comm = MessageEncoder()
 
         with pytest.raises(ValueError, match="out of range"):
-            comm._normalize_uint8_joystick_value(256)
+            comm._convert_uint8_joystick(256)
 
-    def test_normalize_uint8_joystick_invalid_type(self):
-        """Test normalizing invalid joystick type raises error."""
+    def test_convert_uint8_joystick_invalid_type(self):
+        """Test converting invalid joystick type raises error."""
         comm = MessageEncoder()
 
         with pytest.raises(TypeError, match="Unsupported joystick type"):
-            comm._normalize_uint8_joystick_value("invalid")
+            comm._convert_uint8_joystick("invalid")
 
-    def test_normalize_uint2_bool_bool(self):
-        """Test normalizing bool value for UINT_2_BOOL."""
+    def test_convert_uint2_bool_bool(self):
+        """Test converting bool value for UINT_2_BOOL."""
         comm = MessageEncoder()
 
         # True -> 2, False -> 1
-        assert comm._normalize_uint2_bool_value(True) == 2
-        assert comm._normalize_uint2_bool_value(False) == 1
+        assert comm._convert_uint2_bool(True) == 2
+        assert comm._convert_uint2_bool(False) == 1
 
-    def test_normalize_uint2_bool_int(self):
-        """Test normalizing int value for UINT_2_BOOL."""
+    def test_convert_uint2_bool_int(self):
+        """Test converting int value for UINT_2_BOOL."""
         comm = MessageEncoder()
 
-        assert comm._normalize_uint2_bool_value(1) == 1
-        assert comm._normalize_uint2_bool_value(2) == 2
+        assert comm._convert_uint2_bool(1) == 1
+        assert comm._convert_uint2_bool(2) == 2
 
-    def test_normalize_uint2_bool_float(self):
-        """Test normalizing float value for UINT_2_BOOL."""
+    def test_convert_uint2_bool_float(self):
+        """Test converting float value for UINT_2_BOOL."""
         comm = MessageEncoder()
 
         # Truthy float -> True -> 2
-        assert comm._normalize_uint2_bool_value(1.5) == 2
+        assert comm._convert_uint2_bool(1.5) == 2
         # Zero float -> False -> 1
-        assert comm._normalize_uint2_bool_value(0.0) == 1
+        assert comm._convert_uint2_bool(0.0) == 1
 
-    def test_normalize_uint2_bool_out_of_range(self):
-        """Test normalizing out of range UINT_2_BOOL value raises error."""
+    def test_convert_uint2_bool_out_of_range(self):
+        """Test converting out of range UINT_2_BOOL value raises error."""
         comm = MessageEncoder()
 
-        with pytest.raises(ValueError, match="out of range"):
-            comm._normalize_uint2_bool_value(5)
+        with pytest.raises(ValueError, match=r"must be 1 \(OFF\) or 2 \(ON\)"):
+            comm._convert_uint2_bool(5)
 
-    def test_normalize_uint2_bool_invalid_type(self):
-        """Test normalizing invalid UINT_2_BOOL type raises error."""
+    def test_convert_uint2_bool_non_canonical_ints_raise(self):
+        """Test non-canonical UINT_2_BOOL integer values are rejected."""
+        comm = MessageEncoder()
+
+        with pytest.raises(ValueError, match=r"must be 1 \(OFF\) or 2 \(ON\)"):
+            comm._convert_uint2_bool(0)
+
+        with pytest.raises(ValueError, match=r"must be 1 \(OFF\) or 2 \(ON\)"):
+            comm._convert_uint2_bool(3)
+
+    def test_convert_uint2_bool_invalid_type(self):
+        """Test converting invalid UINT_2_BOOL type raises error."""
         comm = MessageEncoder()
 
         with pytest.raises(TypeError, match="Unsupported 2-bit boolean"):
-            comm._normalize_uint2_bool_value("invalid")
+            comm._convert_uint2_bool("invalid")
 
-    def test_normalize_boolean_bool(self):
-        """Test normalizing bool value for BOOLEAN."""
+    def test_convert_boolean_bool(self):
+        """Test converting bool value for BOOLEAN."""
         comm = MessageEncoder()
 
-        assert comm._normalize_boolean_value(True) == 1
-        assert comm._normalize_boolean_value(False) == 0
+        assert comm._convert_boolean(True) == 1
+        assert comm._convert_boolean(False) == 0
 
-    def test_normalize_boolean_int(self):
-        """Test normalizing int value for BOOLEAN."""
+    def test_convert_boolean_int(self):
+        """Test converting int value for BOOLEAN."""
         comm = MessageEncoder()
 
-        assert comm._normalize_boolean_value(0) == 0
-        assert comm._normalize_boolean_value(1) == 1
+        assert comm._convert_boolean(0) == 0
+        assert comm._convert_boolean(1) == 1
 
-    def test_normalize_boolean_out_of_range(self):
-        """Test normalizing out of range BOOLEAN value raises error."""
+    def test_convert_boolean_out_of_range(self):
+        """Test converting out of range BOOLEAN value raises error."""
         comm = MessageEncoder()
 
         with pytest.raises(ValueError, match="out of range"):
-            comm._normalize_boolean_value(2)
+            comm._convert_boolean(2)
 
-    def test_normalize_boolean_invalid_type(self):
-        """Test normalizing invalid BOOLEAN type raises error."""
+    def test_convert_boolean_invalid_type(self):
+        """Test converting invalid BOOLEAN type raises error."""
         comm = MessageEncoder()
 
         with pytest.raises(TypeError, match="Unsupported boolean"):
-            comm._normalize_boolean_value("invalid")
+            comm._convert_boolean("invalid")
 
 
 class TestEncodingWithBytesValues:

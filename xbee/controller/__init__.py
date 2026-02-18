@@ -1,0 +1,51 @@
+"""
+Controller input handling package.
+
+This package handles reading gamepad inputs, tracking controller state,
+and processing input events into values the encoding system can transmit.
+
+DATA FLOW:
+    1. input_source.py reads raw gamepad events from the OS
+    2. events.py defines the InputEvent format those raw events are converted to
+    3. manager.py processes InputEvents and updates state
+    4. state.py stores current button/axis values for each controller
+    5. detection.py identifies what type of controller is connected
+
+Modules:
+    events       - InputEvent dataclass and event type constants
+    detection    - Controller type detection (Xbox vs N64)
+    state        - ControllerState: stores current values for all inputs
+    manager      - ControllerManager + InputProcessor: event handling
+    input_source - InputEventSource: reads gamepad events from the OS
+"""
+from .events import (
+    JOYAXISMOTION,
+    JOYBUTTONDOWN,
+    JOYBUTTONUP,
+    JOYDEVICEADDED,
+    JOYDEVICEREMOVED,
+    JOYHATMOTION,
+    QUIT,
+    InputEvent,
+)
+from .detection import detect_controller_type
+from .state import ControllerState
+from .manager import ControllerManager, InputProcessor
+from .input_source import InputEventSource, InputSourceError
+
+__all__ = [
+    "JOYAXISMOTION",
+    "JOYBUTTONDOWN",
+    "JOYBUTTONUP",
+    "JOYDEVICEADDED",
+    "JOYDEVICEREMOVED",
+    "JOYHATMOTION",
+    "QUIT",
+    "InputEvent",
+    "detect_controller_type",
+    "ControllerState",
+    "ControllerManager",
+    "InputProcessor",
+    "InputEventSource",
+    "InputSourceError",
+]

@@ -4,7 +4,7 @@ import threading
 import time
 from unittest.mock import Mock
 
-from xbee.core.udp_communication import UdpCommunicationManager
+from xbee.communication.udp_backend import UdpCommunicationManager
 
 
 def test_udp_duplicate_suppression_concurrent(monkeypatch):

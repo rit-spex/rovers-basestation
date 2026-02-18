@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from xbee.core.controller_manager import ControllerManager, InputProcessor
-from xbee.core.input_events import JOYBUTTONDOWN
+from xbee.controller.manager import ControllerManager, InputProcessor
+from xbee.controller.events import JOYBUTTONDOWN
 
 
 def test_joystick_add_remove_and_get_joystick():
@@ -16,7 +16,7 @@ def test_joystick_add_remove_and_get_joystick():
     assert device.get("name") == "Xbox Controller"
 
     # Remove and check
-    cm._remove_joystick_instance(7)
+    cm._remove_device(7)
     assert cm.has_joysticks() is False
     assert cm.get_joystick(7) is None
 

@@ -5,7 +5,7 @@ Tests for BaseStation control loop and helper functions.
 import time
 from unittest.mock import Mock, patch
 
-from xbee.core.base_station import (
+from xbee.app import (
     _cleanup_on_exit,
     _handle_fatal_error,
     _handle_fatal_loop_error,
@@ -17,8 +17,8 @@ from xbee.core.base_station import (
     _should_run_update,
     _update_display_data,
 )
-from xbee.core.input_events import JOYDEVICEADDED, QUIT, InputEvent
-from xbee.core.input_source import InputSourceError
+from xbee.controller.events import JOYDEVICEADDED, QUIT, InputEvent
+from xbee.controller.input_source import InputSourceError
 
 
 class TestControlLoopHelpers:
@@ -44,7 +44,7 @@ class TestControlLoopHelpers:
 class TestErrorHandlers:
     """Test error handling functions."""
 
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.logger")
     @patch("time.sleep")
     def test_handle_recoverable_error(self, mock_sleep, mock_logger):
         """Test recoverable error handler logs warning and sleeps."""
@@ -55,7 +55,7 @@ class TestErrorHandlers:
         mock_logger.warning.assert_called_once()
         mock_sleep.assert_called_once_with(0.1)
 
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.logger")
     def test_handle_fatal_error(self, mock_logger):
         """Test fatal error handler logs and sets quit."""
         mock_base = Mock()
@@ -65,7 +65,7 @@ class TestErrorHandlers:
         mock_logger.exception.assert_called_once()
         assert mock_base.quit is True
 
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.logger")
     def test_handle_shutdown_signal(self, mock_logger):
         """Test shutdown signal handler logs and sets quit."""
         mock_base = Mock()
@@ -75,7 +75,7 @@ class TestErrorHandlers:
         mock_logger.info.assert_called_once()
         assert mock_base.quit is True
 
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.logger")
     def test_handle_fatal_loop_error(self, mock_logger):
         """Test fatal loop error handler logs and sets quit."""
         mock_base = Mock()
@@ -89,7 +89,7 @@ class TestErrorHandlers:
 class TestCleanupOnExit:
     """Test cleanup_on_exit function."""
 
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.logger")
     def test_cleanup_on_exit(self, mock_logger):
         """Test cleanup_on_exit calls all cleanup functions."""
         mock_base = Mock()
@@ -162,7 +162,7 @@ class TestProcessSingleIteration:
         with (
             patch("time.time_ns", return_value=time.time_ns()),
             patch("time.sleep"),
-            patch("xbee.core.base_station.logger"),
+            patch("xbee.app.logger"),
         ):
             _timer, _count, should_break = _process_single_iteration(
                 mock_base, mock_display, 0, 0
@@ -183,7 +183,7 @@ class TestProcessSingleIteration:
         with (
             patch("time.time_ns", return_value=time.time_ns()),
             patch("time.sleep"),
-            patch("xbee.core.base_station.logger"),
+            patch("xbee.app.logger"),
         ):
             _timer, _count, should_break = _process_single_iteration(
                 mock_base, mock_display, 0, 0
@@ -202,7 +202,7 @@ class TestProcessSingleIteration:
 
         with (
             patch("time.time_ns", return_value=time.time_ns()),
-            patch("xbee.core.base_station.logger"),
+            patch("xbee.app.logger"),
         ):
             _timer, _count, should_break = _process_single_iteration(
                 mock_base, mock_display, 0, 0
@@ -223,7 +223,7 @@ class TestProcessControllerEvents:
         mock_base.input_source.poll_events.return_value = [quit_event]
         mock_display = Mock()
 
-        with patch("xbee.core.base_station.logger"):
+        with patch("xbee.app.logger"):
             _process_controller_events(mock_base, mock_display)
 
         assert mock_base.quit is True
@@ -252,7 +252,7 @@ class TestUpdateDisplayData:
 
     def test_update_display_data_with_telemetry(self):
         """Test display data update with telemetry."""
-        from xbee.core.command_codes import CONSTANTS
+        from xbee.config.constants import CONSTANTS
 
         mock_base = Mock()
         mock_base.creep_mode = True

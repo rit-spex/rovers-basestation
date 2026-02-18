@@ -10,8 +10,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.communication import CommunicationManager, MessageFormatter
+from xbee.config.constants import CONSTANTS
+from xbee.communication.manager import CommunicationManager, MessageFormatter
 
 
 class TestCommunicationManagerErrorPaths:
@@ -109,6 +109,34 @@ class TestMessageFormatterEdgeCases:
 
         assert isinstance(message, list)
         assert len(message) > 0
+
+    def test_create_xbox_message_reverse_mode_swaps_alias_and_numeric_axes(self):
+        """Reverse mode should swap Y axes even when alias and numeric keys coexist."""
+        formatter = MessageFormatter()
+
+        values = {
+            CONSTANTS.XBOX.JOYSTICK.AXIS_LY: 150,
+            CONSTANTS.XBOX.JOYSTICK.AXIS_RY: 50,
+            CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR: 150,
+            CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR: 50,
+        }
+
+        normal_msg = formatter.create_xbox_message(values, reverse_mode=False)
+        reverse_msg = formatter.create_xbox_message(values, reverse_mode=True)
+
+        assert normal_msg != reverse_msg
+
+        normal_decoded, _ = formatter.encoder.decode_data(bytes(normal_msg))
+        reverse_decoded, _ = formatter.encoder.decode_data(bytes(reverse_msg))
+
+        assert (
+            reverse_decoded[CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR]
+            == normal_decoded[CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR]
+        )
+        assert (
+            reverse_decoded[CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR]
+            == normal_decoded[CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR]
+        )
 
     def test_create_combined_message_preserves_start_byte(self):
         """Test combined message always has START_MESSAGE as first byte."""
@@ -296,7 +324,7 @@ class TestRetryLogicEdgeCases:
         # Fail twice, then succeed
         comm.hardware_com.send_package.side_effect = [False, False, True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_package(b"\x01", retry_count=5)
 
         assert result is True
@@ -320,7 +348,7 @@ class TestRetryLogicEdgeCases:
         # Fail twice, succeed on third
         comm.hardware_com.send_package.side_effect = [False, False, True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_quit_message()
 
         assert result is True

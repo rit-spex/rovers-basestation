@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.communication import CommunicationManager, MessageFormatter
+from xbee.config.constants import CONSTANTS
+from xbee.communication.manager import CommunicationManager, MessageFormatter
 
 
 class TestMessageFormatterAdvanced:
@@ -253,7 +253,7 @@ class TestCommunicationManagerRetry:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.side_effect = [False, False, True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_package(b"\x01\x02", retry_count=3)
 
         assert result is True
@@ -265,7 +265,7 @@ class TestCommunicationManagerRetry:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.return_value = False
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_package(b"\x01\x02", retry_count=2)
 
         assert result is False
@@ -292,7 +292,7 @@ class TestCommunicationManagerCompactMessage:
         # First call raises TypeError, subsequent call succeeds
         comm.hardware_com.send_package.side_effect = [TypeError("Not bytes"), True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_compact_message([0xAB, 0x01])
 
         assert result is True
@@ -303,7 +303,7 @@ class TestCommunicationManagerCompactMessage:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.side_effect = RuntimeError("Network error")
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_compact_message([0xAB, 0x01])
 
         assert result is False

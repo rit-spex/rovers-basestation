@@ -3,8 +3,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.heartbeat import HeartbeatManager
+from xbee.config.constants import CONSTANTS
+from xbee.communication.heartbeat import HeartbeatManager
 
 
 def test_constants_and_enums():

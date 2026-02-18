@@ -1,3 +1,5 @@
+"""Auto-boot helper for launching the basestation after XBee connectivity checks."""
+
 import logging
 import os
 import subprocess
@@ -10,7 +12,7 @@ try:
     # Try to import the CONSTANTS config; if import fails, leave as None.
     # This lets runtime logic fall back to defaults while keeping static typing
     # permissive for CI checks.
-    from xbee.core.command_codes import CONSTANTS  # type: ignore
+    from xbee.config.constants import CONSTANTS  # type: ignore
 except Exception:
     CONSTANTS = None
 
@@ -153,7 +155,7 @@ def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
     return False
 
 
-def launch_xbee_script(exit_on_error: bool = False):
+def launch_xbee_script(exit_on_error: bool = False) -> bool:
     expanded_dir = os.path.expanduser(XBEE_SCRIPT_DIR)
     logger.info("Changing directory to: %s", expanded_dir)
     try:
@@ -163,7 +165,7 @@ def launch_xbee_script(exit_on_error: bool = False):
         if exit_on_error:
             sys.exit(1)
         return False
-    logger.info("Launching Xbee.py...")
+    logger.info("Launching xbee module...")
 
     env = os.environ.copy()
     env["XBEE_NO_GUI"] = "1"

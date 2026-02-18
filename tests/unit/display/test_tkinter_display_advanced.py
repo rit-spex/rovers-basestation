@@ -6,13 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.tkinter_display import (
-    HeadlessDisplay,
-    TkinterDisplay,
-    _GenericWidgetStub,
-    create_display,
-)
+from xbee.config.constants import CONSTANTS
+from xbee.display.base import HeadlessDisplay, _GenericWidgetStub, create_display
+from xbee.display.gui import TkinterDisplay
 
 
 class TestGenericWidgetStub:
@@ -72,7 +68,7 @@ class TestHeadlessDisplayAdvanced:
 class TestTkinterDisplayAdvanced:
     """Test TkinterDisplay advanced functionality."""
 
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", False)
+    @patch("xbee.display.gui.TK_AVAILABLE", False)
     def test_tkinter_display_raises_when_tk_unavailable(self):
         """Test TkinterDisplay raises when tkinter unavailable."""
         # Temporarily remove XBEE_NO_GUI to test TK_AVAILABLE check
@@ -93,9 +89,9 @@ class TestTkinterDisplayAdvanced:
             TkinterDisplay()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_controller_display_thread_safe(self, mock_tk, mock_ttk):
         """Test update_controller_display is thread-safe."""
         mock_root = Mock()
@@ -109,9 +105,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_controller_values_thread_safe(self, mock_tk, mock_ttk):
         """Test update_controller_values is thread-safe."""
         mock_root = Mock()
@@ -125,9 +121,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_modes_thread_safe(self, mock_tk, mock_ttk):
         """Test update_modes is thread-safe."""
         mock_root = Mock()
@@ -141,9 +137,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_telemetry_thread_safe(self, mock_tk, mock_ttk):
         """Test update_telemetry is thread-safe."""
         mock_root = Mock()
@@ -157,9 +153,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_communication_status_labels(self, mock_tk, mock_ttk):
         """Test update_communication_status updates labels."""
         mock_root = Mock()
@@ -176,9 +172,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_quit_stops_running(self, mock_tk, mock_ttk):
         """Test quit sets running to False."""
         mock_root = Mock()
@@ -193,9 +189,9 @@ class TestTkinterDisplayAdvanced:
         mock_root.quit.assert_called_once()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_run_skips_mainloop_under_pytest_without_override(self, mock_tk, mock_ttk):
         """Test run() skips mainloop under pytest when override not set."""
         mock_root = Mock()
@@ -217,9 +213,9 @@ class TestTkinterDisplayAdvanced:
     @patch.dict(
         "os.environ", {"XBEE_NO_GUI": "", "XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False
     )
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_run_calls_mainloop_under_pytest_with_override(self, mock_tk, mock_ttk):
         """Test run() calls mainloop under pytest when XBEE_TEST_OVERRIDE_GUI=1."""
         mock_root = Mock()
@@ -241,9 +237,9 @@ class TestTkinterDisplayAdvanced:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_controller_type_metadata_drives_value_mapping(self, mock_tk, mock_ttk):
         """Controller type metadata should override name-based detection."""
         mock_root = Mock()
@@ -273,7 +269,7 @@ class TestTkinterDisplayAdvanced:
 class TestCreateDisplayFactory:
     """Test create_display factory function."""
 
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", False)
+    @patch("xbee.display.base.TK_AVAILABLE", False)
     def test_create_display_returns_headless_when_tk_unavailable(self):
         """Test factory returns HeadlessDisplay when tkinter unavailable."""
         display = create_display()
@@ -287,9 +283,9 @@ class TestCreateDisplayFactory:
         assert isinstance(display, HeadlessDisplay)
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
+    @patch("xbee.display.base.TK_AVAILABLE", True)
+    @patch("xbee.display.base.os.getenv")
     def test_create_display_prefer_gui_true(self, mock_getenv, mock_tkinter_display):
         """Test factory tries TkinterDisplay when prefer_gui=True."""
         mock_getenv.return_value = None
@@ -301,9 +297,9 @@ class TestCreateDisplayFactory:
         assert display == mock_instance
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
+    @patch("xbee.display.base.TK_AVAILABLE", True)
+    @patch("xbee.display.base.os.getenv")
     def test_create_display_fallback_on_import_error(
         self, mock_getenv, mock_tkinter_display
     ):
@@ -324,9 +320,9 @@ class TestCreateDisplayFactory:
         assert isinstance(display, HeadlessDisplay)
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
+    @patch("xbee.display.base.TK_AVAILABLE", True)
+    @patch("xbee.display.base.os.getenv")
     def test_create_display_fallback_on_runtime_error(
         self, mock_getenv, mock_tkinter_display
     ):
@@ -347,9 +343,9 @@ class TestCreateDisplayFactory:
         assert isinstance(display, HeadlessDisplay)
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
+    @patch("xbee.display.base.TK_AVAILABLE", True)
+    @patch("xbee.display.base.os.getenv")
     def test_create_display_fallback_on_value_error(
         self, mock_getenv, mock_tkinter_display
     ):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
-from xbee.core.controller_manager import ControllerState
+from xbee.controller.state import ControllerState
 
 
 def test_controller_state_concurrent_read_and_write():

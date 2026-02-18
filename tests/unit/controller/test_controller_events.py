@@ -6,15 +6,16 @@ Tests cover joystick connect/disconnect, mode flags, and controller state update
 
 from unittest.mock import Mock, patch
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.controller_manager import ControllerManager, ControllerState
-from xbee.core.input_events import JOYDEVICEADDED, JOYDEVICEREMOVED
+from xbee.config.constants import CONSTANTS
+from xbee.controller.manager import ControllerManager
+from xbee.controller.state import ControllerState
+from xbee.controller.events import JOYDEVICEADDED, JOYDEVICEREMOVED
 
 
 class TestControllerHotplug:
     """Test controller connection and disconnection events."""
 
-    @patch("xbee.core.controller_manager.logger")
+    @patch("xbee.controller.manager.logger")
     def test_controller_added_logged(self, mock_logger):
         """Test controller connection is logged."""
         manager = ControllerManager()
@@ -29,7 +30,7 @@ class TestControllerHotplug:
         mock_logger.info.assert_called_once()
         assert "connected" in mock_logger.info.call_args[0][0].lower()
 
-    @patch("xbee.core.controller_manager.logger")
+    @patch("xbee.controller.manager.logger")
     def test_controller_removed_logged(self, mock_logger):
         """Test controller disconnection is logged."""
         manager = ControllerManager()
@@ -47,7 +48,7 @@ class TestControllerHotplug:
 class TestModeFlags:
     """Test creep and reverse mode flag updates."""
 
-    @patch("xbee.core.controller_manager.logger")
+    @patch("xbee.controller.manager.logger")
     def test_creep_mode_toggle_on(self, mock_logger):
         """Test creep mode can be toggled on."""
         manager = ControllerManager()

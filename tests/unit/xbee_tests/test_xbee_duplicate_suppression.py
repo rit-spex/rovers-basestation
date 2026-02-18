@@ -4,7 +4,7 @@ import threading
 import time
 from unittest.mock import Mock
 
-from xbee.core.xbee_communication import XbeeCommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 
 def test_xbee_duplicate_suppression_sequential(monkeypatch):

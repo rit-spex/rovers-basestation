@@ -1,6 +1,6 @@
 import pytest
 
-import xbee.core.base_station as bs
+import xbee.app as bs
 
 
 def test_main_re_raises_system_exit(monkeypatch):

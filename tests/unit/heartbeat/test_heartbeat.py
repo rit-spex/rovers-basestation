@@ -10,7 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from xbee.core.heartbeat import HeartbeatManager
+from xbee.communication.heartbeat import HeartbeatManager
 
 
 @pytest.fixture

@@ -9,13 +9,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.base_station import (
+from xbee.app import (
     BaseStation,
     _create_control_loop,
     _process_controller_events,
     _update_display_data,
 )
-from xbee.core.input_events import (
+from xbee.controller.events import (
     JOYAXISMOTION,
     JOYBUTTONDOWN,
     JOYDEVICEADDED,
@@ -26,9 +26,9 @@ from xbee.core.input_events import (
 class TestBaseStationInitialization:
     """Test BaseStation initialization."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_initialization_default_settings(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -41,9 +41,9 @@ class TestBaseStationInitialization:
         assert mock_heartbeat.called
         assert mock_controller.called
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_quit_property_threadsafe(self, mock_controller, mock_heartbeat, mock_comm):
         """Test that the quit property can be set and read safely (thread event)."""
         base = BaseStation()
@@ -54,9 +54,9 @@ class TestBaseStationInitialization:
         base.quit = False
         assert base.quit is False
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_creep_mode_enabled_by_default(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -68,9 +68,9 @@ class TestBaseStationInitialization:
         base = BaseStation()
         assert base.controller_manager.creep_mode is True
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_initialization_custom_log_summary(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -79,15 +79,15 @@ class TestBaseStationInitialization:
 
         assert base.log_summary_every == 100
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.os.getenv")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.os.getenv")
     def test_initialization_uses_env_xbee_simulation(self, mock_getenv, mock_comm):
         """Test that initialization respects XBEE_SIMULATION env var."""
         mock_getenv.return_value = "1"
 
         with (
-            patch("xbee.core.base_station.HeartbeatManager"),
-            patch("xbee.core.base_station.ControllerManager"),
+            patch("xbee.app.HeartbeatManager"),
+            patch("xbee.app.ControllerManager"),
         ):
             BaseStation()  # Just verify it doesn't crash
 
@@ -97,19 +97,19 @@ class TestBaseStationInitialization:
 class TestEnvironmentVariableParsing:
     """Test environment variable parsing logic."""
 
-    @patch("xbee.core.base_station.os.environ.get")
+    @patch("xbee.app.os.environ.get")
     def test_basestation_log_every_updates_valid(self, mock_get):
         """Test parsing valid BASESTATION_LOG_EVERY_UPDATES value."""
-        from xbee.core.base_station import _get_log_every_updates_default
+        from xbee.app import _get_log_every_updates_default
 
         mock_get.return_value = "50"
         assert _get_log_every_updates_default() == 50
 
-    @patch("xbee.core.base_station.os.environ.get")
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.os.environ.get")
+    @patch("xbee.app.logger")
     def test_basestation_log_every_updates_invalid(self, mock_logger, mock_get):
         """Test parsing invalid BASESTATION_LOG_EVERY_UPDATES value logs warning."""
-        from xbee.core.base_station import _get_log_every_updates_default
+        from xbee.app import _get_log_every_updates_default
 
         mock_get.return_value = "invalid"
         assert _get_log_every_updates_default() == 0
@@ -119,9 +119,9 @@ class TestEnvironmentVariableParsing:
 class TestTelemetryHandling:
     """Test telemetry data handling."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_telemetry_data(self, mock_controller, mock_heartbeat, mock_comm):
         """Test telemetry data is stored correctly."""
         base = BaseStation()
@@ -135,9 +135,9 @@ class TestTelemetryHandling:
             telemetry["temperature"]
         )
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_get_telemetry_data(self, mock_controller, mock_heartbeat, mock_comm):
         """Test retrieving telemetry data."""
         base = BaseStation()
@@ -150,9 +150,9 @@ class TestTelemetryHandling:
 class TestControllerEventProcessing:
     """Test controller event processing."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_axis_motion(self, mock_controller, mock_heartbeat, mock_comm):
         """Test axis motion event is processed."""
         base = BaseStation()
@@ -165,16 +165,16 @@ class TestControllerEventProcessing:
         event.type = JOYAXISMOTION
 
         # Mock constants
-        from xbee.core.command_codes import CONSTANTS
+        from xbee.config.constants import CONSTANTS
 
         event.axis = CONSTANTS.XBOX.JOYSTICK.AXIS_LX  # LX
 
         base.send_command(event)
         base.controller_manager.handle_axis_motion.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_button_down(self, mock_controller, mock_heartbeat, mock_comm):
         """Test button down event is processed."""
         base = BaseStation()
@@ -189,9 +189,9 @@ class TestControllerEventProcessing:
         base.send_command(event)
         base.controller_manager.handle_button_down.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_controller_added(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -212,9 +212,9 @@ class TestControllerEventProcessing:
 class TestUpdateInfo:
     """Test update_info method and controller data sending."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_update_info_sends_heartbeat(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -234,10 +234,10 @@ class TestUpdateInfo:
         # Should be called 3 times now
         assert base.heartbeat_manager.update.call_count == 3
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    @patch("xbee.core.base_station.logger")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    @patch("xbee.app.logger")
     def test_update_info_logs_at_summary_interval(
         self, mock_logger, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -262,9 +262,9 @@ class TestUpdateInfo:
 class TestCleanup:
     """Test cleanup and resource management."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_cleanup_closes_communication(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
@@ -281,9 +281,9 @@ class TestCleanup:
 class TestModeProperties:
     """Test creep and reverse mode properties."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_creep_mode_property(self, mock_controller, mock_heartbeat, mock_comm):
         """Test creep mode property returns controller manager state."""
         base = BaseStation()
@@ -292,9 +292,9 @@ class TestModeProperties:
 
         assert base.creep_mode is True
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_reverse_mode_property(self, mock_controller, mock_heartbeat, mock_comm):
         """Test reverse mode property returns controller manager state."""
         base = BaseStation()
@@ -338,9 +338,9 @@ class TestHelperFunctions:
 def test_control_loop_exits_and_cleanup_called():
     # Patch CommunicationManager and HeartbeatManager to avoid external calls
     with (
-        patch("xbee.core.base_station.CommunicationManager"),
-        patch("xbee.core.base_station.HeartbeatManager"),
-        patch("xbee.core.base_station.ControllerManager"),
+        patch("xbee.app.CommunicationManager"),
+        patch("xbee.app.HeartbeatManager"),
+        patch("xbee.app.ControllerManager"),
     ):
         # Create base station and replace the communication manager with a mock
         base = BaseStation()

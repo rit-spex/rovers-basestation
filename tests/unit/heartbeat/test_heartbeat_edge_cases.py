@@ -8,7 +8,7 @@ import threading
 import time
 from unittest.mock import Mock
 
-from xbee.core.heartbeat import HeartbeatManager
+from xbee.communication.heartbeat import HeartbeatManager
 
 
 class TestHeartbeatTimingEdgeCases:
@@ -179,7 +179,7 @@ class TestHeartbeatIntervalConfiguration:
 
     def test_get_interval_default(self):
         """Test default interval is from CONSTANTS."""
-        from xbee.core.command_codes import CONSTANTS
+        from xbee.config.constants import CONSTANTS
 
         mock_comm = Mock()
         manager = HeartbeatManager(mock_comm)

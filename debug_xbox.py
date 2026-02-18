@@ -1,8 +1,20 @@
+"""Small utility to print raw Xbox controller events via ``inputs``.
+
+Useful for debugging local controller mappings outside the full app.
+"""
+
 import importlib
-from typing import Any, Callable, Iterable, cast
+from collections.abc import Callable, Iterable
+from typing import Any, cast
 
 
-def debug_xbox():
+def _iter_events(get_gamepad_fn: Callable[[], Iterable[Any]]) -> Iterable[Any]:
+    """Yield events from the ``inputs`` gamepad stream forever."""
+    while True:
+        yield from get_gamepad_fn()
+
+
+def debug_xbox() -> None:
     try:
         inputs = importlib.import_module("inputs")
     except Exception as exc:
@@ -17,9 +29,8 @@ def debug_xbox():
 
     print("Listening for gamepad events (Ctrl+C to stop)...")
     try:
-        while True:
-            for event in get_gamepad_fn():
-                print(f"{event.ev_type} {event.code}: {event.state}")
+        for event in _iter_events(get_gamepad_fn):
+            print(f"{event.ev_type} {event.code}: {event.state}")
     except KeyboardInterrupt:
         print("\nStopped.")
 

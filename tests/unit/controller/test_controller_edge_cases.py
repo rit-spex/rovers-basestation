@@ -8,12 +8,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.controller_manager import (
-    ControllerManager,
-    ControllerState,
-    InputProcessor,
-)
+from xbee.config.constants import CONSTANTS
+from xbee.controller.detection import detect_controller_type
+from xbee.controller.manager import ControllerManager, InputProcessor
+from xbee.controller.state import ControllerState
 
 
 class TestControllerStateBoundaryValues:
@@ -129,18 +127,14 @@ class TestControllerManagerEdgeCases:
 
     def test_detect_controller_type_case_variations(self):
         """Test controller type detection with case variations."""
-        manager = ControllerManager()
-
-        assert manager._detect_controller_type("XBOX Controller") == CONSTANTS.XBOX.NAME
-        assert manager._detect_controller_type("xbox One") == CONSTANTS.XBOX.NAME
-        assert manager._detect_controller_type("X-BOX Elite") == CONSTANTS.XBOX.NAME
-        assert manager._detect_controller_type("DINPUT Adapter") == CONSTANTS.N64.NAME
+        assert detect_controller_type("XBOX Controller") == CONSTANTS.XBOX.NAME
+        assert detect_controller_type("xbox One") == CONSTANTS.XBOX.NAME
+        assert detect_controller_type("X-BOX Elite") == CONSTANTS.XBOX.NAME
+        assert detect_controller_type("DINPUT Adapter") == CONSTANTS.N64.NAME
 
     def test_detect_controller_type_empty_string(self):
         """Test controller type detection with empty string."""
-        manager = ControllerManager()
-
-        result = manager._detect_controller_type("")
+        result = detect_controller_type("")
 
         assert result is None
 
@@ -274,6 +268,38 @@ class TestInputProcessorEdgeCases:
         values = manager.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
         assert values[CONSTANTS.XBOX.TRIGGER.AXIS_LT] is True
 
+    def test_process_trigger_below_threshold(self):
+        """Tiny trigger noise below threshold should remain unpressed."""
+        manager = ControllerManager()
+        manager.instance_id_values_map[0] = CONSTANTS.XBOX.NAME
+        processor = InputProcessor(manager)
+
+        event = Mock()
+        event.instance_id = 0
+        event.axis = CONSTANTS.XBOX.TRIGGER.AXIS_LT
+        event.value = processor.trigger_activation_threshold / 2
+
+        processor.process_trigger_axis(event)
+
+        values = manager.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
+        assert values[CONSTANTS.XBOX.TRIGGER.AXIS_LT] is False
+
+    def test_process_trigger_at_threshold(self):
+        """Trigger value at threshold should be treated as pressed."""
+        manager = ControllerManager()
+        manager.instance_id_values_map[0] = CONSTANTS.XBOX.NAME
+        processor = InputProcessor(manager)
+
+        event = Mock()
+        event.instance_id = 0
+        event.axis = CONSTANTS.XBOX.TRIGGER.AXIS_LT
+        event.value = processor.trigger_activation_threshold
+
+        processor.process_trigger_axis(event)
+
+        values = manager.controller_state.get_controller_values(CONSTANTS.XBOX.NAME)
+        assert values[CONSTANTS.XBOX.TRIGGER.AXIS_LT] is True
+
     def test_convert_axis_value_at_neutral(self):
         """Test axis conversion at neutral."""
         manager = ControllerManager()
@@ -304,25 +330,25 @@ class TestInputProcessorEdgeCases:
         # Normal mode
         manager.creep_mode = False
         manager.reverse_mode = False
-        normal = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        normal = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
         assert normal == pytest.approx(1.0)
 
         # Creep only
         manager.creep_mode = True
         manager.reverse_mode = False
-        creep = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        creep = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
         assert creep == pytest.approx(CONSTANTS.CONTROLLER_MODES.CREEP_MULTIPLIER)
 
         # Reverse only
         manager.creep_mode = False
         manager.reverse_mode = True
-        reverse = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        reverse = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
         assert reverse == pytest.approx(-1.0)
 
         # Both modes
         manager.creep_mode = True
         manager.reverse_mode = True
-        both = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        both = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
         assert both == pytest.approx(-CONSTANTS.CONTROLLER_MODES.CREEP_MULTIPLIER)
 
 

@@ -5,18 +5,24 @@ Usage: python -m xbee
 
 import sys
 
-from .core.base_station import main
+from xbee.app import main
 
-if __name__ == "__main__":
+
+def run() -> int:
+    """Execute the package entrypoint and return an exit code."""
     try:
         main()
+        return 0
     except KeyboardInterrupt:
         print("\nShutdown by user")
-        sys.exit(0)
+        return 0
     except SystemExit:
         raise  # Re-raise to preserve exit code
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-# No else: do not run main() when imported. Main should only be ran when
-# executing the package as a script (python -m xbee or `__main__`).
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+if __name__ == "__main__":
+    exit_code = run()
+    if exit_code != 0:
+        raise SystemExit(exit_code)

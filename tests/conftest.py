@@ -2,7 +2,7 @@
 Pytest configuration and shared fixtures for rovers-basestation tests.
 
 This conftest.py ensures the project root is in sys.path so that
-imports like `xbee.core`, `auto_boot.auto_boot`, and `utils.GPS` work
+imports like `xbee.app`, `auto_boot.auto_boot`, and `utils.GPS` work
 correctly during test collection and execution.
 """
 

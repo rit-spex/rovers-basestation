@@ -1,6 +1,13 @@
 """
-UDP communication system for rover basestation simulation mode.
-Replaces XBee serial communication with network messages for testing.
+UDP simulation transport backend.
+
+Used for testing without real XBee hardware. Sends encoded messages
+as JSON-wrapped UDP packets to localhost.
+
+Classes:
+    UdpMessage                    - JSON-serializable message wrapper
+    UdpCommunicationManager       - UDP socket transport
+    SimulationCommunicationManager - Convenience wrapper for simulation mode
 """
 
 import json
@@ -9,13 +16,17 @@ import os
 import socket
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
 
 from utils.bytes import convert_to_bytes, validate_byte_sequence
 
-from .command_codes import CONSTANTS
+from xbee.config.constants import CONSTANTS
+from xbee.protocol.encoding import MessageEncoder
 
 logger = logging.getLogger(__name__)
+
+ByteElement: TypeAlias = Union[int, bytes, bytearray, memoryview]
+PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElement]]
 
 try:
     DEFAULT_INFLIGHT_WAIT_TIMEOUT = float(
@@ -104,11 +115,9 @@ class UdpCommunicationManager:
         self.rover_port = CONSTANTS.COMMUNICATION.UDP_ROVER_PORT
         self.telemetry_port = CONSTANTS.COMMUNICATION.UDP_TELEMETRY_PORT
 
-        self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-        self.receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.receive_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.send_socket: Optional[socket.socket] = None
+        self.receive_socket: Optional[socket.socket] = None
+        self._create_sockets()
 
         self.running = False
         self.receive_thread: Optional[threading.Thread] = None
@@ -122,16 +131,29 @@ class UdpCommunicationManager:
         self._inflight_messages: Dict[bytes, Tuple[threading.Event, dict]] = {}
         self.inflight_wait_timeout = DEFAULT_INFLIGHT_WAIT_TIMEOUT
         self._message_lock = threading.RLock()
+        self._telemetry_handler: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._decoder = MessageEncoder()
 
         self._setup_sockets()
 
         if auto_start:
             self.start()
 
+    def _create_sockets(self):
+        self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        self.receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.receive_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     def _setup_sockets(self):
+        if self.receive_socket is None or self.send_socket is None:
+            raise RuntimeError("UDP sockets are not initialized")
+
+        receive_socket = self.receive_socket
         try:
-            self.receive_socket.bind((self.host, self.telemetry_port))
-            self.receive_socket.settimeout(1.0)
+            receive_socket.bind((self.host, self.telemetry_port))
+            receive_socket.settimeout(1.0)
             logger.info("UDP receiver bound to %s:%d", self.host, self.telemetry_port)
             logger.info("UDP sender configured for %s:%d", self.host, self.rover_port)
 
@@ -143,6 +165,10 @@ class UdpCommunicationManager:
         if self.running:
             return
 
+        if self.send_socket is None or self.receive_socket is None:
+            self._create_sockets()
+            self._setup_sockets()
+
         self.running = True
 
         self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
@@ -151,17 +177,21 @@ class UdpCommunicationManager:
         logger.info("UDP communication started")
 
     def stop(self):
-        if not self.running:
-            return
-
+        was_running = self.running
         self.running = False
 
-        if self.receive_thread and self.receive_thread.is_alive():
+        if was_running and self.receive_thread and self.receive_thread.is_alive():
             self.receive_thread.join(timeout=2.0)
 
         try:
-            self.send_socket.close()
-            self.receive_socket.close()
+            send_socket = self.send_socket
+            if send_socket is not None:
+                send_socket.close()
+                self.send_socket = None
+            receive_socket = self.receive_socket
+            if receive_socket is not None:
+                receive_socket.close()
+                self.receive_socket = None
         except Exception:
             logger.exception("Error closing UDP sockets")
 
@@ -169,6 +199,9 @@ class UdpCommunicationManager:
 
     def _send_message(self, message: bytes) -> bool:
         try:
+            if self.send_socket is None:
+                logger.error("UDP send socket unavailable")
+                return False
             self.send_socket.sendto(message, (self.host, self.rover_port))
             with self._message_lock:
                 self.messages_sent += 1
@@ -178,14 +211,14 @@ class UdpCommunicationManager:
             return False
 
     def _validate_payload(
-        self, data: Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]]
+        self, data: PayloadLike
     ):
         if isinstance(data, (bytes, bytearray, memoryview)):
             return
         validate_byte_sequence(data)
 
     def _convert_to_bytes(
-        self, data: Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]]
+        self, data: PayloadLike
     ) -> bytes:
         """Convert data to bytes using the shared utility."""
         return convert_to_bytes(data)
@@ -218,6 +251,9 @@ class UdpCommunicationManager:
     def _receive_loop(self) -> None:
         while self.running:
             try:
+                if self.receive_socket is None:
+                    logger.error("UDP receive socket unavailable")
+                    break
                 result = self.receive_socket.recvfrom(4096)
                 data = self._extract_recvfrom_bytes(result)
                 if data is None:
@@ -234,6 +270,11 @@ class UdpCommunicationManager:
                     logger.exception("Error receiving UDP message")
 
     def _handle_received_message(self, message: bytes) -> None:
+        if self._try_handle_json_message(message):
+            return
+        self._try_handle_protocol_message(message)
+
+    def _try_handle_json_message(self, message: bytes) -> bool:
         try:
             json_str = message.decode("utf-8")
             udp_message = UdpMessage.from_json(json_str)
@@ -252,8 +293,36 @@ class UdpCommunicationManager:
                     logger.exception(
                         "Error in message handler for %s", udp_message.message_type
                     )
+            return True
         except Exception:
-            logger.exception("Error parsing received message")
+            return False
+
+    def _try_handle_protocol_message(self, message: bytes) -> bool:
+        try:
+            decoded, message_id = self._decoder.decode_data(message)
+            if not self._decoder.is_from_rover(message_id):
+                return False
+
+            telemetry_payload = dict(decoded)
+            telemetry_payload["_message_id"] = message_id
+            telemetry_payload["_message_name"] = self._decoder.get_message_name(message_id)
+
+            with self._message_lock:
+                self.last_telemetry = telemetry_payload.copy()
+                telemetry_handler = self._telemetry_handler
+
+            if telemetry_handler:
+                telemetry_handler(telemetry_payload)
+            return True
+        except Exception:
+            logger.exception("Error parsing compact telemetry message")
+            return False
+
+    def register_telemetry_handler(
+        self, handler: Callable[[Dict[str, Any]], None]
+    ) -> None:
+        with self._message_lock:
+            self._telemetry_handler = handler
 
     def register_message_handler(
         self, message_type: str, handler: Callable[[UdpMessage], None]
@@ -309,7 +378,7 @@ class UdpCommunicationManager:
 
     def send_package(
         self,
-        data: Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]],
+        data: PayloadLike,
         skip_duplicate_check: bool = False,
     ) -> bool:
         self._validate_payload(data)
@@ -346,7 +415,8 @@ class UdpCommunicationManager:
                 )
                 if not event_completed:
                     logger.warning(
-                        f"Timed out waiting for in-flight message after {self.inflight_wait_timeout}s"
+                        "Timed out waiting for in-flight message after %ss",
+                        self.inflight_wait_timeout,
                     )
                     return False
                 return result_container_local.get("sent", False)

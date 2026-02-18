@@ -1,22 +1,39 @@
 """
-Comms module for XBee msg formatting and transmission.
-Handles the protocol msg creation and data packing.
+High-level communication manager.
+
+CommunicationManager is the main interface for sending data to the rover.
+It handles:
+    - Message formatting (converting controller values to wire format)
+    - Duplicate message suppression
+    - Retry logic for critical messages
+    - Routing to the correct backend (XBee or UDP)
+
+MessageFormatter creates the actual byte payloads from controller value dicts.
+
+Usage:
+    comm = CommunicationManager(xbee_device, remote_xbee, simulation_mode=False)
+    comm.send_controller_data(xbox_values, n64_values)
+    comm.send_heartbeat()
+    comm.send_quit_message()
 """
 
 import logging
 import struct
 import threading
 from collections.abc import Sequence as AbcSequence
-from typing import Dict, Sequence, Union
+from typing import Dict, Sequence, TypeAlias, Union
 
 from utils.bytes import convert_to_bytes
 
-from .command_codes import CONSTANTS
-from .encoding import MessageEncoder
-from .udp_communication import UdpCommunicationManager
-from .xbee_communication import XbeeCommunicationManager
+from xbee.config.constants import CONSTANTS
+from xbee.protocol.encoding import MessageEncoder
+from xbee.communication.udp_backend import UdpCommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 logger = logging.getLogger(__name__)
+
+ByteElement: TypeAlias = Union[int, bytes, bytearray, memoryview]
+PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElement]]
 
 
 class MessageFormatter:
@@ -25,9 +42,6 @@ class MessageFormatter:
     """
 
     def __init__(self):
-        """
-        Init the msg formatter.
-        """
         self.encoder = MessageEncoder()
 
     def create_xbox_message(self, values: Dict, reverse_mode: bool = False) -> list:
@@ -46,16 +60,27 @@ class MessageFormatter:
 
         if reverse_mode:
             # In reverse mode, swap the Y axes
-            left_y = values.get(
+            left_y_num = values.get(
                 CONSTANTS.XBOX.JOYSTICK.AXIS_LY, CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
             )
-            right_y = values.get(
+            right_y_num = values.get(
                 CONSTANTS.XBOX.JOYSTICK.AXIS_RY, CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
             )
 
+            # ControllerState typically exposes both numeric keys and alias-string
+            # keys (e.g., AXIS_LY and AXIS_LY_STR). Keep both representations in
+            # sync so encoding preference for alias keys does not defeat reverse
+            # mode swapping.
+            left_y_alias = values.get(CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR, left_y_num)
+            right_y_alias = values.get(
+                CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR, right_y_num
+            )
+
             # update the values in the dict for packing
-            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_LY] = right_y
-            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_RY] = left_y
+            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_LY] = right_y_num
+            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_RY] = left_y_num
+            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR] = right_y_alias
+            temp_dict[CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR] = left_y_alias
 
         # Return as a list[int] for testability while keeping encoding binary-safe.
         return list(
@@ -119,8 +144,6 @@ class CommunicationManager:
         self, xbee_device=None, remote_xbee=None, simulation_mode: bool = False
     ):
         """
-        Init the comms manager.
-
         Args:
             xbee_device: XBee device instance
             remote_xbee: Remote XBee device instance
@@ -145,6 +168,7 @@ class CommunicationManager:
         self.last_n64_message: list = []
         # Track last_combined_message to detect combined-message duplicates reliably.
         self.last_combined_message: list = []
+        self.last_auto_state_message: list = []
         self.simulation_mode = simulation_mode
         self.enabled = True
 
@@ -177,6 +201,13 @@ class CommunicationManager:
 
             if n64_values:
                 message_sent = self._send_n64_message_if_new(n64_values) or message_sent
+
+            # Invalidate combined-default dedup cache after any non-empty send.
+            # This prevents suppressing a subsequent "reset/default" combined payload
+            # when controller data previously changed.
+            if message_sent and (xbox_values or n64_values):
+                with self._send_lock:
+                    self.last_combined_message = []
 
             return message_sent
 
@@ -255,7 +286,7 @@ class CommunicationManager:
         """
         Send a compact heartbeat message (3 bytes total).
 
-        Format: [HEARTBEAT_ID (1 byte)] [TIMESTAMP (2 bytes, little-endian)]
+        Format: [HEARTBEAT_ID (1 byte)] [TIMESTAMP (2 bytes)]
 
         Args:
             timestamp_ms: Timestamp in milliseconds (0-65535). If 0, current time is used.
@@ -280,21 +311,52 @@ class CommunicationManager:
 
         return self.send_package(heartbeat_data, skip_duplicate_check=True)
 
+    def send_auto_state(self, auto_state: int) -> bool:
+        """Send current autonomous state command (0..5) to rover."""
+        clamped = max(CONSTANTS.AUTO_STATE.MIN, min(CONSTANTS.AUTO_STATE.MAX, int(auto_state)))
+        payload = list(
+            self.formatter.encoder.encode_data(
+                {CONSTANTS.AUTO_STATE.NAME: clamped},
+                CONSTANTS.COMPACT_MESSAGES.AUTO_STATE_ID,
+            )
+        )
+
+        with self._send_lock:
+            if payload == self.last_auto_state_message:
+                return True
+
+        success = self.send_package(bytes(payload))
+        if success:
+            with self._send_lock:
+                self.last_auto_state_message = payload
+        return success
+
     def enable(self):
-        """
-        Enable communication.
-        """
         self.enabled = True
 
     def disable(self):
-        """
-        Disable communication.
-        """
         self.enabled = False
+
+    def cleanup(self) -> None:
+        """Release backend resources if supported by the selected transport."""
+        cleanup_fn = getattr(self.hardware_com, "cleanup", None)
+        if callable(cleanup_fn):
+            cleanup_fn()
+            return
+
+        stop_fn = getattr(self.hardware_com, "stop", None)
+        if callable(stop_fn):
+            stop_fn()
+
+    def register_telemetry_handler(self, handler) -> None:
+        """Register a telemetry callback if the active backend supports it."""
+        register_fn = getattr(self.hardware_com, "register_telemetry_handler", None)
+        if callable(register_fn):
+            register_fn(handler)
 
     def send_package(
         self,
-        data: Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]],
+        data: PayloadLike,
         skip_duplicate_check: bool = False,
         retry_count: int = 0,
     ) -> bool:
@@ -337,16 +399,20 @@ class CommunicationManager:
 
             # If initial send failed and retries are configured, try again
             for attempt in range(retry_count):
-                logger.debug(f"Retrying send (attempt {attempt + 1}/{retry_count})")
+                logger.debug(
+                    "Retrying send (attempt %d/%d)",
+                    attempt + 1,
+                    retry_count,
+                )
                 if self.hardware_com.send_package(
                     data, skip_duplicate_check=skip_duplicate_check
                 ):
-                    logger.info(f"Send succeeded on retry attempt {attempt + 1}")
+                    logger.info("Send succeeded on retry attempt %d", attempt + 1)
                     return True
 
             # All attempts failed
             if retry_count > 0:
-                logger.warning(f"Send failed after {retry_count + 1} attempts")
+                logger.warning("Send failed after %d attempts", retry_count + 1)
             return False
         except ValueError:
             # Important: Validation errors are programmer-level errors and should
@@ -361,7 +427,7 @@ class CommunicationManager:
             return False
 
     def send_compact_message(
-        self, data: Sequence[Union[int, bytes]], skip_duplicate_check: bool = False
+        self, data: Sequence[ByteElement], skip_duplicate_check: bool = False
     ) -> bool:
         """
         Send a compact custom message (as few bytes as possible).
@@ -380,7 +446,7 @@ class CommunicationManager:
         # fallback conversion in the helper.
         return self._hardware_send_or_convert(data, skip_duplicate_check)
 
-    def _validate_compact_message_list(self, data: Sequence[Union[int, bytes]]) -> None:
+    def _validate_compact_message_list(self, data: Sequence[ByteElement]) -> None:
         """Validate a compact message list to ensure each entry is either an
         integer 0..255 or a bytes-like object convertible to bytes.
         """
@@ -399,7 +465,7 @@ class CommunicationManager:
     # NOTE: _convert_compact_list_to_bytes was removed; use the consolidated `_convert_list_to_bytes` helper instead.
 
     def _hardware_send_or_convert(
-        self, data: Sequence[Union[int, bytes]], skip_duplicate_check: bool
+        self, data: Sequence[ByteElement], skip_duplicate_check: bool
     ) -> bool:
         """Attempt to send a list payload on the underlying hardware. If the
         hardware does not support list payloads, convert them to bytes and
@@ -416,7 +482,7 @@ class CommunicationManager:
             )
             try:
                 return self.send_package(
-                    bytes(message), skip_duplicate_check=skip_duplicate_check
+                    message, skip_duplicate_check=skip_duplicate_check
                 )
             except ValueError:
                 # Propagate programmer errors (bad input) to the caller
@@ -434,8 +500,8 @@ class CommunicationManager:
             return False
 
     def _normalize_package_payload(
-        self, data: Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]]
-    ) -> Union[bytes, bytearray, memoryview, Sequence[Union[int, bytes]]]:
+        self, data: PayloadLike
+    ) -> PayloadLike:
         """Normalize package payloads for `send_package`.
 
         Accepts bytes-like objects and lists of ints (0..255). If a list contains
@@ -477,12 +543,22 @@ class CommunicationManager:
                     f"Integer value at index {idx} out of range for a byte: {item} (expected 0..255)"
                 )
 
-    def _convert_list_to_bytes(self, data: Sequence[Union[int, bytes]]) -> bytes:
+    def _convert_list_to_bytes(self, data: Sequence[ByteElement]) -> bytes:
         """Convert a validated sequence of ints and bytes-like elements to bytes.
 
         Uses the shared convert_to_bytes utility for consistent behavior.
         """
         return convert_to_bytes(data)
+
+    def _send_simple_message(self, data: Sequence[ByteElement], context: str) -> bool:
+        """Send a compact message with consistent exception behavior and logging."""
+        try:
+            return self.send_compact_message(data)
+        except ValueError:
+            raise
+        except Exception:
+            logger.exception("Failed to send %s", context)
+            return False
 
     def send_status_update(
         self, status_code: int, battery_level: int, signal_strength: int
@@ -498,19 +574,13 @@ class CommunicationManager:
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        try:
-            data = [
-                CONSTANTS.COMPACT_MESSAGES.STATUS,
-                status_code & 0xFF,
-                battery_level & 0xFF,
-                signal_strength & 0xFF,
-            ]
-            return self.send_compact_message(data)
-        except ValueError:
-            raise
-        except Exception:
-            logger.exception("Failed to send status update")
-            return False
+        data = [
+            CONSTANTS.COMPACT_MESSAGES.STATUS,
+            status_code & 0xFF,
+            battery_level & 0xFF,
+            signal_strength & 0xFF,
+        ]
+        return self._send_simple_message(data, "status update")
 
     def send_error_code(self, error_code: int, severity: int) -> bool:
         """
@@ -523,18 +593,12 @@ class CommunicationManager:
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        try:
-            data = [
-                CONSTANTS.COMPACT_MESSAGES.ERROR,
-                error_code & 0xFF,
-                severity & 0xFF,
-            ]
-            return self.send_compact_message(data)
-        except ValueError:
-            raise
-        except Exception:
-            logger.exception("Failed to send error code")
-            return False
+        data = [
+            CONSTANTS.COMPACT_MESSAGES.ERROR,
+            error_code & 0xFF,
+            severity & 0xFF,
+        ]
+        return self._send_simple_message(data, "error code")
 
     def send_gps_position(self, latitude: float, longitude: float) -> bool:
         """
@@ -547,17 +611,11 @@ class CommunicationManager:
         Returns:
             bool: True if sent successfully, False otherwise
         """
-        try:
-            lat_bytes = struct.pack(">f", latitude)  # latitude as float
-            lon_bytes = struct.pack(">f", longitude)  # longitude as float
+        lat_bytes = struct.pack(">f", latitude)  # latitude as float
+        lon_bytes = struct.pack(">f", longitude)  # longitude as float
 
-            data = [CONSTANTS.COMPACT_MESSAGES.GPS] + list(lat_bytes) + list(lon_bytes)
-            return self.send_compact_message(data)
-        except ValueError:
-            raise
-        except Exception:
-            logger.exception("Failed to send GPS position")
-            return False
+        data = [CONSTANTS.COMPACT_MESSAGES.GPS] + list(lat_bytes) + list(lon_bytes)
+        return self._send_simple_message(data, "GPS position")
 
     def send_sensor_reading(self, sensor_id: int, reading: int) -> bool:
         """
@@ -592,7 +650,7 @@ class CommunicationManager:
                 high_byte,
                 low_byte,
             ]
-            return self.send_compact_message(data)
+            return self._send_simple_message(data, "sensor reading")
         except ValueError:
             raise
         except Exception:

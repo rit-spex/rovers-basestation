@@ -1,8 +1,8 @@
 from typing import Any, cast
 from unittest.mock import Mock
 
-from xbee.core.communication import CommunicationManager
-from xbee.core.xbee_communication import XbeeCommunicationManager
+from xbee.communication.manager import CommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 
 def test_send_package_passes_bytes_to_hardware():

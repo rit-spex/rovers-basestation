@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.xbee_communication import XbeeCommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 
 class TestXbeeCommunicationManagerAdvanced:
@@ -48,7 +48,7 @@ class TestXbeeCommunicationManagerAdvanced:
     @patch.dict("os.environ", {"XBEE_INFLIGHT_ENTRY_MAX_AGE": "invalid"})
     def test_initialization_invalid_max_age(self):
         """Test invalid max age logs warning and uses default."""
-        with patch("xbee.core.xbee_communication.logger") as mock_logger:
+        with patch("xbee.communication.xbee_backend.logger") as mock_logger:
             manager = XbeeCommunicationManager()
 
             mock_logger.warning.assert_called()
@@ -200,7 +200,7 @@ class TestXbeeCommunicationManagerAdvanced:
 
         entry = (threading.Event(), {}, time.time())
 
-        assert manager._is_inflight_entry_stale(entry) is False
+        assert manager._is_stale(entry) is False
 
     def test_is_inflight_entry_stale_true(self):
         """Test stale check returns True for old entry."""
@@ -209,13 +209,13 @@ class TestXbeeCommunicationManagerAdvanced:
 
         entry = (threading.Event(), {}, time.time() - 1.0)
 
-        assert manager._is_inflight_entry_stale(entry) is True
+        assert manager._is_stale(entry) is True
 
     def test_create_inflight_entry(self):
         """Test creating inflight entry."""
         manager = XbeeCommunicationManager()
 
-        entry = manager._create_inflight_entry(b"\x01\x02")
+        entry = manager._create_inflight(b"\x01\x02")
 
         assert isinstance(entry[0], threading.Event)
         assert isinstance(entry[1], dict)
@@ -232,7 +232,7 @@ class TestXbeeCommunicationManagerAdvanced:
         message_key = b"\x01\x02"
         manager._inflight_messages[message_key] = entry
 
-        manager._cleanup_stale_inflight_entry(message_key, entry)
+        manager._cleanup_stale(message_key, entry)
 
         assert result_container.get("sent") is False
         assert event.is_set()
@@ -254,7 +254,7 @@ class TestXbeeCommunicationManagerAdvanced:
         thread = threading.Thread(target=set_event)
         thread.start()
 
-        result = manager._wait_for_inflight_result(event, result_container)
+        result = manager._wait_for_result(event, result_container)
         thread.join()
 
         assert result is True
@@ -267,7 +267,7 @@ class TestXbeeCommunicationManagerAdvanced:
         event = threading.Event()
         result_container = {}
 
-        with patch("xbee.core.xbee_communication.logger"):
-            result = manager._wait_for_inflight_result(event, result_container)
+        with patch("xbee.communication.xbee_backend.logger"):
+            result = manager._wait_for_result(event, result_container)
 
         assert result is False
