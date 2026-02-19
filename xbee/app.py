@@ -561,7 +561,8 @@ def _update_display_data(
         creep=base_station.creep_mode,
         reverse=base_station.reverse_mode,
     )
-    display.update_communication_status(base_station.xbee_enabled, update_count)
+    comm_connected = base_station.xbee_enabled or base_station.simulation_mode
+    display.update_communication_status(comm_connected, update_count)
 
     if hasattr(base_station.controller_manager, "controller_state"):
         xbox = base_station.controller_manager.controller_state.get_controller_values(

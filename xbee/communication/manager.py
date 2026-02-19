@@ -388,6 +388,14 @@ class CommunicationManager:
         if callable(register_fn):
             register_fn(handler)
 
+        # In simulation mode, ensure the UDP receive loop is running so incoming
+        # rover telemetry can reach the registered callback and GUI.
+        if self.simulation_mode:
+            start_fn = getattr(self.hardware_com, "start", None)
+            is_running = bool(getattr(self.hardware_com, "running", False))
+            if callable(start_fn) and not is_running:
+                start_fn()
+
     def send_package(
         self,
         data: PayloadLike,
