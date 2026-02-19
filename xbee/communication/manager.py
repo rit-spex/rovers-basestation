@@ -18,6 +18,7 @@ Usage:
 """
 
 import logging
+import os
 import struct
 import threading
 from collections.abc import Sequence as AbcSequence
@@ -30,6 +31,8 @@ from xbee.config.constants import CONSTANTS
 from xbee.protocol.encoding import MessageEncoder
 
 logger = logging.getLogger(__name__)
+
+_TRUTHY_ENV = frozenset(("1", "true", "yes", "on"))
 
 ByteElement: TypeAlias = Union[int, bytes, bytearray, memoryview]
 PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElement]]
@@ -168,6 +171,38 @@ class CommunicationManager:
         self.last_auto_state_message: list = []
         self.simulation_mode = simulation_mode
         self.enabled = True
+        self.protocol_trace = (
+            os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower()
+            in _TRUTHY_ENV
+        )
+
+    def _trace_outgoing_protocol_packet(self, data: PayloadLike) -> None:
+        """Best-effort protocol trace logging for outgoing payloads."""
+        try:
+            if isinstance(data, (bytes, bytearray, memoryview)):
+                raw = bytes(data)
+            else:
+                raw = self._convert_list_to_bytes(data)
+
+            decoded, message_id = self.formatter.encoder.decode_data(raw)
+            message_name = self.formatter.encoder.get_message_name(message_id)
+            logger.info(
+                "[protocol tx] id=0x%02X name=%s payload=%s bytes=%s",
+                message_id,
+                message_name,
+                decoded,
+                raw.hex(" "),
+            )
+        except Exception:
+            try:
+                fallback_raw = (
+                    bytes(data)
+                    if isinstance(data, (bytes, bytearray, memoryview))
+                    else self._convert_list_to_bytes(data)
+                )
+                logger.info("[protocol tx/raw] bytes=%s", fallback_raw.hex(" "))
+            except Exception:
+                logger.debug("[protocol tx] unable to render payload for tracing")
 
     def send_controller_data(
         self, xbox_values: Dict, n64_values: Dict, reverse_mode: bool = False
@@ -388,6 +423,9 @@ class CommunicationManager:
 
         # Normalize mixed list payloads: convert lists containing bytes-like elements to bytes.
         data = self._normalize_package_payload(data)
+
+        if self.protocol_trace:
+            self._trace_outgoing_protocol_packet(data)
 
         try:
             # Try initial send

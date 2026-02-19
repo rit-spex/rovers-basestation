@@ -24,6 +24,8 @@ from xbee.protocol.encoding import MessageEncoder
 
 logger = logging.getLogger(__name__)
 
+_TRUTHY_ENV = frozenset(("1", "true", "yes", "on"))
+
 ByteElement: TypeAlias = Union[int, bytes, bytearray, memoryview]
 PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElement]]
 
@@ -132,6 +134,10 @@ class UdpCommunicationManager:
         self._message_lock = threading.RLock()
         self._telemetry_handler: Optional[Callable[[Dict[str, Any]], None]] = None
         self._decoder = MessageEncoder()
+        self._protocol_trace = (
+            os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower()
+            in _TRUTHY_ENV
+        )
 
         self._setup_sockets()
 
@@ -297,6 +303,16 @@ class UdpCommunicationManager:
             decoded, message_id = self._decoder.decode_data(message)
             if not self._decoder.is_from_rover(message_id):
                 return False
+
+            if self._protocol_trace:
+                message_name = self._decoder.get_message_name(message_id)
+                logger.info(
+                    "[protocol rx] id=0x%02X name=%s payload=%s bytes=%s",
+                    message_id,
+                    message_name,
+                    decoded,
+                    message.hex(" "),
+                )
 
             telemetry_payload = dict(decoded)
             telemetry_payload["_message_id"] = message_id
