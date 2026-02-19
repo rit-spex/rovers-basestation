@@ -3,6 +3,7 @@ Tests for TkinterDisplay advanced functionality.
 """
 
 from unittest.mock import Mock, patch
+import time
 
 import pytest
 
@@ -263,6 +264,25 @@ class TestTkinterDisplayAdvanced:
         display._insert_controller_values.assert_called_once_with(
             controller_values[CONSTANTS.XBOX.NAME]
         )
+        display.quit()
+
+    @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
+    def test_format_telemetry_freshness_uses_packet_timestamp(self, mock_tk, mock_ttk):
+        """Module freshness text should report elapsed time from the last packet."""
+        mock_root = Mock()
+        mock_tk.Tk.return_value = mock_root
+
+        display = TkinterDisplay()
+
+        stale_text = display._format_telemetry_freshness(time.time() - 3.0)
+        assert "last packet" in stale_text
+        assert "ago" in stale_text
+
+        live_text = display._format_telemetry_freshness(time.time())
+        assert "live" in live_text
         display.quit()
 
 

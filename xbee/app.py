@@ -142,6 +142,7 @@ class BaseStation:
 
         # Telemetry
         self.telemetry_data: Dict[str, Any] = {}
+        self._last_telemetry_received_at: Optional[float] = None
         self._telemetry_lock = threading.RLock()
         self._setup_telemetry_handlers()
 
@@ -255,8 +256,11 @@ class BaseStation:
     # ------------------------------------------------------------------
 
     def _handle_telemetry_data(self, telemetry: dict):
+        received_at = time.time()
         with self._telemetry_lock:
             self.telemetry_data.update(telemetry)
+            self._last_telemetry_received_at = received_at
+            self.telemetry_data["_received_at"] = received_at
 
     def get_telemetry_data(self) -> dict:
         with self._telemetry_lock:

@@ -146,6 +146,22 @@ class TestTelemetryHandling:
         result = base.get_telemetry_data()
         assert result["battery_voltage"] == pytest.approx(12.6)
 
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_handle_telemetry_data_sets_received_timestamp(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Telemetry updates should include a receive timestamp for display freshness."""
+        base = BaseStation()
+
+        telemetry = {"battery_voltage": 12.6}
+        base._handle_telemetry_data(telemetry)
+
+        snapshot = base.get_telemetry_data()
+        assert snapshot["battery_voltage"] == pytest.approx(12.6)
+        assert isinstance(snapshot.get("_received_at"), float)
+
 
 class TestControllerEventProcessing:
     """Test controller event processing."""

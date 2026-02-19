@@ -389,6 +389,9 @@ python -m pytest tests/unit/encoding/test_encoding.py -v
 
 # Run tests matching a name pattern
 python -m pytest tests/ -k "test_encode"
+
+# Basestation-side protocol data
+export ROVER_PROTOCOL_TRACE=1 && python -m xbee
 ```
 
 ### Environment Variables

@@ -761,12 +761,31 @@ class TkinterDisplay(BaseDisplay):
             self.module_text.insert(tk.END, f"{module_label} module data unavailable\n")
             return
 
+        received_at = td_copy.get("_received_at")
+        freshness_text = self._format_telemetry_freshness(received_at)
+
         filtered = filter_telemetry_for_module(td_copy, module_key) or td_copy
+        filtered = {
+            key: value
+            for key, value in filtered.items()
+            if not (isinstance(key, str) and key.startswith("_"))
+        }
         self.module_text.insert(
-            tk.END, f"{module_label} Data (Updated: {time.strftime('%H:%M:%S')}):\n\n"
+            tk.END, f"{module_label} Data ({freshness_text}):\n\n"
         )
         for key, value in filtered.items():
             self.module_text.insert(tk.END, f"{key}: {value}\n")
+
+    def _format_telemetry_freshness(self, received_at: Any) -> str:
+        if not isinstance(received_at, (int, float)):
+            return "last packet unknown"
+
+        now = time.time()
+        age_seconds = max(0.0, now - float(received_at))
+        timestamp_text = time.strftime("%H:%M:%S", time.localtime(float(received_at)))
+        if age_seconds < 1.0:
+            return f"last packet {timestamp_text} (live)"
+        return f"last packet {timestamp_text} ({age_seconds:.1f}s ago)"
 
     # ------------------------------------------------------------------
     # Controller text display
