@@ -391,13 +391,6 @@ python -m pytest tests/unit/encoding/test_encoding.py -v
 python -m pytest tests/ -k "test_encode"
 ```
 
-## Proof of Protocol Establishment
-
-```
-ROVER_PROTOCOL_TRACE=1
-```
-^ in the shell (probably want to do this for both basestation and ros shells)
-
 ### Environment Variables
 
 | Variable | Default | Purpose |

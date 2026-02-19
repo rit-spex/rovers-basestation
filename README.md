@@ -247,5 +247,6 @@ mypy .           # Type check
 | `XBEE_INFLIGHT_WAIT_TIMEOUT` | `30.0` | Timeout (seconds) for XBee inflight message ack |
 | `XBEE_TEST_ENABLE_INPUTS` | `0` | Allow controller inputs under pytest |
 | `XBEE_JOYSTICK_RAW_MODE` | `""` | Force joystick raw mode (`signed` or `unsigned`) when auto-detection is not reliable |
+| `ROVER_PROTOCOL_TRACE` | `""` | Set to `"1"` to enable real-time hex-level protocol tracing for TX/RX messages |
 
 > For nerds that want more details, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
