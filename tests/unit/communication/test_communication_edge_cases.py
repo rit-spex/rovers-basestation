@@ -60,31 +60,6 @@ class TestCommunicationManagerErrorPaths:
         with pytest.raises(TypeError, match="Wrong type"):
             comm.send_package(b"\x01\x02")
 
-    def test_send_gps_position_with_nan_coordinates(self):
-        """Test send_gps_position handles NaN coordinates."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        import math
-
-        # NaN should still encode (struct.pack handles it)
-        result = comm.send_gps_position(latitude=math.nan, longitude=math.nan)
-
-        assert result is True
-
-    def test_send_gps_position_with_infinity(self):
-        """Test send_gps_position handles infinity."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        import math
-
-        result = comm.send_gps_position(latitude=math.inf, longitude=-math.inf)
-
-        assert result is True
-
 
 class TestMessageFormatterEdgeCases:
     """Test MessageFormatter edge cases."""
@@ -218,66 +193,6 @@ class TestDuplicateSuppressionEdgeCases:
         comm.send_controller_data(values_a, {}, reverse_mode=False)
 
         assert comm.hardware_com.send_package.call_count == 3
-
-
-class TestSendMethodsBoundaryValues:
-    """Test send methods with boundary values."""
-
-    def test_send_sensor_reading_at_zero(self):
-        """Test sensor reading at minimum value."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_sensor_reading(sensor_id=0, reading=0)
-
-        assert result is True
-
-    def test_send_sensor_reading_at_max(self):
-        """Test sensor reading at maximum value."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_sensor_reading(sensor_id=255, reading=65535)
-
-        assert result is True
-
-    def test_send_status_update_all_zeros(self):
-        """Test status update with all zero values."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_status_update(
-            status_code=0, battery_level=0, signal_strength=0
-        )
-
-        assert result is True
-
-    def test_send_status_update_all_max(self):
-        """Test status update with max values (truncated to byte)."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_status_update(
-            status_code=1000,  # Will be masked to 0xE8
-            battery_level=100,
-            signal_strength=100,
-        )
-
-        assert result is True
-
-    def test_send_error_code_high_values(self):
-        """Test error code with high values."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_error_code(error_code=0xFF, severity=0xFF)
-
-        assert result is True
 
 
 class TestCompactMessageValidation:

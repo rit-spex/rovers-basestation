@@ -1,5 +1,8 @@
 """
-Tests for BaseStation event dispatching.
+Tests for BaseStation event dispatching via send_command().
+
+All tests exercise the real production entry point (send_command) instead of
+now-removed _dispatch_* helper methods.
 """
 
 from unittest.mock import Mock, patch
@@ -10,201 +13,176 @@ from xbee.controller.events import (
     JOYBUTTONUP,
     JOYDEVICEADDED,
     JOYDEVICEREMOVED,
+    JOYHATMOTION,
 )
 
 
-class TestEventDispatching:
-    """Test event dispatching methods."""
+class TestSendCommandDispatching:
+    """Test that send_command routes each event type to the correct handler."""
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_hotplug_event_added(
+    def test_send_command_routes_device_added(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test JOYDEVICEADDED event is dispatched correctly."""
+        """Test JOYDEVICEADDED event is routed to handle_controller_added."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_controller_added = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_added.return_value = False
 
         event = Mock()
         event.type = JOYDEVICEADDED
 
-        base._dispatch_hotplug_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_controller_added.assert_called_once_with(event)
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_hotplug_event_removed(
+    def test_send_command_routes_device_removed(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test JOYDEVICEREMOVED event is dispatched correctly."""
+        """Test JOYDEVICEREMOVED event is routed to handle_controller_removed."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_controller_removed = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_removed.return_value = False
 
         event = Mock()
         event.type = JOYDEVICEREMOVED
 
-        base._dispatch_hotplug_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_controller_removed.assert_called_once_with(event)
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_hotplug_falls_back_to_internal_handler(
+    def test_send_command_device_added_triggers_quit(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler when controller_manager lacks method."""
-        from xbee.app import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])  # No methods
-        base._handle_controller_hotplug = Mock()
-
-        event = Mock()
-        event.type = JOYDEVICEADDED
-
-        base._dispatch_hotplug_event(event)
-
-        base._handle_controller_hotplug.assert_called_once_with(event)
-
-    @patch("xbee.app.CommunicationManager")
-    @patch("xbee.app.HeartbeatManager")
-    @patch("xbee.app.ControllerManager")
-    def test_dispatch_axis_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test axis motion event is dispatched correctly."""
+        """Test JOYDEVICEADDED sets quit when handler returns True."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_axis_motion = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_added.return_value = True
 
         event = Mock()
+        event.type = JOYDEVICEADDED
 
-        base._dispatch_axis_event(event)
+        base.send_command(event)
+
+        assert base.quit is True
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_device_removed_triggers_quit(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYDEVICEREMOVED sets quit when handler returns True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        base.controller_manager = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_removed.return_value = True
+
+        event = Mock()
+        event.type = JOYDEVICEREMOVED
+
+        base.send_command(event)
+
+        assert base.quit is True
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_axis_motion(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYAXISMOTION event is routed to handle_axis_motion."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        base.controller_manager = Mock()
+        base.controller_manager.has_joysticks.return_value = True
+
+        event = Mock()
+        event.type = JOYAXISMOTION
+
+        base.send_command(event)
 
         base.controller_manager.handle_axis_motion.assert_called_once_with(event)
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_axis_falls_back_to_internal_handler(
+    def test_send_command_routes_button_down(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler for axis event."""
-        from xbee.app import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_axis_motion = Mock()
-
-        event = Mock()
-
-        base._dispatch_axis_event(event)
-
-        base._handle_axis_motion.assert_called_once_with(event)
-
-    @patch("xbee.app.CommunicationManager")
-    @patch("xbee.app.HeartbeatManager")
-    @patch("xbee.app.ControllerManager")
-    def test_dispatch_button_down_event(
-        self, mock_controller, mock_heartbeat, mock_comm
-    ):
-        """Test button down event is dispatched correctly."""
+        """Test JOYBUTTONDOWN event is routed to handle_button_down."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_button_down = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
         event.type = JOYBUTTONDOWN
 
-        base._dispatch_button_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_button_down.assert_called_once_with(event)
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_button_up_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test button up event is dispatched correctly."""
+    def test_send_command_routes_button_up(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYBUTTONUP event is routed to handle_button_up."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_button_up = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
         event.type = JOYBUTTONUP
 
-        base._dispatch_button_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_button_up.assert_called_once_with(event)
 
     @patch("xbee.app.CommunicationManager")
     @patch("xbee.app.HeartbeatManager")
     @patch("xbee.app.ControllerManager")
-    def test_dispatch_button_falls_back(
+    def test_send_command_routes_joyhat(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler for button event."""
-        from xbee.app import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_button_event = Mock()
-
-        event = Mock()
-        event.type = JOYBUTTONDOWN
-
-        base._dispatch_button_event(event)
-
-        base._handle_button_event.assert_called_once_with(event)
-
-    @patch("xbee.app.CommunicationManager")
-    @patch("xbee.app.HeartbeatManager")
-    @patch("xbee.app.ControllerManager")
-    def test_dispatch_joypad_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test joypad event is dispatched correctly."""
+        """Test JOYHATMOTION event is routed to handle_joypad."""
         from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_joypad = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
+        event.type = JOYHATMOTION
 
-        base._dispatch_joypad_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_joypad.assert_called_once_with(event)
-
-    @patch("xbee.app.CommunicationManager")
-    @patch("xbee.app.HeartbeatManager")
-    @patch("xbee.app.ControllerManager")
-    def test_dispatch_joypad_falls_back(
-        self, mock_controller, mock_heartbeat, mock_comm
-    ):
-        """Test fallback to internal handler for joypad event."""
-        from xbee.app import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_joypad_motion = Mock()
-
-        event = Mock()
-
-        base._dispatch_joypad_event(event)
-
-        base._handle_joypad_motion.assert_called_once_with(event)
 
 
 class TestInternalEventHandlers:

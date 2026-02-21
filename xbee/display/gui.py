@@ -29,6 +29,7 @@ from xbee.display.base import (
     WINDOW_WIDTH,
     BaseDisplay,
     _GenericWidgetStub,
+    _env_flag_enabled,
     tk,
     ttk,
 )
@@ -40,12 +41,6 @@ from xbee.display.telemetry import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _env_flag_enabled(name: str) -> bool:
-    """Return True when an env var is set to a truthy value."""
-    raw = (os.getenv(name) or "").strip().lower()
-    return raw in ("1", "true", "yes")
 
 
 def _is_mock_object(value: Any) -> bool:
@@ -106,6 +101,7 @@ class TkinterDisplay(BaseDisplay):
         self.auto_status_indicator: Any = None
         self.auto_status_text_label: Any = None
         self.auto_toggle_indicator: Any = None
+        self.arm_toggle_indicator: Any = None
         self.rover_status_indicator: Any = None
         self.rover_status_text_label: Any = None
         self.life_toggle_indicator: Any = None
@@ -114,6 +110,8 @@ class TkinterDisplay(BaseDisplay):
         self._warning_canvas: Any = None
         self._sim_view_var: Any = None
         self._sim_view_dropdown: Any = None
+        self._warning_banner_frame: Any = None
+        self._warning_banner_parent: Any = self.root
 
         # Module view state
         self._module_view = "life"
@@ -168,6 +166,7 @@ class TkinterDisplay(BaseDisplay):
             self.auto_status_indicator = stub_widget
             self.auto_status_text_label = stub_widget
             self.auto_toggle_indicator = stub_widget
+            self.arm_toggle_indicator = stub_widget
             self.rover_status_indicator = stub_widget
             self.rover_status_text_label = stub_widget
             self.life_toggle_indicator = stub_widget
@@ -181,7 +180,6 @@ class TkinterDisplay(BaseDisplay):
         main_frame.columnconfigure(0, weight=1)
         main_frame.rowconfigure(1, weight=1)
 
-        self._warning_banner_frame = None
         self._warning_banner_parent = main_frame
 
         content_frame = ttk.Frame(main_frame)
@@ -332,6 +330,11 @@ class TkinterDisplay(BaseDisplay):
         )
         self.auto_toggle_indicator, _label, row = self._add_indicator_row(
             sidebar, row, "Auto Toggle"
+        )
+        row = self._add_sidebar_separator(sidebar, row)
+
+        self.arm_toggle_indicator, _label, row = self._add_indicator_row(
+            sidebar, row, "Arm Toggle"
         )
         row = self._add_sidebar_separator(sidebar, row)
 
@@ -624,6 +627,7 @@ class TkinterDisplay(BaseDisplay):
         telemetry = self._snapshot_telemetry()
         self._update_auto_status_indicator(telemetry)
         self._update_auto_toggle_indicator(telemetry)
+        self._update_arm_toggle_indicator(telemetry)
         self._update_rover_status_indicator(telemetry)
         self._update_life_toggle_indicator(telemetry)
 
@@ -662,6 +666,18 @@ class TkinterDisplay(BaseDisplay):
         )
         if auto_toggle is not None:
             self._set_indicator_color(self.auto_toggle_indicator, auto_toggle)
+
+    def _update_arm_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
+        arm_toggle = resolve_boolean_flag(
+            telemetry,
+            [
+                "arm_toggle",
+                "arm_enabled",
+                "manipulator_enabled",
+            ],
+        )
+        if arm_toggle is not None:
+            self._set_indicator_color(self.arm_toggle_indicator, arm_toggle)
 
     def _update_rover_status_indicator(self, telemetry: Dict[str, Any]) -> None:
         estop = resolve_estop_status(telemetry)

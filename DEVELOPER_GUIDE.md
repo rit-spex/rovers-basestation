@@ -182,7 +182,7 @@ This means you always import through the local wrapper:
 from xbee.protocol.encoding import MessageEncoder
 
 # In ROS code:
-from encoding import BaseStationCommunication # (which extends MessageEncoder)
+from encoding import MessageEncoder # (which extends MessageEncoder)
 from command_codes import CONSTANTS
 ```
 
@@ -264,7 +264,7 @@ The `MessageEncoder` reads signal definitions from `protocol.yaml` at init time.
 ```yaml
 messages:
   my_sensor:
-    id: 0xA0 # Pick an unused byte, first digit 0 for from, F for to rover
+    id: 0xA0 # Pick an unused byte, first digit 0 for to_rover, F for from_rover
     direction: from_rover  # or to_rover
     signals:
       temperature:
@@ -390,20 +390,22 @@ python -m pytest tests/unit/encoding/test_encoding.py -v
 # Run tests matching a name pattern
 python -m pytest tests/ -k "test_encode"
 
-# Basestation-side protocol data
+# Basestation-side protocol data (auto-enabled in simulation mode)
+# To manually enable in XBee mode:
 export ROVER_PROTOCOL_TRACE=1 && python -m xbee
 ```
 
 ### Environment Variables
 
 | Variable | Default | Purpose |
-|----------|---------|---------|
+|----------|---------|---------||
 | `XBEE_NO_GUI` | `""` | Set to `"1"` to disable tkinter GUI |
 | `XBEE_DEFAULT_CREEP` | `1` | Set to `"0"` to disable default creep mode |
 | `BASESTATION_LOG_EVERY_UPDATES` | `0` | Log every N control loop iterations (0 = debug only) |
 | `XBEE_INFLIGHT_WAIT_TIMEOUT` | `30.0` | Timeout (seconds) for XBee inflight message ack |
 | `XBEE_TEST_ENABLE_INPUTS` | `0` | Allow controller inputs under pytest |
 | `XBEE_JOYSTICK_RAW_MODE` | `""` | Force joystick raw mode (`signed` or `unsigned`) when auto-detection is not reliable |
+| `ROVER_PROTOCOL_TRACE` | `"1"` (sim) / `"0"` (XBee) | Log decoded protocol packets (`[protocol tx]` / `[protocol rx]`). Automatically enabled in simulation mode. On the ROS side (`basestation_node` / `telemetry_uplink_node`) it also defaults to `"1"`. Set to `"0"` to silence. |
 
 ---
 
@@ -417,7 +419,7 @@ export ROVER_PROTOCOL_TRACE=1 && python -m xbee
 
 4. **Submodule must be initialized.** If `lib/rovers-protocol/` is empty, run `git submodule update --init --recursive`. Tests will fail without it.
 
-5. **Simulation mode.** When XBee hardware isn't available, the system automatically falls back to UDP simulation. This is transparent to the rest of the code. Force it with `CONSTANTS.SIMULATION_MODE = True` in `xbee/config/constants.py`.
+5. **Simulation mode.** When XBee hardware isn't available, the system automatically falls back to UDP simulation. This is transparent to the rest of the code. Force it with `CONSTANTS.SIMULATION_MODE = True` in `xbee/config/constants.py`. Protocol tracing is **automatically enabled** in simulation mode so you can see every packet going in and out — that's the whole point of simulation.
 
 6. **Protocol changes require updating the submodule in both repos.** After pushing a change to `rovers-protocol`, update the submodule reference in both `rovers-basestation` and `rovers-ros` with:
    ```bash
@@ -426,3 +428,9 @@ export ROVER_PROTOCOL_TRACE=1 && python -m xbee
    git commit -m "Update protocol submodule"
    ```
 **Note:** #6 might actually get changed by me in the future to be more automated once I figure out how to update parents that depend on the submodule on a protocol defining commit of the submodule, but for now it's manual.
+
+---
+
+## Future Refactoring Notes
+
+- **`xbee/` package rename:** Rename it to `basestation/`, the reason I am not doing this yet is cause it would touch 62 files, and hundreds of `@patch()` string references. It should probably be done in a proper separate PR.

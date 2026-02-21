@@ -19,7 +19,6 @@ Usage:
 
 import logging
 import os
-import struct
 import threading
 from collections.abc import Sequence as AbcSequence
 from typing import Dict, Sequence, TypeAlias, Union
@@ -171,10 +170,20 @@ class CommunicationManager:
         self.last_auto_state_message: list = []
         self.simulation_mode = simulation_mode
         self.enabled = True
-        self.protocol_trace = (
-            os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower()
-            in _TRUTHY_ENV
-        )
+        # In simulation mode the whole point is verifying communication, so
+        # protocol tracing is always enabled.  In production (XBee) mode it
+        # can still be toggled via the ROVER_PROTOCOL_TRACE env var.
+        if simulation_mode:
+            self.protocol_trace = True
+        else:
+            self.protocol_trace = (
+                os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower()
+                in _TRUTHY_ENV
+            )
+
+        # Also propagate to the UDP backend so RX tracing is on too.
+        if simulation_mode and hasattr(self.hardware_com, "_protocol_trace"):
+            self.hardware_com._protocol_trace = True
 
     def _trace_outgoing_protocol_packet(self, data: PayloadLike) -> None:
         """Best-effort protocol trace logging for outgoing payloads."""
@@ -592,110 +601,3 @@ class CommunicationManager:
         Uses the shared convert_to_bytes utility for consistent behavior.
         """
         return convert_to_bytes(data)
-
-    def _send_simple_message(self, data: Sequence[ByteElement], context: str) -> bool:
-        """Send a compact message with consistent exception behavior and logging."""
-        try:
-            return self.send_compact_message(data)
-        except ValueError:
-            raise
-        except Exception:
-            logger.exception("Failed to send %s", context)
-            return False
-
-    def send_status_update(
-        self, status_code: int, battery_level: int, signal_strength: int
-    ) -> bool:
-        """
-        Send a status update message.
-
-        Args:
-            status_code: System status code
-            battery_level: Battery level percentage (0-100)
-            signal_strength: Signal strength percentage (0-100)
-
-        Returns:
-            bool: True if sent successfully, False otherwise
-        """
-        data = [
-            CONSTANTS.COMPACT_MESSAGES.STATUS,
-            status_code & 0xFF,
-            battery_level & 0xFF,
-            signal_strength & 0xFF,
-        ]
-        return self._send_simple_message(data, "status update")
-
-    def send_error_code(self, error_code: int, severity: int) -> bool:
-        """
-        Send an error code message.
-
-        Args:
-            error_code: Error code
-            severity: Error severity level (0-255)
-
-        Returns:
-            bool: True if sent successfully, False otherwise
-        """
-        data = [
-            CONSTANTS.COMPACT_MESSAGES.ERROR,
-            error_code & 0xFF,
-            severity & 0xFF,
-        ]
-        return self._send_simple_message(data, "error code")
-
-    def send_gps_position(self, latitude: float, longitude: float) -> bool:
-        """
-        Send GPS position data.
-
-        Args:
-            latitude: Latitude coordinate
-            longitude: Longitude coordinate
-
-        Returns:
-            bool: True if sent successfully, False otherwise
-        """
-        lat_bytes = struct.pack(">f", latitude)  # latitude as float
-        lon_bytes = struct.pack(">f", longitude)  # longitude as float
-
-        data = [CONSTANTS.COMPACT_MESSAGES.GPS] + list(lat_bytes) + list(lon_bytes)
-        return self._send_simple_message(data, "GPS position")
-
-    def send_sensor_reading(self, sensor_id: int, reading: int) -> bool:
-        """
-        Send a sensor reading.
-
-        Args:
-            sensor_id: Sensor identifier
-            reading: Sensor reading value (integer 0-65535 inclusive). The value
-                     will be sent as two bytes (high byte followed by low byte).
-                     Units depend on the sensor; callers must supply a unit-
-                     appropriate integer value.
-
-        Returns:
-            bool: True if sent successfully, False otherwise
-        """
-        # Validate reading is a 16-bit integer (0..65535) and raise ValueError for invalid values.
-        if not isinstance(reading, int):
-            raise ValueError(
-                f"reading must be an int in range 0..65535; got {type(reading)!r}"
-            )
-        if reading < 0 or reading > 0xFFFF:
-            raise ValueError(f"reading out of bounds: {reading} (expected 0..65535)")
-
-        try:
-            # Split the 2-byte reading into two 1-byte values
-            low_byte = reading & 0xFF
-            high_byte = (reading >> 8) & 0xFF
-
-            data = [
-                CONSTANTS.COMPACT_MESSAGES.SENSOR,
-                sensor_id & 0xFF,
-                high_byte,
-                low_byte,
-            ]
-            return self._send_simple_message(data, "sensor reading")
-        except ValueError:
-            raise
-        except Exception:
-            logger.exception("Failed to send sensor reading")
-            return False

@@ -103,6 +103,8 @@ ttk_stub.Frame = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Label = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.LabelFrame = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Scrollbar = _widget_stub  # type: ignore[attr-defined]
+ttk_stub.Combobox = _widget_stub  # type: ignore[attr-defined]
+ttk_stub.Separator = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Style = lambda: _StyleStub()  # type: ignore[attr-defined]
 
 font_stub = types.ModuleType(_TKINTER_FONT_MODULE)

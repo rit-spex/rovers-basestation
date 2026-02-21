@@ -52,7 +52,7 @@ Use `systemctl` status to see the status of the service
 
 ### 1. Refresh the daemon to see the update status of the auto_boot.service
 ```
-sudo systemctll daemon-reload
+sudo systemctl daemon-reload
 ```
 
 ### 2. See the status of the auto_boot.service

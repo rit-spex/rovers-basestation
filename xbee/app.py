@@ -317,52 +317,6 @@ class BaseStation:
             self.controller_manager.handle_joypad(event)
 
     # ------------------------------------------------------------------
-    # Dispatch helpers
-    # ------------------------------------------------------------------
-
-    def _dispatch_hotplug_event(self, event: InputEvent):
-        if event.type == JOYDEVICEADDED:
-            handler = getattr(self.controller_manager, "handle_controller_added", None)
-            if handler:
-                handler(event)
-            else:
-                self._handle_controller_hotplug(event)
-        elif event.type == JOYDEVICEREMOVED:
-            handler = getattr(
-                self.controller_manager, "handle_controller_removed", None
-            )
-            if handler:
-                handler(event)
-            else:
-                self._handle_controller_hotplug(event)
-
-    def _dispatch_axis_event(self, event: InputEvent):
-        handler = getattr(self.controller_manager, "handle_axis_motion", None)
-        if handler:
-            handler(event)
-        else:
-            self._handle_axis_motion(event)
-
-    def _dispatch_button_event(self, event: InputEvent):
-        if event.type == JOYBUTTONDOWN:
-            handler = getattr(self.controller_manager, "handle_button_down", None)
-        elif event.type == JOYBUTTONUP:
-            handler = getattr(self.controller_manager, "handle_button_up", None)
-        else:
-            handler = None
-        if handler:
-            handler(event)
-        else:
-            self._handle_button_event(event)
-
-    def _dispatch_joypad_event(self, event: InputEvent):
-        handler = getattr(self.controller_manager, "handle_joypad", None)
-        if handler:
-            handler(event)
-        else:
-            self._handle_joypad_motion(event)
-
-    # ------------------------------------------------------------------
     # Internal event handlers (fallbacks)
     # ------------------------------------------------------------------
 
@@ -565,7 +519,11 @@ def _update_display_data(
         creep=base_station.creep_mode,
         reverse=base_station.reverse_mode,
     )
-    comm_connected = base_station.xbee_enabled or base_station.simulation_mode
+    xbee_enabled = getattr(base_station, "xbee_enabled", False)
+    simulation_mode = getattr(base_station, "simulation_mode", False)
+    comm_connected = (xbee_enabled if isinstance(xbee_enabled, bool) else False) or (
+        simulation_mode if isinstance(simulation_mode, bool) else False
+    )
     display.update_communication_status(comm_connected, update_count)
 
     if hasattr(base_station.controller_manager, "controller_state"):
@@ -612,9 +570,16 @@ def _handle_recoverable_error(exc):
     time.sleep(0.1)
 
 
-def _handle_fatal_error(base_station):
-    logger.exception("Fatal error during control loop update; initiating shutdown")
+def _set_quit_with_exception(base_station, message: str) -> None:
+    logger.exception(message)
     base_station.quit = True
+
+
+def _handle_fatal_error(base_station):
+    _set_quit_with_exception(
+        base_station,
+        "Fatal error during control loop update; initiating shutdown",
+    )
 
 
 def _handle_shutdown_signal(base_station):
@@ -623,8 +588,10 @@ def _handle_shutdown_signal(base_station):
 
 
 def _handle_fatal_loop_error(base_station):
-    logger.exception("Fatal error in control loop; initiating shutdown")
-    base_station.quit = True
+    _set_quit_with_exception(
+        base_station,
+        "Fatal error in control loop; initiating shutdown",
+    )
 
 
 def _cleanup_on_exit(base_station, display):

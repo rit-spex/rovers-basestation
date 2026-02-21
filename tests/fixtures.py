@@ -200,8 +200,8 @@ def sample_encoded_xbox_message() -> bytes:
     Returns:
         Bytes representing encoded Xbox controller data.
     """
-    # Xbox message: ID (0xF0) + ly (100) + ry (100) + buttons (all off) - ly/ry=100 is the neutral encoding value.
-    return bytes([0xF0, 100, 100, 0x55, 0x55])
+    # Xbox message: ID (0x02) + ly (100) + ry (100) + buttons (all off) - ly/ry=100 is the neutral encoding value.
+    return bytes([0x02, 100, 100, 0x55, 0x55])
 
 
 @pytest.fixture
@@ -212,8 +212,8 @@ def sample_encoded_heartbeat() -> bytes:
     Returns:
         Bytes representing encoded heartbeat.
     """
-    # Heartbeat message: ID (0xAA) + timestamp (16-bit: 0)
-    return bytes([0xAA, 0x00, 0x00])
+    # Heartbeat message: ID (0x01) + timestamp (16-bit: 0)
+    return bytes([0x01, 0x00, 0x00])
 
 
 @pytest.fixture

@@ -157,6 +157,23 @@ class TestTkinterDisplayAdvanced:
     @patch("xbee.display.gui.TK_AVAILABLE", True)
     @patch("xbee.display.gui.ttk")
     @patch("xbee.display.gui.tk")
+    def test_update_arm_toggle_indicator_from_telemetry(self, mock_tk, mock_ttk):
+        """Arm toggle indicator should reflect arm-enabled telemetry."""
+        mock_root = Mock()
+        mock_tk.Tk.return_value = mock_root
+
+        display = TkinterDisplay()
+        display.arm_toggle_indicator = Mock()
+
+        display._update_arm_toggle_indicator({"arm_enabled": True})
+
+        display.arm_toggle_indicator.configure.assert_called()
+        display.quit()
+
+    @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_update_communication_status_labels(self, mock_tk, mock_ttk):
         """Test update_communication_status updates labels."""
         mock_root = Mock()

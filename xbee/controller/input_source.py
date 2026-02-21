@@ -535,8 +535,10 @@ class InputEventSource:
             self._signature_key_last_seen[key] = time.time()
             if signature:
                 sig_keys = self._signature_to_keys.get(signature)
-                if sig_keys is None:
-                    self._signature_to_keys[signature] = {key}
+                if sig_keys is not None:
+                    sig_keys.discard(key)
+                    if not sig_keys:
+                        del self._signature_to_keys[signature]
                 self._signature_last_seen[signature] = time.time()
             for device_id in [
                 did
@@ -722,7 +724,10 @@ class InputEventSource:
         if code == "ABS_HAT0X":
             x = max(-1, min(1, val))
         else:
-            y = max(-1, min(1, val))
+            # Invert Y: evdev reports -1 for up / +1 for down, but the
+            # application convention (matching _apply_dpad_button_unlocked)
+            # is +1 for up / -1 for down.
+            y = -max(-1, min(1, val))
         return x, y
 
     def _apply_dpad_button(
