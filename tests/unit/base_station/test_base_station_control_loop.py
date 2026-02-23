@@ -263,6 +263,8 @@ class TestUpdateDisplayData:
             {"ly": 0.5},
             {"cx": 0.1},
         ]
+        # SpaceMouse not connected → should not appear in controller values
+        mock_base.spacemouse.is_connected.return_value = False
 
         mock_display = Mock()
 

@@ -16,3 +16,4 @@ setuptools==80.9.0
 importlib_resources>=6.5.0
 importlib_metadata>=8.7.0
 PyYAML>=6.0
+hidapi>=0.14.0

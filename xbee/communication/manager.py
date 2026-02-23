@@ -133,6 +133,22 @@ class MessageFormatter:
         start_byte = int.from_bytes(CONSTANTS.START_MESSAGE, byteorder="big")
         return [start_byte] + xbox_message + n64_message
 
+    def create_spacemouse_message(self, values: Dict) -> list:
+        """
+        Create SpaceMouse 6DOF message for transmission.
+
+        Args:
+            values: SpaceMouse state dict with keys x, y, z, rx, ry, rz, buttons.
+
+        Returns:
+            list[int]: Formatted message data (each element is a single byte integer)
+        """
+        return list(
+            self.encoder.encode_data(
+                values, CONSTANTS.COMPACT_MESSAGES.SPACEMOUSE_ID
+            )
+        )
+
 
 class CommunicationManager:
     """
@@ -168,6 +184,7 @@ class CommunicationManager:
         # Track last_combined_message to detect combined-message duplicates reliably.
         self.last_combined_message: list = []
         self.last_auto_state_message: list = []
+        self.last_spacemouse_message: list = []
         self.simulation_mode = simulation_mode
         self.enabled = True
         # In simulation mode the whole point is verifying communication, so
@@ -322,6 +339,32 @@ class CommunicationManager:
             with self._send_lock:
                 self.last_n64_message = n64_message
         return success
+
+    def send_spacemouse_data(self, spacemouse_values: Dict) -> bool:
+        """Send SpaceMouse 6DOF data to the rover.
+
+        Args:
+            spacemouse_values: Dict with keys x, y, z, rx, ry, rz, buttons.
+
+        Returns:
+            bool: True if sent (or duplicate suppressed), False on failure.
+        """
+        if not spacemouse_values:
+            return True
+
+        try:
+            sm_message = self.formatter.create_spacemouse_message(spacemouse_values)
+            with self._send_lock:
+                if sm_message == self.last_spacemouse_message:
+                    return True  # duplicate suppressed
+            success = self.send_package(bytes(sm_message))
+            if success:
+                with self._send_lock:
+                    self.last_spacemouse_message = sm_message
+            return success
+        except Exception:
+            logger.exception("Failed to send SpaceMouse data")
+            return False
 
     def send_heartbeat(self, timestamp_ms: int = 0) -> bool:
         """

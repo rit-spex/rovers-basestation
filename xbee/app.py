@@ -38,6 +38,7 @@ from xbee.controller.events import (
 )
 from xbee.controller.input_source import InputEventSource, InputSourceError
 from xbee.controller.manager import ControllerManager, InputProcessor
+from xbee.controller.spacemouse import SpaceMouse
 from xbee.display.base import BaseDisplay, create_display
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,10 @@ class BaseStation:
         self.controller_manager = ControllerManager()
         self.input_processor = InputProcessor(self.controller_manager)
         self.input_source = input_source or InputEventSource()
+
+        # SpaceMouse (6DOF HID device – independent of gamepad input pipeline)
+        self.spacemouse = SpaceMouse()
+        self.spacemouse.start()
 
         # Communication subsystem
         self.simulation_mode = CONSTANTS.SIMULATION_MODE
@@ -383,14 +388,16 @@ class BaseStation:
         n64_values = self.controller_manager.controller_state.get_controller_values(
             CONSTANTS.N64.NAME
         )
-        message_sent = self.communication_manager.send_controller_data(
+        self.communication_manager.send_controller_data(
             xbox_values,
             n64_values,
             self.controller_manager.reverse_mode,
         )
-        if not message_sent:
-            return
-        logger.debug("Controller data sent (update #%d)", self.update_loop)
+
+        # SpaceMouse is sent independently of Xbox/N64 (different message ID)
+        if self.spacemouse.is_connected():
+            sm_state = self.spacemouse.get_state()
+            self.communication_manager.send_spacemouse_data(sm_state)
         with self._log_lock:
             if (
                 self.log_summary_every > 0
@@ -454,6 +461,11 @@ class BaseStation:
                 self.input_source.stop()
             except Exception:
                 logger.exception("Error stopping input source")
+        if getattr(self, "spacemouse", None):
+            try:
+                self.spacemouse.stop()
+            except Exception:
+                logger.exception("Error stopping SpaceMouse")
 
     # ------------------------------------------------------------------
     # Mode properties
@@ -533,12 +545,15 @@ def _update_display_data(
         n64 = base_station.controller_manager.controller_state.get_controller_values(
             CONSTANTS.N64.NAME
         )
-        display.update_controller_values(
-            {
-                CONSTANTS.XBOX.NAME: xbox,
-                CONSTANTS.N64.NAME: n64,
-            }
-        )
+        controller_vals: Dict[str, Any] = {
+            CONSTANTS.XBOX.NAME: xbox,
+            CONSTANTS.N64.NAME: n64,
+        }
+        if base_station.spacemouse.is_connected():
+            controller_vals[CONSTANTS.SPACEMOUSE.NAME] = (
+                base_station.spacemouse.get_state()
+            )
+        display.update_controller_values(controller_vals)
 
     telemetry = base_station.get_telemetry_data()
     if telemetry:
