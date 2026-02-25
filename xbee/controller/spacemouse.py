@@ -33,10 +33,12 @@ from xbee.config.constants import CONSTANTS
 logger = logging.getLogger(__name__)
 
 # HID report IDs emitted by 3Dconnexion devices on Windows
-_REPORT_6DOF = 0x01  # 6DOF combined translation + rotation
+_REPORT_TRANSLATION = 0x01  # translation (or combined 6DOF on some models)
+_REPORT_ROTATION = 0x02  # rotation on models that split reports
 _REPORT_BUTTONS = 0x03  # button state
 
 # Minimum payload lengths (excluding report ID) for each report type
+_MIN_3AXIS_LEN = 7  # 1 byte report ID + 6 bytes (3 × int16)
 _MIN_6DOF_LEN = 13  # 1 byte report ID + 12 bytes (6 × int16)
 _MIN_BUTTON_LEN = 3  # 1 byte report ID + 2 bytes (uint16 button mask)
 
@@ -81,6 +83,7 @@ class SpaceMouse:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._dev: Any = None  # hid.device instance
+        self._seen_split_rotation_report = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -186,17 +189,49 @@ class SpaceMouse:
             return False
 
         try:
-            # Refresh the OS HID device list (required for reliable hot-plug
-            # detection, especially on Windows).
-            hid.enumerate(self._vendor_id, self._product_id)
+            # Refresh and inspect the vendor device list.  Different connection
+            # modes (USB cable, universal receiver, Bluetooth) can expose
+            # different product IDs/interfaces.
+            devices = hid.enumerate(self._vendor_id, 0)
 
+            # Prefer configured PID first, then try other likely SpaceMouse
+            # interfaces from the same vendor.
+            devices.sort(
+                key=lambda d: 0
+                if int(d.get("product_id", 0)) == int(self._product_id)
+                else 1
+            )
+
+            for info in devices:
+                if not self._is_likely_spacemouse_interface(info):
+                    continue
+                dev = self._try_open_device_info(hid, info)
+                if dev is None:
+                    continue
+                self._dev = dev
+                with self._lock:
+                    self._connected = True
+                logger.info(
+                    "SpaceMouse connected (VID=0x%04X PID=0x%04X usage_page=%s usage=%s)",
+                    int(info.get("vendor_id", 0)),
+                    int(info.get("product_id", 0)),
+                    info.get("usage_page"),
+                    info.get("usage"),
+                )
+                return True
+
+            # Fallback: try exact VID/PID open directly (legacy path).
             dev = hid.device()
             dev.open(self._vendor_id, self._product_id)
             dev.set_nonblocking(True)
             self._dev = dev
             with self._lock:
                 self._connected = True
-            logger.info("SpaceMouse connected")
+            logger.info(
+                "SpaceMouse connected via direct open (VID=0x%04X PID=0x%04X)",
+                self._vendor_id,
+                self._product_id,
+            )
             return True
         except Exception:
             logger.debug(
@@ -205,6 +240,54 @@ class SpaceMouse:
                 self._product_id,
             )
             return False
+
+    def _is_likely_spacemouse_interface(self, info: Dict[str, Any]) -> bool:
+        """Heuristic filter for SpaceMouse HID interfaces.
+
+        Accepts the configured PID and common 3Dconnexion SpaceMouse-like
+        interfaces by manufacturer/product strings and HID usage hints.
+        """
+        pid = int(info.get("product_id", 0) or 0)
+        if pid == int(self._product_id):
+            return True
+
+        manufacturer = str(info.get("manufacturer_string") or "").lower()
+        product = str(info.get("product_string") or "").lower()
+        if "3dconnexion" in manufacturer and (
+            "spacemouse" in product or "space mouse" in product
+        ):
+            return True
+        if "spacemouse" in product or "space mouse" in product:
+            return True
+
+        usage_page = int(info.get("usage_page", 0) or 0)
+        usage = int(info.get("usage", 0) or 0)
+        # Generic Desktop: Multi-axis controller (0x08) / Joystick (0x04)
+        if usage_page == 0x01 and usage in (0x08, 0x04):
+            return True
+
+        return False
+
+    def _try_open_device_info(self, hid_module: Any, info: Dict[str, Any]) -> Any | None:
+        """Open a HID device from enumerate() metadata, if possible."""
+        dev = hid_module.device()
+        try:
+            path = info.get("path")
+            if path:
+                dev.open_path(path)
+            else:
+                dev.open(
+                    int(info.get("vendor_id", self._vendor_id) or self._vendor_id),
+                    int(info.get("product_id", self._product_id) or self._product_id),
+                )
+            dev.set_nonblocking(True)
+            return dev
+        except Exception:
+            try:
+                dev.close()
+            except Exception:
+                pass
+            return None
 
     def _close_device(self) -> None:
         """Close the HID device if open and reset state to zeros."""
@@ -237,10 +320,38 @@ class SpaceMouse:
 
         report_id = data[0]
 
-        if report_id == _REPORT_6DOF and len(data) >= _MIN_6DOF_LEN:
-            self._parse_6dof(data)
+        if report_id == _REPORT_ROTATION and len(data) >= _MIN_3AXIS_LEN:
+            self._parse_rotation(data)
+            self._seen_split_rotation_report = True
+        elif report_id == _REPORT_TRANSLATION and len(data) >= _MIN_3AXIS_LEN:
+            # Some devices use split reports (0x01 translation, 0x02 rotation)
+            # and may still deliver padded 0x01 packets with length >= 13.  Once
+            # we've observed split rotation packets, keep parsing 0x01 strictly as
+            # translation to avoid clobbering rx/ry/rz with padding bytes.
+            if self._seen_split_rotation_report:
+                self._parse_translation(data)
+            elif len(data) >= _MIN_6DOF_LEN:
+                self._parse_6dof(data)
+            else:
+                self._parse_translation(data)
         elif report_id == _REPORT_BUTTONS and len(data) >= _MIN_BUTTON_LEN:
             self._parse_buttons(data)
+
+    def _parse_translation(self, data: list[int]) -> None:
+        """Parse translation-only report: x, y, z (3 × int16)."""
+        x, y, z = struct.unpack("<hhh", bytes(data[1:7]))
+        with self._lock:
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_X] = x
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Y] = -y
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Z] = -z
+
+    def _parse_rotation(self, data: list[int]) -> None:
+        """Parse rotation-only report: rx, ry, rz (3 × int16)."""
+        rx, ry, rz = struct.unpack("<hhh", bytes(data[1:7]))
+        with self._lock:
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RX] = rx
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RY] = ry
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RZ] = -rz
 
     def _parse_6dof(self, data: list[int]) -> None:
         """Parse a 6DOF combined translation/rotation report.

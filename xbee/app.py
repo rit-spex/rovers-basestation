@@ -19,6 +19,8 @@ CONTROL LOOP (runs at ~TIMING.UPDATE_FREQUENCY)
 
 import logging
 import os
+import glob
+import sys
 import threading
 import time
 from typing import Any, Dict, Optional
@@ -97,6 +99,101 @@ def _get_log_every_updates_default() -> int:
         return 0
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    """Parse a boolean environment variable with a safe default."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid %s value %r – using default=%s", name, raw, default)
+    return default
+
+
+def _sample_paths(paths: list[str], *, max_items: int = 3) -> str:
+    """Return a short, log-friendly summary of device paths."""
+    if not paths:
+        return "none"
+    sample = paths[:max_items]
+    suffix = "" if len(paths) <= max_items else f" (+{len(paths) - max_items} more)"
+    return ", ".join(sample) + suffix
+
+
+def _log_linux_input_runtime_diagnostics(
+    *,
+    spacemouse_vendor_id: int,
+    inputs_enabled: bool,
+) -> None:
+    """Log actionable diagnostics for Linux input/HID visibility.
+
+    This is intentionally lightweight and runs once at startup. It helps make
+    VM/container passthrough issues explicit (missing /dev/input, /dev/hidraw,
+    or HID enumeration) instead of failing silently.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    if not _env_flag("XBEE_INPUT_DIAGNOSTICS", default=True):
+        return
+
+    input_paths = sorted(glob.glob("/dev/input/event*"))
+    hidraw_paths = sorted(glob.glob("/dev/hidraw*"))
+
+    unreadable_inputs = [p for p in input_paths if not os.access(p, os.R_OK)]
+    unreadable_hidraw = [p for p in hidraw_paths if not os.access(p, os.R_OK)]
+
+    logger.info(
+        "Input diagnostics (Linux): inputs_enabled=%s, /dev/input/event*=%d (%s), /dev/hidraw*=%d (%s)",
+        inputs_enabled,
+        len(input_paths),
+        _sample_paths(input_paths),
+        len(hidraw_paths),
+        _sample_paths(hidraw_paths),
+    )
+
+    if unreadable_inputs or unreadable_hidraw:
+        logger.warning(
+            "Input devices found but not readable by this process. Unreadable input=%d, hidraw=%d. "
+            "If running in Docker/Compose, add group access (e.g., group_add for input/plugdev) "
+            "or run with sufficient device permissions.",
+            len(unreadable_inputs),
+            len(unreadable_hidraw),
+        )
+
+    if not input_paths and not hidraw_paths:
+        logger.warning(
+            "No /dev/input/event* or /dev/hidraw* devices are visible. "
+            "In VMware, connect USB controllers directly to the guest VM. "
+            "In containers, pass through /dev/input and /dev/hidraw (devices + cgroup rules)."
+        )
+
+    try:
+        import hid  # type: ignore[import-not-found]
+
+        hid_devices = hid.enumerate(spacemouse_vendor_id, 0)
+        logger.info(
+            "SpaceMouse HID enumerate (VID=0x%04X): %d device(s)",
+            spacemouse_vendor_id,
+            len(hid_devices),
+        )
+        if len(hid_devices) == 0:
+            logger.warning(
+                "No 3Dconnexion HID devices enumerated (VID=0x%04X). "
+                "If device is physically connected, verify VMware USB passthrough (guest, not host/shared) "
+                "and container device mapping for hidraw nodes.",
+                spacemouse_vendor_id,
+            )
+    except ImportError:
+        logger.warning(
+            "hidapi Python module is unavailable; SpaceMouse input is disabled. "
+            "Install dependency: pip install hidapi"
+        )
+    except Exception as exc:
+        logger.warning("SpaceMouse HID enumerate failed: %s", exc)
+
+
 def _is_pytest_running() -> bool:
     """Return True when executing under pytest."""
     try:
@@ -143,6 +240,10 @@ class BaseStation:
             on_disconnect=self._on_spacemouse_disconnect
         )
         self.spacemouse.start()
+        _log_linux_input_runtime_diagnostics(
+            spacemouse_vendor_id=CONSTANTS.SPACEMOUSE.VENDOR_ID,
+            inputs_enabled=bool(getattr(self.input_source, "enabled", False)),
+        )
 
         # Communication subsystem
         self.simulation_mode = CONSTANTS.SIMULATION_MODE

@@ -50,6 +50,68 @@ def test_process_report_6dof():
     assert state["rz"] == -raw_rz
 
 
+def test_process_report_translation_only():
+    """Report ID 0x01 with 3 axes should update x/y/z only."""
+    sm = SpaceMouse()
+
+    raw_x, raw_y, raw_z = 123, -234, 345
+    data = [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z))
+
+    sm._process_report(data)
+    state = sm.get_state()
+
+    assert state["x"] == raw_x
+    assert state["y"] == -raw_y
+    assert state["z"] == -raw_z
+    # Rotational axes remain unchanged
+    assert state["rx"] == 0
+    assert state["ry"] == 0
+    assert state["rz"] == 0
+
+
+def test_process_report_rotation_only():
+    """Report ID 0x02 with 3 axes should update rx/ry/rz only."""
+    sm = SpaceMouse()
+
+    raw_rx, raw_ry, raw_rz = -111, 222, -333
+    data = [0x02] + list(struct.pack("<hhh", raw_rx, raw_ry, raw_rz))
+
+    sm._process_report(data)
+    state = sm.get_state()
+
+    assert state["rx"] == raw_rx
+    assert state["ry"] == raw_ry
+    assert state["rz"] == -raw_rz
+    # Translation axes remain unchanged
+    assert state["x"] == 0
+    assert state["y"] == 0
+    assert state["z"] == 0
+
+
+def test_split_mode_padded_translation_does_not_reset_rotation():
+    """After a split rotation packet, padded 0x01 packets must not clobber rx/ry/rz."""
+    sm = SpaceMouse()
+
+    # Enter split-report mode by observing a rotation packet.
+    raw_rx, raw_ry, raw_rz = 10, -20, 30
+    rot = [0x02] + list(struct.pack("<hhh", raw_rx, raw_ry, raw_rz))
+    sm._process_report(rot)
+
+    # Translation-only packet padded to >=13 bytes (common HID read behavior).
+    raw_x, raw_y, raw_z = 111, 222, -333
+    padded_translation = [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z)) + [0, 0, 0, 0, 0, 0]
+    sm._process_report(padded_translation)
+
+    state = sm.get_state()
+    assert state["x"] == raw_x
+    assert state["y"] == -raw_y
+    assert state["z"] == -raw_z
+    # Rotation remains what report 0x02 set.
+    assert state["rx"] == raw_rx
+    assert state["ry"] == raw_ry
+    assert state["rz"] == -raw_rz
+
+
 def test_process_report_buttons():
     """A button report (report ID 0x03) should update button state."""
     sm = SpaceMouse()
@@ -107,16 +169,28 @@ def test_parse_6dof_negative_raw_values():
     assert state["rz"] == 30   # negated: -(-30) = 30
 
 
-def test_process_report_ignores_short_6dof():
-    """Report 0x01 with fewer than 13 bytes should not update state."""
+def test_process_report_ignores_short_translation():
+    """Report 0x01 with fewer than 7 bytes should not update state."""
     sm = SpaceMouse()
 
-    # Only 7 bytes instead of required 13
-    data = [0x01, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03]
+    # Only 6 bytes instead of required 7 for translation report
+    data = [0x01, 0x00, 0x01, 0x00, 0x02, 0x00]
     sm._process_report(data)
     state = sm.get_state()
 
     # State should remain at initial zeros
+    for key in ("x", "y", "z", "rx", "ry", "rz"):
+        assert state[key] == 0
+
+
+def test_process_report_ignores_short_rotation():
+    """Report 0x02 with fewer than 7 bytes should not update state."""
+    sm = SpaceMouse()
+
+    data = [0x02, 0x00, 0x01, 0x00, 0x02, 0x00]
+    sm._process_report(data)
+    state = sm.get_state()
+
     for key in ("x", "y", "z", "rx", "ry", "rz"):
         assert state[key] == 0
 

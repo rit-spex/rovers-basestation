@@ -55,6 +55,43 @@ For running as a service or on devices without a display:
 XBEE_NO_GUI=1 python -m xbee
 ```
 
+### VMware + Container Input Passthrough (SpaceMouse + Gamepads)
+
+If controllers work on host Linux but not inside an Ubuntu VM/container, the usual cause is device passthrough/permissions, not protocol logic.
+
+**Why this happens:**
+
+- Gamepads use Linux input nodes (typically `/dev/input/event*`) via the `inputs` library.
+- SpaceMouse uses HID access (typically `/dev/hidraw*`) via `hidapi`.
+- In VM+container setups, these devices may be visible on host but hidden from guest/container.
+
+#### VMware checklist
+
+- Ensure the USB device is connected to the **guest VM**, not the host/shared endpoint.
+- In VM USB settings, enable showing USB/HID input devices and connect from removable devices menu.
+- Prefer USB controller compatibility that matches your hardware (USB 2.0 vs 3.0 can matter for some devices).
+
+#### Container checklist (Docker / Compose)
+
+- Pass input devices into the container:
+    - `/dev/input` (gamepads)
+    - `/dev/hidraw*` (SpaceMouse)
+- Add device cgroup rules and group permissions as needed (for example `group_add` for `input`/`plugdev`).
+- If using restrictive security settings, ensure device access is not blocked by container policy.
+
+Compose supports `devices`, `device_cgroup_rules`, `group_add`, and `privileged` (use with care).
+
+#### Built-in diagnostics
+
+Basestation now logs Linux input visibility at startup (counts for `/dev/input/event*`, `/dev/hidraw*`, and SpaceMouse HID enumeration). This makes passthrough/permission failures explicit in logs.
+
+- Enabled by default on Linux
+- Disable with:
+
+```bash
+export XBEE_INPUT_DIAGNOSTICS=0
+```
+
 ### Testing
 
 ```bash
@@ -214,6 +251,7 @@ Compact bit-packed messages for bandwidth efficiency:
 | `0x03` | n64 | A, B, L, R, C_UP, C_DOWN, C_LEFT, C_RIGHT, DP_UP–DP_RIGHT, Z |
 | `0x04` | quit | QUIT (1-bit bool) |
 | `0x05` | auto_state | auto_state (8-bit) |
+| `0x06` | spacemouse | x, y, z, rx, ry, rz, buttons |
 
 **From Rover (rover → basestation telemetry):**
 
@@ -247,6 +285,7 @@ mypy .           # Type check
 | `XBEE_INFLIGHT_WAIT_TIMEOUT` | `30.0` | Timeout (seconds) for XBee inflight message ack |
 | `XBEE_TEST_ENABLE_INPUTS` | `0` | Allow controller inputs under pytest |
 | `XBEE_JOYSTICK_RAW_MODE` | `""` | Force joystick raw mode (`signed` or `unsigned`) when auto-detection is not reliable |
+| `XBEE_INPUT_DIAGNOSTICS` | `1` (Linux) | Set to `0` to disable startup Linux input/HID visibility diagnostics |
 | `ROVER_PROTOCOL_TRACE` | `""` | Set to `"1"` to enable real-time hex-level protocol tracing for TX/RX messages |
 
 > For nerds that want more details, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
