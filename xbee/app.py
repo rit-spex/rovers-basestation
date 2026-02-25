@@ -36,6 +36,7 @@ from xbee.controller.events import (
     QUIT,
     InputEvent,
 )
+from xbee.controller.detection import detect_controller_type
 from xbee.controller.input_source import InputEventSource, InputSourceError
 from xbee.controller.manager import ControllerManager, InputProcessor
 from xbee.controller.spacemouse import SpaceMouse
@@ -535,8 +536,15 @@ def _update_display_on_controller_add(
     if not isinstance(instance_id, int):
         return
 
+    # If the OS enumerates the SpaceMouse as a gamepad, skip adding it
+    # to the display here — it is managed by the dedicated HID reader
+    # in _update_display_data() instead.
+    event_name = getattr(event, "name", "") or ""
+    if detect_controller_type(event_name) == CONSTANTS.SPACEMOUSE.NAME:
+        return
+
     controller_info = {
-        "name": getattr(event, "name", "Unknown"),
+        "name": event_name or "Unknown",
         "guid": getattr(event, "guid", "Unknown"),
         "id": instance_id,
     }

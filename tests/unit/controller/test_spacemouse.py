@@ -229,9 +229,10 @@ def test_close_device_resets_state_to_zero():
 
 def test_detect_controller_type_spacemouse_by_name():
     """SpaceMouse should be recognized by name markers."""
-    assert detect_controller_type("3Dconnexion SpaceMouse Wireless") == CONSTANTS.SPACEMOUSE.NAME
-    assert detect_controller_type("SpaceMouse Pro") == CONSTANTS.SPACEMOUSE.NAME
-    assert detect_controller_type("3DConnexion Space Mouse") == CONSTANTS.SPACEMOUSE.NAME
+    sm_name = CONSTANTS.SPACEMOUSE.NAME
+    assert detect_controller_type("3Dconnexion SpaceMouse Wireless") == sm_name
+    assert detect_controller_type("SpaceMouse Pro") == sm_name
+    assert detect_controller_type("3DConnexion Space Mouse") == sm_name
 
 
 def test_detect_controller_type_spacemouse_not_xbox():
