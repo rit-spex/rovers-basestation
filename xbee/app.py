@@ -48,6 +48,10 @@ _TRIGGER_AXES = frozenset(
 )
 _HOTPLUG_EVENTS = (JOYDEVICEADDED, JOYDEVICEREMOVED)
 
+# Sentinel controller ID used in the GUI's controllers dict for the
+# SpaceMouse (which doesn't come via the ``inputs`` gamepad pipeline).
+_SPACEMOUSE_DISPLAY_ID = -1
+
 # ---------------------------------------------------------------------------
 # XBee hardware (optional)
 # ---------------------------------------------------------------------------
@@ -133,7 +137,10 @@ class BaseStation:
         self.input_source = input_source or InputEventSource()
 
         # SpaceMouse (6DOF HID device – independent of gamepad input pipeline)
-        self.spacemouse = SpaceMouse()
+        self._spacemouse_disconnect_pending = threading.Event()
+        self.spacemouse = SpaceMouse(
+            on_disconnect=self._on_spacemouse_disconnect
+        )
         self.spacemouse.start()
 
         # Communication subsystem
@@ -157,6 +164,15 @@ class BaseStation:
         else:
             self.log_summary_every = max(0, int(log_summary_every))
         self._log_lock = threading.Lock()
+
+    # ------------------------------------------------------------------
+    # SpaceMouse callbacks
+    # ------------------------------------------------------------------
+
+    def _on_spacemouse_disconnect(self) -> None:
+        """Called from the SpaceMouse background thread when the device is lost."""
+        self._spacemouse_disconnect_pending.set()
+        logger.info("SpaceMouse HID device disconnected")
 
     # ------------------------------------------------------------------
     # XBee initialization
@@ -395,9 +411,23 @@ class BaseStation:
         )
 
         # SpaceMouse is sent independently of Xbox/N64 (different message ID)
-        if self.spacemouse.is_connected():
+        sm_connected = self.spacemouse.is_connected()
+        if sm_connected:
+            # Discard any stale disconnect flag (device reconnected before
+            # we processed the disconnect in the control loop).
+            self._spacemouse_disconnect_pending.clear()
             sm_state = self.spacemouse.get_state()
             self.communication_manager.send_spacemouse_data(sm_state)
+        elif self._spacemouse_disconnect_pending.is_set():
+            # SpaceMouse just disconnected – send all-zeros so the rover
+            # stops whatever the SpaceMouse was controlling.
+            self._spacemouse_disconnect_pending.clear()
+            zero_state = SpaceMouse._zero_state()
+            self.communication_manager.send_spacemouse_data(zero_state)
+            # Clear dedup cache so the first real data after reconnect is
+            # guaranteed to be sent even if it happens to equal all-zeros.
+            self.communication_manager.clear_spacemouse_dedup()
+            logger.info("SpaceMouse disconnected – sent zero state to rover")
         with self._log_lock:
             if (
                 self.log_summary_every > 0
@@ -549,15 +579,52 @@ def _update_display_data(
             CONSTANTS.XBOX.NAME: xbox,
             CONSTANTS.N64.NAME: n64,
         }
-        if base_station.spacemouse.is_connected():
+
+        # SpaceMouse: add/remove from both the controller list (so the name
+        # appears in Controller Info) and the values dict (so 6DOF data is
+        # shown instead of Xbox-style axes).
+        sm_connected = base_station.spacemouse.is_connected()
+        if sm_connected:
             controller_vals[CONSTANTS.SPACEMOUSE.NAME] = (
                 base_station.spacemouse.get_state()
             )
+            if callable(getattr(display, "update_controller_display", None)):
+                display.update_controller_display(
+                    _SPACEMOUSE_DISPLAY_ID,
+                    {
+                        "name": CONSTANTS.SPACEMOUSE.NAME,
+                        "guid": "HID",
+                        "type": CONSTANTS.SPACEMOUSE.NAME,
+                    },
+                )
+        else:
+            # Remove stale SpaceMouse entry from the GUI controller list.
+            _remove_spacemouse_from_display(display)
+
         display.update_controller_values(controller_vals)
 
     telemetry = base_station.get_telemetry_data()
     if telemetry:
         display.update_telemetry(telemetry)
+
+
+def _remove_spacemouse_from_display(display: BaseDisplay) -> None:
+    """Remove the SpaceMouse entry from the GUI controllers dict, if present."""
+    controllers = getattr(display, "controllers", None)
+    if not isinstance(controllers, dict):
+        return
+    if _SPACEMOUSE_DISPLAY_ID not in controllers:
+        return
+    lock = getattr(display, "_controller_lock", None)
+    # Guard against mock objects or displays that lack a real lock.
+    try:
+        if lock is not None and hasattr(lock, "__enter__"):
+            with lock:
+                controllers.pop(_SPACEMOUSE_DISPLAY_ID, None)
+        else:
+            controllers.pop(_SPACEMOUSE_DISPLAY_ID, None)
+    except (TypeError, AttributeError):
+        controllers.pop(_SPACEMOUSE_DISPLAY_ID, None)
 
 
 def _should_run_update(current_time, timer, frequency):

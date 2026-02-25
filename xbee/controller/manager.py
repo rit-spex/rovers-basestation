@@ -167,10 +167,26 @@ class ControllerManager:
         return self.handle_hotplug_event(event)
 
     def _add_device(self, instance_id: int, name: str, guid: Optional[str] = None):
-        """Register a new controller."""
+        """Register a new controller.
+
+        SpaceMouse devices detected by the OS as gamepads are ignored here
+        because they have a dedicated HID reader (see spacemouse.py).  Routing
+        their events through the gamepad pipeline would produce incorrect
+        axis/button values.
+        """
+        controller_type = detect_controller_type(name)
+
+        # SpaceMouse is handled by the dedicated HID reader – skip gamepad
+        # registration entirely so its events don't pollute Xbox/N64 state.
+        if controller_type == CONSTANTS.SPACEMOUSE.NAME:
+            logger.info(
+                "Ignoring '%s' in gamepad pipeline (handled by SpaceMouse HID reader)",
+                name,
+            )
+            return
+
         with self._joystick_lock:
             self.joysticks[instance_id] = {"name": name, "guid": guid}
-            controller_type = detect_controller_type(name)
             if not controller_type:
                 controller_type = CONSTANTS.XBOX.NAME
                 logger.warning("Unknown controller '%s'; defaulting to xbox", name)

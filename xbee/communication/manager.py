@@ -366,6 +366,15 @@ class CommunicationManager:
             logger.exception("Failed to send SpaceMouse data")
             return False
 
+    def clear_spacemouse_dedup(self) -> None:
+        """Clear the SpaceMouse duplicate-suppression cache.
+
+        Called after a disconnect so the first message on reconnect is
+        guaranteed to be sent even if it matches the previous value.
+        """
+        with self._send_lock:
+            self.last_spacemouse_message = []
+
     def send_heartbeat(self, timestamp_ms: int = 0) -> bool:
         """
         Send a compact heartbeat message (3 bytes total).

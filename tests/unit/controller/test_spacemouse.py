@@ -1,8 +1,10 @@
 """Tests for the SpaceMouse HID input reader."""
 
 import struct
+import threading
 
 from xbee.controller.spacemouse import SpaceMouse
+from xbee.controller.detection import detect_controller_type
 from xbee.config.constants import CONSTANTS
 
 
@@ -150,3 +152,90 @@ def test_process_report_ignores_unknown_report_id():
 
     for key in ("x", "y", "z", "rx", "ry", "rz", "buttons"):
         assert state[key] == 0
+
+
+# ------------------------------------------------------------------
+# _zero_state helper
+# ------------------------------------------------------------------
+
+
+def test_zero_state_returns_all_zero():
+    """The _zero_state helper should return a dict with all zeros."""
+    state = SpaceMouse._zero_state()
+    assert set(state.keys()) == {"x", "y", "z", "rx", "ry", "rz", "buttons"}
+    for key, val in state.items():
+        assert val == 0, f"Expected {key} to be 0, got {val}"
+
+
+def test_zero_state_returns_new_dict_each_call():
+    """Each call should return an independent dict."""
+    s1 = SpaceMouse._zero_state()
+    s2 = SpaceMouse._zero_state()
+    assert s1 is not s2
+    s1["x"] = 999
+    assert s2["x"] == 0
+
+
+# ------------------------------------------------------------------
+# Disconnect callback
+# ------------------------------------------------------------------
+
+
+def test_disconnect_callback_called_on_close():
+    """_close_device should invoke on_disconnect when transitioning from connected."""
+    callback_invoked = threading.Event()
+
+    sm = SpaceMouse(on_disconnect=lambda: callback_invoked.set())
+    # Simulate the SpaceMouse being connected
+    with sm._lock:
+        sm._connected = True
+    sm._close_device()
+
+    assert callback_invoked.is_set(), "on_disconnect callback was not called"
+
+
+def test_disconnect_callback_not_called_when_already_disconnected():
+    """_close_device should NOT invoke on_disconnect when already disconnected."""
+    callback_invoked = threading.Event()
+
+    sm = SpaceMouse(on_disconnect=lambda: callback_invoked.set())
+    # _connected is False by default — closing again shouldn't trigger callback
+    sm._close_device()
+
+    assert not callback_invoked.is_set()
+
+
+def test_close_device_resets_state_to_zero():
+    """State should be reset to all zeros when the device is closed."""
+    sm = SpaceMouse()
+    # Simulate having received some data
+    with sm._lock:
+        sm._connected = True
+        sm._state["x"] = 500
+        sm._state["ry"] = -200
+        sm._state["buttons"] = 3
+
+    sm._close_device()
+    state = sm.get_state()
+
+    for key, val in state.items():
+        assert val == 0, f"Expected {key} to be 0 after close, got {val}"
+
+
+# ------------------------------------------------------------------
+# Controller detection
+# ------------------------------------------------------------------
+
+
+def test_detect_controller_type_spacemouse_by_name():
+    """SpaceMouse should be recognized by name markers."""
+    assert detect_controller_type("3Dconnexion SpaceMouse Wireless") == CONSTANTS.SPACEMOUSE.NAME
+    assert detect_controller_type("SpaceMouse Pro") == CONSTANTS.SPACEMOUSE.NAME
+    assert detect_controller_type("3DConnexion Space Mouse") == CONSTANTS.SPACEMOUSE.NAME
+
+
+def test_detect_controller_type_spacemouse_not_xbox():
+    """SpaceMouse should never fall through to Xbox detection."""
+    result = detect_controller_type("3Dconnexion SpaceMouse Wireless")
+    assert result != CONSTANTS.XBOX.NAME
+    assert result == CONSTANTS.SPACEMOUSE.NAME

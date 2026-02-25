@@ -26,7 +26,7 @@ import logging
 import struct
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from xbee.config.constants import CONSTANTS
 
@@ -64,23 +64,17 @@ class SpaceMouse:
         *,
         poll_interval: float = 0.001,
         reconnect_interval: float = 2.0,
+        on_disconnect: Optional[Callable[[], None]] = None,
     ) -> None:
         self._vendor_id = vendor_id or CONSTANTS.SPACEMOUSE.VENDOR_ID
         self._product_id = product_id or CONSTANTS.SPACEMOUSE.PRODUCT_ID
         self._poll_interval = poll_interval
         self._reconnect_interval = reconnect_interval
+        self._on_disconnect = on_disconnect
 
         # Thread-safe state
         self._lock = threading.Lock()
-        self._state: Dict[str, int] = {
-            CONSTANTS.SPACEMOUSE.AXIS_X: 0,
-            CONSTANTS.SPACEMOUSE.AXIS_Y: 0,
-            CONSTANTS.SPACEMOUSE.AXIS_Z: 0,
-            CONSTANTS.SPACEMOUSE.AXIS_RX: 0,
-            CONSTANTS.SPACEMOUSE.AXIS_RY: 0,
-            CONSTANTS.SPACEMOUSE.AXIS_RZ: 0,
-            CONSTANTS.SPACEMOUSE.BUTTONS: 0,
-        }
+        self._state: Dict[str, int] = self._zero_state()
         self._connected = False
 
         # Background thread
@@ -126,6 +120,19 @@ class SpaceMouse:
         with self._lock:
             return self._connected
 
+    @staticmethod
+    def _zero_state() -> Dict[str, int]:
+        """Return a state dict with all values set to zero."""
+        return {
+            CONSTANTS.SPACEMOUSE.AXIS_X: 0,
+            CONSTANTS.SPACEMOUSE.AXIS_Y: 0,
+            CONSTANTS.SPACEMOUSE.AXIS_Z: 0,
+            CONSTANTS.SPACEMOUSE.AXIS_RX: 0,
+            CONSTANTS.SPACEMOUSE.AXIS_RY: 0,
+            CONSTANTS.SPACEMOUSE.AXIS_RZ: 0,
+            CONSTANTS.SPACEMOUSE.BUTTONS: 0,
+        }
+
     # ------------------------------------------------------------------
     # Background thread
     # ------------------------------------------------------------------
@@ -139,7 +146,7 @@ class SpaceMouse:
 
             self._read_loop()
 
-            # Device lost – close and attempt reconnect on next iteration
+            # Device lost – close, reset state to zeros, and attempt reconnect
             self._close_device()
 
     def _read_loop(self) -> None:
@@ -162,7 +169,13 @@ class SpaceMouse:
     # ------------------------------------------------------------------
 
     def _open_device(self) -> bool:
-        """Try to open the HID device.  Returns True on success."""
+        """Try to open the HID device.  Returns True on success.
+
+        Calls ``hid.enumerate()`` before opening so that the OS device
+        list is refreshed.  Without this, hot-plugging a SpaceMouse
+        after the basestation has already started may not be detected
+        on Windows.
+        """
         try:
             import hid  # type: ignore[import-not-found]
         except ImportError:
@@ -173,6 +186,10 @@ class SpaceMouse:
             return False
 
         try:
+            # Refresh the OS HID device list (required for reliable hot-plug
+            # detection, especially on Windows).
+            hid.enumerate(self._vendor_id, self._product_id)
+
             dev = hid.device()
             dev.open(self._vendor_id, self._product_id)
             dev.set_nonblocking(True)
@@ -190,15 +207,24 @@ class SpaceMouse:
             return False
 
     def _close_device(self) -> None:
-        """Close the HID device if open."""
+        """Close the HID device if open and reset state to zeros."""
+        was_connected = False
         with self._lock:
+            was_connected = self._connected
             self._connected = False
+            self._state = self._zero_state()
         if self._dev is not None:
             try:
                 self._dev.close()
             except Exception:
                 pass
             self._dev = None
+        # Notify the app so it can send a final zeros message to the rover
+        if was_connected and self._on_disconnect is not None:
+            try:
+                self._on_disconnect()
+            except Exception:
+                logger.warning("SpaceMouse on_disconnect callback error", exc_info=True)
 
     # ------------------------------------------------------------------
     # Report parsing
