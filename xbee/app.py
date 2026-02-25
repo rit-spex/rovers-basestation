@@ -536,12 +536,7 @@ def _update_display_on_controller_add(
     if not isinstance(instance_id, int):
         return
 
-    # If the OS enumerates the SpaceMouse as a gamepad, skip adding it
-    # to the display here — it is managed by the dedicated HID reader
-    # in _update_display_data() instead.
     event_name = getattr(event, "name", "") or ""
-    if detect_controller_type(event_name) == CONSTANTS.SPACEMOUSE.NAME:
-        return
 
     controller_info = {
         "name": event_name or "Unknown",
@@ -549,11 +544,17 @@ def _update_display_on_controller_add(
         "id": instance_id,
     }
 
-    ctype = None
-    try:
-        ctype = base_station.controller_manager.get_controller_type(instance_id)
-    except Exception:
-        pass
+    # For SpaceMouse: the device is NOT registered in the gamepad pipeline
+    # (_add_device skips it), so get_controller_type returns None.  Set the
+    # "type" field explicitly so the GUI value resolver can match it with the
+    # 6DOF data provided by the HID reader.
+    ctype = detect_controller_type(event_name)
+    if ctype is None:
+        # Fallback: check the gamepad pipeline (Xbox/N64)
+        try:
+            ctype = base_station.controller_manager.get_controller_type(instance_id)
+        except Exception:
+            pass
     if ctype:
         controller_info["type"] = ctype
     if callable(getattr(display, "update_controller_display", None)):
