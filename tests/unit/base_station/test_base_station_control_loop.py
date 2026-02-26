@@ -301,6 +301,91 @@ class TestUpdateDisplayData:
         # Empty telemetry should not call update_telemetry
         mock_display.update_telemetry.assert_not_called()
 
+    def test_update_display_data_adds_fallback_spacemouse_display_row(self):
+        """When no SpaceMouse controller is registered via inputs, add HID fallback row."""
+        from xbee.config.constants import CONSTANTS
+
+        mock_base = Mock()
+        mock_base.creep_mode = False
+        mock_base.reverse_mode = False
+        mock_base.xbee_enabled = True
+        mock_base.get_telemetry_data.return_value = {}
+        mock_base.controller_manager.controller_state.get_controller_values.side_effect = [
+            {},
+            {},
+        ]
+        mock_base.spacemouse.is_connected.return_value = True
+        mock_base.spacemouse.get_state.return_value = {
+            "x": 1,
+            "y": 2,
+            "z": 3,
+            "rx": 4,
+            "ry": 5,
+            "rz": 6,
+            "buttons": 0,
+        }
+
+        mock_display = Mock()
+        mock_display.controllers = {}
+
+        _update_display_data(mock_base, mock_display, 1)
+
+        calls = mock_display.update_controller_display.call_args_list
+        assert any(call.args and call.args[0] == -1 for call in calls)
+        mock_display.update_controller_values.assert_called_once_with(
+            {
+                CONSTANTS.XBOX.NAME: {},
+                CONSTANTS.N64.NAME: {},
+                CONSTANTS.SPACEMOUSE.NAME: {
+                    "x": 1,
+                    "y": 2,
+                    "z": 3,
+                    "rx": 4,
+                    "ry": 5,
+                    "rz": 6,
+                    "buttons": 0,
+                },
+            }
+        )
+
+    def test_update_display_data_avoids_duplicate_spacemouse_display_row(self):
+        """If inputs already registered SpaceMouse, do not add synthetic HID row."""
+        from xbee.config.constants import CONSTANTS
+
+        mock_base = Mock()
+        mock_base.creep_mode = False
+        mock_base.reverse_mode = False
+        mock_base.xbee_enabled = True
+        mock_base.get_telemetry_data.return_value = {}
+        mock_base.controller_manager.controller_state.get_controller_values.side_effect = [
+            {},
+            {},
+        ]
+        mock_base.spacemouse.is_connected.return_value = True
+        mock_base.spacemouse.get_state.return_value = {
+            "x": 11,
+            "y": 22,
+            "z": 33,
+            "rx": 44,
+            "ry": 55,
+            "rz": 66,
+            "buttons": 1,
+        }
+
+        mock_display = Mock()
+        mock_display.controllers = {
+            7: {
+                "name": "3Dconnexion SpaceMouse Wireless",
+                "guid": "3Dconnexion SpaceMouse Wireless-1",
+                "type": CONSTANTS.SPACEMOUSE.NAME,
+            }
+        }
+
+        _update_display_data(mock_base, mock_display, 2)
+
+        calls = mock_display.update_controller_display.call_args_list
+        assert not any(call.args and call.args[0] == -1 for call in calls)
+
 
 class TestRunUpdateCycle:
     """Test _run_update_cycle function."""

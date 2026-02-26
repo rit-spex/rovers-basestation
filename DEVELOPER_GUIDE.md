@@ -429,6 +429,8 @@ export ROVER_PROTOCOL_TRACE=1 && python -m xbee
    ```
 **Note:** #6 might actually get changed by me in the future to be more automated once I figure out how to update parents that depend on the submodule on a protocol defining commit of the submodule, but for now it's manual.
 
+7. **VM/container input permissions can look like dead controllers.** If SpaceMouse/gamepads work only when running the container as `root`, passthrough is usually fine and user permissions are the real issue. Fix `devices` + `device_cgroup_rules` + `group_add` (typically `input` / `plugdev`) instead of keeping root.
+
 ---
 
 ## Future Refactoring Notes

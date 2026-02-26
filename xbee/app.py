@@ -690,26 +690,7 @@ def _update_display_data(
             CONSTANTS.N64.NAME: n64,
         }
 
-        # SpaceMouse: add/remove from both the controller list (so the name
-        # appears in Controller Info) and the values dict (so 6DOF data is
-        # shown instead of Xbox-style axes).
-        sm_connected = base_station.spacemouse.is_connected()
-        if sm_connected:
-            controller_vals[CONSTANTS.SPACEMOUSE.NAME] = (
-                base_station.spacemouse.get_state()
-            )
-            if callable(getattr(display, "update_controller_display", None)):
-                display.update_controller_display(
-                    _SPACEMOUSE_DISPLAY_ID,
-                    {
-                        "name": CONSTANTS.SPACEMOUSE.NAME,
-                        "guid": "HID",
-                        "type": CONSTANTS.SPACEMOUSE.NAME,
-                    },
-                )
-        else:
-            # Remove stale SpaceMouse entry from the GUI controller list.
-            _remove_spacemouse_from_display(display)
+        _sync_spacemouse_display_and_values(base_station, display, controller_vals)
 
         display.update_controller_values(controller_vals)
 
@@ -735,6 +716,65 @@ def _remove_spacemouse_from_display(display: BaseDisplay) -> None:
             controllers.pop(_SPACEMOUSE_DISPLAY_ID, None)
     except (TypeError, AttributeError):
         controllers.pop(_SPACEMOUSE_DISPLAY_ID, None)
+
+
+def _sync_spacemouse_display_and_values(
+    base_station: BaseStation,
+    display: BaseDisplay,
+    controller_vals: Dict[str, Any],
+) -> None:
+    """Merge SpaceMouse values and keep at most one GUI SpaceMouse row."""
+    sm_connected = base_station.spacemouse.is_connected()
+    if sm_connected:
+        controller_vals[CONSTANTS.SPACEMOUSE.NAME] = base_station.spacemouse.get_state()
+        _ensure_single_spacemouse_display_row(display)
+        return
+
+    # SpaceMouse disconnected: remove stale synthetic fallback row.
+    _remove_spacemouse_from_display(display)
+
+
+def _ensure_single_spacemouse_display_row(display: BaseDisplay) -> None:
+    """Prefer inputs-discovered SpaceMouse row; add HID fallback only if needed."""
+    if not callable(getattr(display, "update_controller_display", None)):
+        return
+
+    if _display_has_spacemouse_controller(display):
+        _remove_spacemouse_from_display(display)
+        return
+
+    display.update_controller_display(
+        _SPACEMOUSE_DISPLAY_ID,
+        {
+            "name": CONSTANTS.SPACEMOUSE.NAME,
+            "guid": "HID",
+            "type": CONSTANTS.SPACEMOUSE.NAME,
+        },
+    )
+
+
+def _display_has_spacemouse_controller(display: BaseDisplay) -> bool:
+    """Return True if display already has a non-synthetic SpaceMouse entry."""
+    controllers = getattr(display, "controllers", None)
+    if not isinstance(controllers, dict):
+        return False
+
+    target_type = CONSTANTS.SPACEMOUSE.NAME.lower()
+    for controller_id, controller_data in controllers.items():
+        if controller_id == _SPACEMOUSE_DISPLAY_ID:
+            continue
+        if not isinstance(controller_data, dict):
+            continue
+
+        ctype = controller_data.get("type")
+        if isinstance(ctype, str) and ctype.lower() == target_type:
+            return True
+
+        name = controller_data.get("name")
+        if isinstance(name, str) and detect_controller_type(name) == CONSTANTS.SPACEMOUSE.NAME:
+            return True
+
+    return False
 
 
 def _should_run_update(current_time, timer, frequency):

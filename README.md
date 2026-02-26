@@ -79,6 +79,8 @@ If controllers work on host Linux but not inside an Ubuntu VM/container, the usu
 - Add device cgroup rules and group permissions as needed (for example `group_add` for `input`/`plugdev`).
 - If using restrictive security settings, ensure device access is not blocked by container policy.
 
+> If SpaceMouse/gamepads work only when running the container as `root`, passthrough is usually fine and user permissions are the real issue. Fix `devices` + `device_cgroup_rules` + `group_add` (typically `input` / `plugdev`) instead of keeping root.
+
 Compose supports `devices`, `device_cgroup_rules`, `group_add`, and `privileged` (use with care).
 
 #### Built-in diagnostics
