@@ -358,6 +358,8 @@ Signals are packed left-to-right starting from the MSB of byte 1 (byte 0 is the 
 | `0x03` | n64 | A, B, L, R, C_UP, C_DOWN, C_LEFT, C_RIGHT, DP_UP–DP_RIGHT, Z |
 | `0x04` | quit | QUIT (1-bit bool) |
 | `0x05` | auto_state | auto_state (8-bit) |
+| `0x06` | spacemouse | x, y, z, rx, ry, rz (INT_16), buttons (UINT_16) |
+| `0x07` | keyboard | 15 life detection signals (UINT_8 each, 0–3 press states) |
 
 **From Rover (rover → basestation telemetry):**
 
@@ -421,13 +423,30 @@ export ROVER_PROTOCOL_TRACE=1 && python -m xbee
 
 5. **Simulation mode.** When XBee hardware isn't available, the system automatically falls back to UDP simulation. This is transparent to the rest of the code. Force it with `CONSTANTS.SIMULATION_MODE = True` in `xbee/config/constants.py`. Protocol tracing is **automatically enabled** in simulation mode so you can see every packet going in and out — that's the whole point of simulation.
 
-6. **Protocol changes require updating the submodule in both repos.** After pushing a change to `rovers-protocol`, update the submodule reference in both `rovers-basestation` and `rovers-ros` with:
+6. **Protocol changes require updating the submodule in both repos.** After pushing a change to `rovers-protocol`, update the submodule reference in both `rovers-basestation` and `rovers-ros`:
+
+   **Pull latest (most common):**
    ```bash
    cd lib/rovers-protocol && git pull origin main && cd ../..
    git add lib/rovers-protocol
    git commit -m "Update protocol submodule"
    ```
-**Note:** #6 might actually get changed by me in the future to be more automated once I figure out how to update parents that depend on the submodule on a protocol defining commit of the submodule, but for now it's manual.
+
+   **Pin to a specific commit:**
+   ```bash
+   cd lib/rovers-protocol && git checkout <commit-hash> && cd ../..
+   git add lib/rovers-protocol
+   git commit -m "Pin protocol submodule to <commit-hash>"
+   ```
+
+   **Or use `git submodule update --remote` from the parent repo:**
+   ```bash
+   git submodule update --remote lib/rovers-protocol
+   git add lib/rovers-protocol
+   git commit -m "Update protocol submodule"
+   ```
+
+   Repeat for both `rovers-basestation` and `rovers-ros` so they stay in sync.
 
 7. **VM/container input permissions can look like dead controllers.** If SpaceMouse/gamepads work only when running the container as `root`, passthrough is usually fine and user permissions are the real issue. Fix `devices` + `device_cgroup_rules` + `group_add` (typically `input` / `plugdev`) instead of keeping root.
 

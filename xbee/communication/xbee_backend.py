@@ -23,9 +23,7 @@ PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElemen
 
 
 class XbeeCommunicationManager:
-    """Sends messages over real XBee radio hardware.
-
-    Features:
+    """Features:
         - Duplicate message suppression (skips if same as last sent)
         - Inflight tracking (if another thread is sending the same payload,
           wait for its result instead of sending again)
@@ -138,7 +136,6 @@ class XbeeCommunicationManager:
         self._telemetry_handler = handler
 
     def _convert_to_bytes(self, data: PayloadLike) -> bytes:
-        """Convert data to bytes using the shared utility."""
         return convert_to_bytes(data)
 
     # --- Internal helpers ---

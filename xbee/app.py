@@ -40,6 +40,7 @@ from xbee.controller.events import (
 )
 from xbee.controller.detection import detect_controller_type
 from xbee.controller.input_source import InputEventSource, InputSourceError
+from xbee.controller.keyboard import KeyboardInput
 from xbee.controller.manager import ControllerManager, InputProcessor
 from xbee.controller.spacemouse import SpaceMouse
 from xbee.display.base import BaseDisplay, create_display
@@ -127,12 +128,7 @@ def _log_linux_input_runtime_diagnostics(
     spacemouse_vendor_id: int,
     inputs_enabled: bool,
 ) -> None:
-    """Log actionable diagnostics for Linux input/HID visibility.
-
-    This is intentionally lightweight and runs once at startup. It helps make
-    VM/container passthrough issues explicit (missing /dev/input, /dev/hidraw,
-    or HID enumeration) instead of failing silently.
-    """
+    """Log Linux input/HID diagnostics at startup."""
     if not sys.platform.startswith("linux"):
         return
     if not _env_flag("XBEE_INPUT_DIAGNOSTICS", default=True):
@@ -240,6 +236,14 @@ class BaseStation:
             on_disconnect=self._on_spacemouse_disconnect
         )
         self.spacemouse.start()
+
+        # Keyboard input (life detection control – independent of gamepad pipeline)
+        self._keyboard_disconnect_pending = threading.Event()
+        self.keyboard = KeyboardInput(
+            on_disconnect=self._on_keyboard_disconnect
+        )
+        self.keyboard.start()
+        self._last_kb_state: Dict[str, int] = {}  # cached for display
         _log_linux_input_runtime_diagnostics(
             spacemouse_vendor_id=CONSTANTS.SPACEMOUSE.VENDOR_ID,
             inputs_enabled=bool(getattr(self.input_source, "enabled", False)),
@@ -272,9 +276,14 @@ class BaseStation:
     # ------------------------------------------------------------------
 
     def _on_spacemouse_disconnect(self) -> None:
-        """Called from the SpaceMouse background thread when the device is lost."""
         self._spacemouse_disconnect_pending.set()
-        logger.info("SpaceMouse HID device disconnected")
+        self.quit = True
+        logger.info("SpaceMouse HID device disconnected – triggering quit")
+
+    def _on_keyboard_disconnect(self) -> None:
+        self._keyboard_disconnect_pending.set()
+        self.quit = True
+        logger.info("Keyboard disconnected – triggering quit")
 
     # ------------------------------------------------------------------
     # XBee initialization
@@ -417,7 +426,6 @@ class BaseStation:
     # ------------------------------------------------------------------
 
     def send_command(self, event: InputEvent):
-        """Route a single input event to the appropriate handler."""
         if (
             not self.controller_manager.has_joysticks()
             and event.type not in _HOTPLUG_EVENTS
@@ -530,6 +538,21 @@ class BaseStation:
             # guaranteed to be sent even if it happens to equal all-zeros.
             self.communication_manager.clear_spacemouse_dedup()
             logger.info("SpaceMouse disconnected – sent zero state to rover")
+
+        # Keyboard is sent independently (different message ID)
+        kb_connected = self.keyboard.is_connected()
+        if kb_connected:
+            self._keyboard_disconnect_pending.clear()
+            kb_state = self.keyboard.get_state()
+            self._last_kb_state = kb_state  # cache for display
+            self.communication_manager.send_keyboard_data(kb_state)
+        elif self._keyboard_disconnect_pending.is_set():
+            self._keyboard_disconnect_pending.clear()
+            zero_state = KeyboardInput._zero_state()
+            self.communication_manager.send_keyboard_data(zero_state)
+            self.communication_manager.clear_keyboard_dedup()
+            logger.info("Keyboard disconnected – sent zero state to rover")
+
         with self._log_lock:
             if (
                 self.log_summary_every > 0
@@ -598,6 +621,11 @@ class BaseStation:
                 self.spacemouse.stop()
             except Exception:
                 logger.exception("Error stopping SpaceMouse")
+        if getattr(self, "keyboard", None):
+            try:
+                self.keyboard.stop()
+            except Exception:
+                logger.exception("Error stopping keyboard input")
 
     # ------------------------------------------------------------------
     # Mode properties
@@ -693,6 +721,13 @@ def _update_display_data(
         _sync_spacemouse_display_and_values(base_station, display, controller_vals)
 
         display.update_controller_values(controller_vals)
+
+    # Keyboard state for display (use cached state to avoid double-advancing
+    # the state machine — get_state() has side effects)
+    if hasattr(display, "update_keyboard_state"):
+        kb_connected = base_station.keyboard.is_connected()
+        kb_state = base_station._last_kb_state if kb_connected else {}
+        display.update_keyboard_state(kb_state, kb_connected)
 
     telemetry = base_station.get_telemetry_data()
     if telemetry:
@@ -905,6 +940,13 @@ def main():
     if hasattr(display, "set_simulation_mode"):
         display.set_simulation_mode(not base_station.xbee_enabled)
 
+    # Bind keyboard events to tkinter window as a fallback input source.
+    # The `inputs` library captures global key events but may not work on
+    # all platforms (e.g. Windows without elevated permissions).  Tkinter
+    # key bindings work reliably when the GUI window is focused.
+    if hasattr(display, "root") and display.root is not None:
+        base_station.keyboard.bind_tkinter(display.root)
+
     control_loop = _create_control_loop(base_station, display)
     control_thread = threading.Thread(target=control_loop, daemon=True)
     control_thread.start()
@@ -930,9 +972,11 @@ def main():
         base_station.quit = True
         raise
     finally:
-        control_thread.join(timeout=3.0)
+        control_thread.join(timeout=5.0)
         if control_thread.is_alive():
-            logger.warning("Control thread did not exit within 3s")
+            logger.warning("Control thread did not exit within 5s")
+        import sys
+        sys.exit(0)
 
 
 if __name__ == "__main__":

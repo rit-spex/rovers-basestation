@@ -38,13 +38,6 @@ def _get_controller_names():
 def detect_controller_type(name: str) -> Optional[str]:
     """Detect controller type from its name string.
 
-    Args:
-        name: The controller's reported name (e.g., "Xbox Wireless Controller").
-
-    Returns:
-        The canonical controller name ("xbox", "n64", "3Dconnexion SpaceMouse"),
-        or ``None`` if unrecognized.
-
     Examples:
         >>> detect_controller_type("Xbox Wireless Controller")
         'xbox'

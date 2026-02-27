@@ -1,11 +1,4 @@
-"""
-Telemetry interpretation helpers for the display system.
-
-These functions interpret raw telemetry dictionary values into
-display-friendly formats (booleans, status strings, colors, etc.).
-
-Used by both TkinterDisplay and potentially other display backends.
-"""
+"""Telemetry interpretation helpers for the display system."""
 
 import re
 from typing import Any, Dict, Optional

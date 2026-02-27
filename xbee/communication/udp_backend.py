@@ -67,11 +67,7 @@ class UdpMessage:
 
 
 class SimulationCommunicationManager:
-    """Convenience wrapper for UdpCommunicationManager with telemetry handler support.
-
-    This class provides a simplified interface for simulation mode, automatically
-    starting the UDP manager and providing telemetry handler registration.
-    """
+    """Convenience wrapper for UdpCommunicationManager with telemetry handler support."""
 
     def __init__(self, auto_start: bool = True):
         self.udp_manager = UdpCommunicationManager(auto_start=auto_start)
@@ -221,7 +217,6 @@ class UdpCommunicationManager:
         validate_byte_sequence(data)
 
     def _convert_to_bytes(self, data: PayloadLike) -> bytes:
-        """Convert data to bytes using the shared utility."""
         return convert_to_bytes(data)
 
     def _extract_recvfrom_bytes(self, result) -> Optional[bytes]:

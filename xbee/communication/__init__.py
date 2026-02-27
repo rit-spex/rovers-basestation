@@ -11,9 +11,6 @@ DATA FLOW:
         |    OR
         +--> UdpCommunicationManager   (simulation: UDP sockets)
 
-You usually only interact with CommunicationManager, which picks
-the right backend automatically based on simulation_mode.
-
 Modules:
     manager       - CommunicationManager: main interface for sending data
     xbee_backend  - XbeeCommunicationManager: real XBee radio transport

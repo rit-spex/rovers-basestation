@@ -9,7 +9,6 @@ from xbee.app import main
 
 
 def run() -> int:
-    """Execute the package entrypoint and return an exit code."""
     try:
         main()
         return 0

@@ -1,11 +1,7 @@
-"""
-Heartbeat manager.
+"""Heartbeat manager.
 
 Sends periodic heartbeat signals with timestamp data so the rover
 knows the basestation is still alive.
-
-Simple timer: checks if enough time has passed since the last heartbeat,
-and if so, tells CommunicationManager to send one.
 """
 
 import time
@@ -28,7 +24,6 @@ class HeartbeatManager:
         self._heartbeat_interval = CONSTANTS.HEARTBEAT.INTERVAL
 
     def should_send_heartbeat(self) -> bool:
-        """Has enough time passed since the last heartbeat?"""
         return (time.time_ns() - self._last_heartbeat_time) >= self._heartbeat_interval
 
     def send_heartbeat(self) -> bool:
@@ -47,11 +42,9 @@ class HeartbeatManager:
         return False
 
     def set_interval(self, interval_ns: int):
-        """Set heartbeat interval in nanoseconds."""
         self._heartbeat_interval = interval_ns
 
     def get_interval(self) -> int:
-        """Get heartbeat interval in nanoseconds."""
         return self._heartbeat_interval
 
     def reset_heartbeat(self) -> None:

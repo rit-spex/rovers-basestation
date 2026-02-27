@@ -1,12 +1,4 @@
-"""
-Display system base classes and factory.
-
-This module contains:
-- BaseDisplay: Abstract interface that BaseStation calls
-- HeadlessDisplay: Logging-only implementation for daemon/headless environments
-- create_display(): Factory that picks the right implementation
-- Tkinter stubs for headless/test environments
-- UI layout constants
+"""Display system base classes and factory.
 
 To add a new display method to BaseStation, add it to BaseDisplay,
 then implement it in HeadlessDisplay (log-only) and TkinterDisplay (GUI).
@@ -31,7 +23,7 @@ def _env_flag_enabled(name: str) -> bool:
 # Layout constants
 # ---------------------------------------------------------------------------
 WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 480
+WINDOW_HEIGHT = 560
 SIDEBAR_WIDTH = 140
 SIDEBAR_PADDING = (4, 4)
 INDICATOR_SIZE = 30
@@ -42,13 +34,14 @@ PANEL_LABEL_STYLE = f"{PANEL_STYLE}.Label"
 SIDEBAR_LABEL_STYLE = "Sidebar.TLabel"
 SIDEBAR_SMALL_STYLE = "SidebarSmall.TLabel"
 
-DEFAULT_MODULE_VIEW_KEY = "life"
+DEFAULT_MODULE_VIEW_KEY = "nothing"
 MODULE_VIEW_LABELS = {
+    "nothing": "Nothing",
     "life": "Life Detection",
     "auto": "Autonomous",
     "arm": "Arm",
 }
-MODULE_VIEW_ORDER = ("life", "auto", "arm")
+MODULE_VIEW_ORDER = ("nothing", "life", "auto", "arm")
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +53,7 @@ class _GenericWidgetStub:
     """No-op widget used in headless / test environments."""
 
     def __init__(self, *args, **kwargs):
-        pass  # Stub: intentionally empty
+        pass
 
     def grid(self, *args, **kwargs):
         return None
@@ -194,11 +187,7 @@ except ImportError:
 
 
 class BaseDisplay(abc.ABC):
-    """Abstract display interface used by BaseStation.
-
-    Every method here is called from the control loop or main().
-    Implement all of them to create a new display backend.
-    """
+    """Abstract display interface used by BaseStation."""
 
     @abc.abstractmethod
     def update_controller_display(

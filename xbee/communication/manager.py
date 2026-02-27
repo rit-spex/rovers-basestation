@@ -38,24 +38,11 @@ PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElemen
 
 
 class MessageFormatter:
-    """
-    Formats controller data into XBee transmission msgs.
-    """
-
     def __init__(self):
         self.encoder = MessageEncoder()
 
     def create_xbox_message(self, values: Dict, reverse_mode: bool = False) -> list:
-        """
-        Create Xbox controller msg for transmission.
-
-        Args:
-            values: Xbox controller values dict
-            reverse_mode: Whether reverse mode is enabled
-
-            Returns:
-            list[int]: Formatted msg data (each element is a single byte integer)
-        """
+        """Create Xbox controller msg for transmission."""
 
         temp_dict = values.copy()
 
@@ -87,15 +74,7 @@ class MessageFormatter:
         )
 
     def create_n64_message(self, values: Dict) -> list:
-        """
-        Create N64 controller msg for transmission.
-
-        Args:
-            values: N64 controller values dict
-
-            Returns:
-            list[int]: Formatted msg data (each element is a single byte integer)
-        """
+        """Create N64 controller msg for transmission."""
 
         # Pack N64 button data.
         #
@@ -114,16 +93,7 @@ class MessageFormatter:
         )
 
     def create_combined_message(self, xbox_values: Dict, n64_values: Dict) -> list:
-        """
-        Create a combined message containing both Xbox and N64 controller data.
-
-        Args:
-            xbox_values: Xbox controller values dict
-            n64_values: N64 controller values dict
-
-        Returns:
-            list[int]: Combined message data as a list of byte integers
-        """
+        """Create a combined Xbox + N64 message with START_MESSAGE prefix."""
         # Create individual messages
         xbox_message = self.create_xbox_message(xbox_values)
         n64_message = self.create_n64_message(n64_values)
@@ -134,35 +104,26 @@ class MessageFormatter:
         return [start_byte] + xbox_message + n64_message
 
     def create_spacemouse_message(self, values: Dict) -> list:
-        """
-        Create SpaceMouse 6DOF message for transmission.
-
-        Args:
-            values: SpaceMouse state dict with keys x, y, z, rx, ry, rz, buttons.
-
-        Returns:
-            list[int]: Formatted message data (each element is a single byte integer)
-        """
+        """Create SpaceMouse 6DOF message for transmission."""
         return list(
             self.encoder.encode_data(
                 values, CONSTANTS.COMPACT_MESSAGES.SPACEMOUSE_ID
             )
         )
 
+    def create_keyboard_message(self, values: Dict) -> list:
+        """Create keyboard input message for transmission."""
+        return list(
+            self.encoder.encode_data(
+                values, CONSTANTS.COMPACT_MESSAGES.KEYBOARD_ID
+            )
+        )
+
 
 class CommunicationManager:
-    """
-    Manages XBee comms and msg transmission.
-    """
-
     def __init__(
         self, xbee_device=None, remote_xbee=None, simulation_mode: bool = False
     ):
-        """
-        Args:
-            xbee_device: XBee device instance
-            remote_xbee: Remote XBee device instance
-        """
         self.xbee_device = xbee_device
         self.remote_xbee = remote_xbee
 
@@ -185,6 +146,7 @@ class CommunicationManager:
         self.last_combined_message: list = []
         self.last_auto_state_message: list = []
         self.last_spacemouse_message: list = []
+        self.last_keyboard_message: list = []
         self.simulation_mode = simulation_mode
         self.enabled = True
         # In simulation mode the whole point is verifying communication, so
@@ -233,17 +195,7 @@ class CommunicationManager:
     def send_controller_data(
         self, xbox_values: Dict, n64_values: Dict, reverse_mode: bool = False
     ) -> bool:
-        """
-        Send controller data via XBee using compact 10-byte format.
-
-        Args:
-            xbox_values: Xbox controller vals
-            n64_values: N64 controller vals
-            reverse_mode: Whether reverse mode is enabled
-
-        Returns:
-            bool: True if the message was sent or if a duplicate was suppressed, False if failed
-        """
+        """Send controller data to the rover."""
 
         try:
             message_sent = False
@@ -313,7 +265,6 @@ class CommunicationManager:
         return success
 
     def _send_xbox_message_if_new(self, xbox_values: Dict, reverse_mode: bool) -> bool:
-        """Send Xbox message if changed compared to the last sent message."""
         xbox_message = self.formatter.create_xbox_message(xbox_values, reverse_mode)
         # Best-effort duplicate suppression (TOCTOU race possible); use locks or an inflight primitive for strict semantics.
         with self._send_lock:
@@ -327,7 +278,6 @@ class CommunicationManager:
         return success
 
     def _send_n64_message_if_new(self, n64_values: Dict) -> bool:
-        """Send N64 message if changed compared to the last sent message."""
         n64_message = self.formatter.create_n64_message(n64_values)
         # Best-effort duplicate suppression (TOCTOU race possible); use locks or an inflight primitive for strict semantics.
         with self._send_lock:
@@ -341,14 +291,7 @@ class CommunicationManager:
         return success
 
     def send_spacemouse_data(self, spacemouse_values: Dict) -> bool:
-        """Send SpaceMouse 6DOF data to the rover.
-
-        Args:
-            spacemouse_values: Dict with keys x, y, z, rx, ry, rz, buttons.
-
-        Returns:
-            bool: True if sent (or duplicate suppressed), False on failure.
-        """
+        """Send SpaceMouse 6DOF data to the rover."""
         if not spacemouse_values:
             return True
 
@@ -375,21 +318,34 @@ class CommunicationManager:
         with self._send_lock:
             self.last_spacemouse_message = []
 
+    def send_keyboard_data(self, keyboard_values: Dict) -> bool:
+        """Send keyboard input data to the rover."""
+        if not keyboard_values:
+            return True
+
+        try:
+            kb_message = self.formatter.create_keyboard_message(keyboard_values)
+            with self._send_lock:
+                if kb_message == self.last_keyboard_message:
+                    return True  # duplicate suppressed
+            success = self.send_package(bytes(kb_message))
+            if success:
+                with self._send_lock:
+                    self.last_keyboard_message = kb_message
+            return success
+        except Exception:
+            logger.exception("Failed to send keyboard data")
+            return False
+
+    def clear_keyboard_dedup(self) -> None:
+        with self._send_lock:
+            self.last_keyboard_message = []
+
     def send_heartbeat(self, timestamp_ms: int = 0) -> bool:
         """
         Send a compact heartbeat message (3 bytes total).
 
         Format: [HEARTBEAT_ID (1 byte)] [TIMESTAMP (2 bytes)]
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (0-65535). If 0, current time is used.
-
-        Returns:
-            bool: True if sent successfully
-
-        Example:
-            comm.send_heartbeat()  # Auto timestamp
-            comm.send_heartbeat(1234)  # Custom timestamp
         """
 
         if timestamp_ms == 0:
@@ -433,7 +389,6 @@ class CommunicationManager:
         self.enabled = False
 
     def cleanup(self) -> None:
-        """Release backend resources if supported by the selected transport."""
         cleanup_fn = getattr(self.hardware_com, "cleanup", None)
         if callable(cleanup_fn):
             cleanup_fn()
@@ -465,21 +420,6 @@ class CommunicationManager:
     ) -> bool:
         """
         Send a compact custom message (as few bytes as possible).
-
-        Args:
-            data: Bytes to send. Accepts bytes-like objects or a list containing ints (0..255) or
-                  bytes-like elements (or a mix of both). Examples include:
-                  - bytes
-                  - bytearray
-                  - memoryview
-                  - List[int] (e.g., [0xAA, 0x01])
-                  - List[Union[int, bytes]] (e.g., [b'\xaa', 0x01, 0x02])
-            skip_duplicate_check: If True, always send even if identical to last message
-            retry_count: Number of times to retry on failure (0 = no retries, just single attempt).
-                        Use retry_count > 0 for critical messages like quit commands.
-
-        Returns:
-            bool: True if sent successfully or if a duplicate was suppressed, False otherwise
 
         Raises:
             ValueError: Raised when the payload contains invalid data types or integer
@@ -535,16 +475,7 @@ class CommunicationManager:
     def send_compact_message(
         self, data: Sequence[ByteElement], skip_duplicate_check: bool = False
     ) -> bool:
-        """
-        Send a compact custom message (as few bytes as possible).
-
-        Args:
-            data: List of bytes or integers to send
-            skip_duplicate_check: If True, always send even if identical to last message
-
-        Returns:
-            bool: True if sent successfully, False otherwise
-        """
+        """Send a compact custom message (as few bytes as possible)."""
         # Validate/normalize items first: ensure all list elements are ints or bytes-like
         self._validate_compact_message_list(data)
 
@@ -553,9 +484,6 @@ class CommunicationManager:
         return self._hardware_send_or_convert(data, skip_duplicate_check)
 
     def _validate_compact_message_list(self, data: Sequence[ByteElement]) -> None:
-        """Validate a compact message list to ensure each entry is either an
-        integer 0..255 or a bytes-like object convertible to bytes.
-        """
         if not isinstance(data, AbcSequence):
             raise TypeError("data must be a sequence of ints or bytes-like objects")
 
@@ -567,8 +495,6 @@ class CommunicationManager:
                     )
             elif not isinstance(item, (bytes, bytearray, memoryview)):
                 raise ValueError(f"Unsupported data type at index {idx}: {type(item)}")
-
-    # NOTE: _convert_compact_list_to_bytes was removed; use the consolidated `_convert_list_to_bytes` helper instead.
 
     def _hardware_send_or_convert(
         self, data: Sequence[ByteElement], skip_duplicate_check: bool
@@ -606,16 +532,7 @@ class CommunicationManager:
             return False
 
     def _normalize_package_payload(self, data: PayloadLike) -> PayloadLike:
-        """Normalize package payloads for `send_package`.
-
-        Accepts bytes-like objects and lists of ints (0..255). If a list contains
-        bytes-like elements, it will be converted to a single bytes object. If a
-        list contains only ints, it is returned as-is.
-
-        Raises:
-            ValueError: For unsupported element types or integer values out of
-                        the 0..255 range.
-        """
+        """Normalize package payloads for `send_package`."""
         if isinstance(data, (bytes, bytearray, memoryview)):
             return data
 
@@ -631,14 +548,9 @@ class CommunicationManager:
         raise TypeError("data must be bytes-like or a sequence of ints (0..255)")
 
     def _list_contains_bytes_like(self, data: Sequence) -> bool:
-        """Return True if any element in the list is bytes-like."""
         return any(isinstance(item, (bytes, bytearray, memoryview)) for item in data)
 
     def _validate_int_list(self, data: Sequence) -> None:
-        """Validate all items in the list are ints in range 0..255.
-
-        Raises ValueError on invalid types or out-of-range values.
-        """
         for idx, item in enumerate(data):
             if not isinstance(item, int):
                 raise ValueError(f"Unsupported data type at index {idx}: {type(item)}")
@@ -648,8 +560,4 @@ class CommunicationManager:
                 )
 
     def _convert_list_to_bytes(self, data: Sequence[ByteElement]) -> bytes:
-        """Convert a validated sequence of ints and bytes-like elements to bytes.
-
-        Uses the shared convert_to_bytes utility for consistent behavior.
-        """
         return convert_to_bytes(data)

@@ -53,11 +53,7 @@ class InputSourceError(RuntimeError):
 
 
 class InputEventSource:
-    """Background input reader backed by the ``inputs`` library.
-
-    Call ``poll_events()`` from your main loop to drain queued events.
-    Call ``stop()`` to shut down all background threads.
-    """
+    """Background input reader backed by the ``inputs`` library."""
 
     _fallback_id_counter = itertools.count(1)
 
@@ -147,7 +143,6 @@ class InputEventSource:
     # ------------------------------------------------------------------
 
     def stop(self) -> None:
-        """Signal background threads to stop and wait for them."""
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             join_timeout = 1.0 if self._allow_blocking_read else 0.1

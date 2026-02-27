@@ -414,3 +414,41 @@ class TestControllerDisconnect:
             base.quit is True
         ), "BaseStation should quit when one of the controllers is disconnected"
         assert len(base.controller_manager.joysticks) == 1
+
+
+class TestPeripheralDisconnectTriggersQuit:
+    """Keyboard and SpaceMouse disconnects should trigger quit (e-stop)."""
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    def test_keyboard_disconnect_triggers_quit(self, mock_heartbeat, mock_comm):
+        """Keyboard on_disconnect callback should set base.quit = True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        assert base.quit is False
+
+        # Simulate keyboard disconnect callback
+        base._on_keyboard_disconnect()
+
+        assert base.quit is True, (
+            "BaseStation should quit when keyboard disconnects"
+        )
+        assert base._keyboard_disconnect_pending.is_set()
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    def test_spacemouse_disconnect_triggers_quit(self, mock_heartbeat, mock_comm):
+        """SpaceMouse on_disconnect callback should set base.quit = True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        assert base.quit is False
+
+        # Simulate SpaceMouse disconnect callback
+        base._on_spacemouse_disconnect()
+
+        assert base.quit is True, (
+            "BaseStation should quit when SpaceMouse disconnects"
+        )
+        assert base._spacemouse_disconnect_pending.is_set()

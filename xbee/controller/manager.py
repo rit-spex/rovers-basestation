@@ -100,16 +100,7 @@ _CONTROLLER_CONSTANTS = {
 
 
 class ControllerManager:
-    """Tracks connected controllers and manages mode flags.
-
-    Attributes:
-        joysticks:              Dict of connected controllers {instance_id: info}
-        instance_id_values_map: Maps instance_id -> controller type ("xbox"/"n64")
-        controller_state:       ControllerState storing current input values
-        creep_mode:             True = slow speed (20%)
-        reverse_mode:           True = inverted controls
-        input_processor:        InputProcessor for translating events
-    """
+    """Tracks connected controllers and manages mode flags."""
 
     def __init__(self):
         self.joysticks = {}
@@ -193,7 +184,6 @@ class ControllerManager:
             self.instance_id_values_map[instance_id] = controller_type
 
     def _remove_device(self, instance_id: int):
-        """Unregister a disconnected controller."""
         with self._joystick_lock:
             self.joysticks.pop(instance_id, None)
             self.instance_id_values_map.pop(instance_id, None)
@@ -201,7 +191,6 @@ class ControllerManager:
     # --- Input handling ---
 
     def handle_axis_motion(self, event: InputEvent) -> None:
-        """Route axis events to either joystick or trigger processor."""
         if event.axis in _ALL_JOYSTICK_AXES:
             self.input_processor.process_joystick_axis(event)
         else:
@@ -232,17 +221,14 @@ class ControllerManager:
         return False
 
     def get_controller_type(self, instance_id: int) -> Optional[str]:
-        """Get controller type for an instance ID."""
         with self._joystick_lock:
             return self.instance_id_values_map.get(instance_id)
 
     def get_joystick(self, instance_id: int):
-        """Get device info dict for an instance ID."""
         with self._joystick_lock:
             return self.joysticks.get(instance_id)
 
     def has_joysticks(self) -> bool:
-        """Are any controllers connected?"""
         with self._joystick_lock:
             return bool(self.joysticks)
 
@@ -299,7 +285,6 @@ class InputProcessor:
         self.trigger_activation_threshold = _default_trigger_activation_threshold()
 
     def process_joystick_axis(self, event: InputEvent) -> None:
-        """Process a joystick axis movement event."""
         instance_id = getattr(event, "instance_id", None)
         if instance_id is None or event.axis is None or event.value is None:
             return
@@ -361,7 +346,6 @@ class InputProcessor:
         )
 
     def process_button(self, event: InputEvent) -> None:
-        """Process a button press/release event."""
         instance_id = getattr(event, "instance_id", None)
         if instance_id is None or event.button is None:
             return
@@ -391,7 +375,6 @@ class InputProcessor:
         )
 
     def process_joypad(self, event: InputEvent) -> None:
-        """Process a D-pad / hat event."""
         instance_id = getattr(event, "instance_id", None)
         if instance_id is None or event.value is None:
             return
@@ -408,7 +391,6 @@ class InputProcessor:
     # --- Internal helpers ---
 
     def _calculate_multiplier(self, controller_type: str) -> float:
-        """Calculate axis multiplier based on creep/reverse mode."""
         if controller_type == CONSTANTS.N64.NAME:
             return CONSTANTS.CONTROLLER_MODES.NORMAL_MULTIPLIER
 
@@ -427,10 +409,7 @@ class InputProcessor:
         )
 
     def _process_n64_dpad(self, event: InputEvent) -> None:
-        """Map N64 D-pad (x, y) tuple to button ON/OFF states.
-
-        D-pad maps to DP_UP/DOWN/LEFT/RIGHT buttons for the N64.
-        """
+        """Map N64 D-pad (x, y) tuple to button ON/OFF states."""
         x, y = event.value
         n64 = CONSTANTS.N64
         on, off = n64.BUTTON.ON, n64.BUTTON.OFF

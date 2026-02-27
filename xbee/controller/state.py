@@ -98,7 +98,6 @@ class ControllerState:
         self._initialize_values_from_messages()
 
     def _build_index_conversion(self) -> dict:
-        """Build the numeric-index-to-string-alias mapping for each controller."""
         xbox = CONSTANTS.XBOX
         n64 = CONSTANTS.N64
         offset = xbox.BUTTON_INDEX_OFFSET
@@ -144,7 +143,6 @@ class ControllerState:
         }
 
     def _initialize_values_from_messages(self) -> None:
-        """Populate default values from the encoder's message definitions."""
         encoder = MessageEncoder()
         known_types = set(self.index_conversion.keys())
 
@@ -207,11 +205,6 @@ class ControllerState:
             controller_type: "xbox" or "n64"
             key: Numeric index or string alias for the input
             value: The new value (type depends on input category)
-
-        Value types by category:
-            Axis:    int (0-255) or bytes (1 byte) -> stored as bytes
-            Trigger: bool or int -> stored as bool
-            Button:  int (1=OFF, 2=ON) or bool -> stored as int
         """
         name = self.canonical_controller_name(controller_type)
         with self._values_lock:
@@ -225,7 +218,6 @@ class ControllerState:
     # --- Internal helpers ---
 
     def _convert_value(self, name: str, key: Union[int, str], value):
-        """Normalize a value based on its input category (axis/trigger/button)."""
         alias = self._get_alias(name, key)
         category = self._categorize(alias)
 
@@ -238,7 +230,6 @@ class ControllerState:
         return value  # Unknown category: pass through
 
     def _store_value(self, name: str, key: Union[int, str], converted) -> None:
-        """Store value under both the provided key and its alias (if any)."""
         self.values[name][key] = converted
 
         mapping = self.index_conversion.get(name, {})
@@ -252,7 +243,6 @@ class ControllerState:
                 self.values[name][num_key] = converted
 
     def _get_alias(self, name: str, key: Union[int, str]) -> Optional[str]:
-        """Get the string alias for a key, or the key itself if already a string."""
         if isinstance(key, int):
             return self.index_conversion.get(name, {}).get(key)
         if isinstance(key, str):
@@ -260,7 +250,6 @@ class ControllerState:
         return None
 
     def _categorize(self, alias: Optional[str]) -> str:
-        """Categorize an alias as 'axis', 'trigger', 'button', or 'unknown'."""
         if alias is None:
             return "unknown"
         if alias in AXIS_ALIASES:
@@ -272,7 +261,6 @@ class ControllerState:
         return "unknown"
 
     def _normalize_axis(self, key, value) -> bytes:
-        """Convert axis value to a single byte (0-255)."""
         if isinstance(value, int):
             if value < 0 or value > 255:
                 raise ValueError(f"Axis value out of range for key {key}: {value}")
@@ -287,7 +275,6 @@ class ControllerState:
         raise ValueError(f"Unsupported axis value type for key {key}: {type(value)}")
 
     def _normalize_trigger(self, key, value) -> bool:
-        """Convert trigger value to bool."""
         if isinstance(value, bool):
             return value
         if isinstance(value, int):

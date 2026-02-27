@@ -1,9 +1,6 @@
 """
 Controller input handling package.
 
-This package handles reading gamepad inputs, tracking controller state,
-and processing input events into values the encoding system can transmit.
-
 DATA FLOW:
     1. input_source.py reads raw gamepad events from the OS
     2. events.py defines the InputEvent format those raw events are converted to

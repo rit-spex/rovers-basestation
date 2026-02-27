@@ -35,16 +35,6 @@ class InputEvent:
     """A normalized controller input event.
 
     Attributes:
-        type:         One of the event type constants above.
-        instance_id:  Unique ID for the controller that generated this event.
-        device_index: OS-level device index (may differ from instance_id).
-        axis:         Axis number (for JOYAXISMOTION events).
-        button:       Button number (for JOYBUTTONDOWN/UP events).
-        value:        Event value. For axes: float -1.0 to 1.0.
-                      For buttons: 1 (pressed) or 0 (released).
-                      For hats: (x, y) tuple like (0, 1) for up.
-        name:         Human-readable controller name.
-        guid:         Controller GUID string.
         raw_code:     Raw event code from the OS driver.
         raw_state:    Raw event state from the OS driver.
     """

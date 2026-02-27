@@ -151,7 +151,7 @@ class TestI2CCommunication:
         mock_i2c.scan.return_value = []
         mock_busio.I2C.return_value = mock_i2c
 
-        with patch("utils.GPS.shutdown_event") as mock_shutdown:
+        with patch("utils.gps.shutdown_event") as mock_shutdown:
             mock_shutdown.is_set.return_value = True
 
             run_gps_reader()
@@ -168,20 +168,20 @@ class TestShutdownHandling:
 
     def test_stop_gps_reader_sets_shutdown_event(self):
         """Test stop_gps_reader sets the shutdown event."""
-        with patch("utils.GPS.shutdown_event") as mock_event:
+        with patch("utils.gps.shutdown_event") as mock_event:
             stop_gps_reader()
 
             mock_event.set.assert_called_once()
 
-    @patch("utils.GPS.busio")
-    @patch("utils.GPS.board")
+    @patch("utils.gps.busio")
+    @patch("utils.gps.board")
     def test_gps_reader_respects_shutdown_event(self, mock_board, mock_busio):
         """Test GPS reader exits when shutdown event is set."""
         mock_i2c = Mock()
         mock_i2c.scan.return_value = [0x42]
         mock_busio.I2C.return_value = mock_i2c
 
-        with patch("utils.GPS.shutdown_event") as mock_shutdown:
+        with patch("utils.gps.shutdown_event") as mock_shutdown:
             # Shutdown immediately
             mock_shutdown.is_set.return_value = True
 
@@ -194,8 +194,8 @@ class TestShutdownHandling:
 class TestPartialBufferGuard:
     """Test protection against unbounded partial buffer growth."""
 
-    @patch("utils.GPS.busio")
-    @patch("utils.GPS.board")
+    @patch("utils.gps.busio")
+    @patch("utils.gps.board")
     def test_partial_buffer_overflow_protection(self, mock_board, mock_busio):
         """Test partial buffer doesn't grow indefinitely."""
         # Send data without newlines to test partial buffer
@@ -212,7 +212,7 @@ class TestPartialBufferGuard:
         mock_i2c.readfrom_into.side_effect = fake_read_no_newline
         mock_busio.I2C.return_value = mock_i2c
 
-        with patch("utils.GPS.shutdown_event") as mock_shutdown:
+        with patch("utils.gps.shutdown_event") as mock_shutdown:
             # Run a few iterations then stop
             call_count = [0]
 
@@ -229,9 +229,9 @@ class TestPartialBufferGuard:
 class TestBlinkaMissing:
     """Test behavior when Adafruit Blinka is not available."""
 
-    @patch("utils.GPS.board", None)
-    @patch("utils.GPS.busio", None)
-    @patch("utils.GPS.logger")
+    @patch("utils.gps.board", None)
+    @patch("utils.gps.busio", None)
+    @patch("utils.gps.logger")
     def test_gps_reader_warns_when_blinka_missing(self, mock_logger):
         """Test GPS reader logs warning when board/busio unavailable."""
         run_gps_reader()

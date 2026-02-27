@@ -48,10 +48,6 @@ class SpaceMouse:
 
     Parameters
     ----------
-    vendor_id : int, optional
-        USB vendor ID.  Defaults to the value from ``protocol.yaml``.
-    product_id : int, optional
-        USB product ID.  Defaults to the value from ``protocol.yaml``.
     poll_interval : float
         Seconds to sleep when no HID data is available (default 0.001).
     reconnect_interval : float
@@ -90,7 +86,6 @@ class SpaceMouse:
     # ------------------------------------------------------------------
 
     def start(self) -> None:
-        """Start the background HID polling thread."""
         if self._thread is not None and self._thread.is_alive():
             return
         self._stop_event.clear()
@@ -105,7 +100,6 @@ class SpaceMouse:
         )
 
     def stop(self) -> None:
-        """Stop the background thread and close the HID device."""
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=3.0)
@@ -114,18 +108,15 @@ class SpaceMouse:
         logger.info("SpaceMouse reader stopped")
 
     def get_state(self) -> Dict[str, int]:
-        """Return a snapshot of the current 6DOF + button state."""
         with self._lock:
             return self._state.copy()
 
     def is_connected(self) -> bool:
-        """Return whether the HID device is currently open."""
         with self._lock:
             return self._connected
 
     @staticmethod
     def _zero_state() -> Dict[str, int]:
-        """Return a state dict with all values set to zero."""
         return {
             CONSTANTS.SPACEMOUSE.AXIS_X: 0,
             CONSTANTS.SPACEMOUSE.AXIS_Y: 0,
@@ -242,11 +233,7 @@ class SpaceMouse:
             return False
 
     def _is_likely_spacemouse_interface(self, info: Dict[str, Any]) -> bool:
-        """Heuristic filter for SpaceMouse HID interfaces.
-
-        Accepts the configured PID and common 3Dconnexion SpaceMouse-like
-        interfaces by manufacturer/product strings and HID usage hints.
-        """
+        """Heuristic filter for SpaceMouse HID interfaces."""
         pid = int(info.get("product_id", 0) or 0)
         if pid == int(self._product_id):
             return True
@@ -269,7 +256,6 @@ class SpaceMouse:
         return False
 
     def _try_open_device_info(self, hid_module: Any, info: Dict[str, Any]) -> Any | None:
-        """Open a HID device from enumerate() metadata, if possible."""
         dev = hid_module.device()
         try:
             path = info.get("path")
@@ -290,7 +276,6 @@ class SpaceMouse:
             return None
 
     def _close_device(self) -> None:
-        """Close the HID device if open and reset state to zeros."""
         was_connected = False
         with self._lock:
             was_connected = self._connected
@@ -314,7 +299,6 @@ class SpaceMouse:
     # ------------------------------------------------------------------
 
     def _process_report(self, data: list[int]) -> None:
-        """Parse a single HID report and update internal state."""
         if not data:
             return
 
