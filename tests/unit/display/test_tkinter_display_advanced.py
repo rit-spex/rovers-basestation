@@ -158,16 +158,35 @@ class TestTkinterDisplayAdvanced:
     @patch("xbee.display.gui.ttk")
     @patch("xbee.display.gui.tk")
     def test_update_arm_toggle_indicator_from_telemetry(self, mock_tk, mock_ttk):
-        """Arm toggle indicator should reflect arm-enabled telemetry."""
+        """Arm toggle indicator should reflect arm-enabled telemetry.
+
+        When the rover reports arm_enabled=True via subsystem_enabled, the
+        arm toggle should be set to the active-display colour (blue) and the
+        other toggles should be set to inactive (red).
+        """
         mock_root = Mock()
         mock_tk.Tk.return_value = mock_root
 
         display = TkinterDisplay()
         display.arm_toggle_indicator = Mock()
+        display.auto_toggle_indicator = Mock()
+        display.life_toggle_indicator = Mock()
 
+        # Simulate receiving subsystem_enabled with arm active
+        display._module_view = "arm"
         display._update_arm_toggle_indicator({"arm_enabled": True})
 
-        display.arm_toggle_indicator.configure.assert_called()
+        # Active toggle should use the active-display colour (blue)
+        display.arm_toggle_indicator.configure.assert_called_with(
+            background="#1c71d8"
+        )
+        # Inactive toggles should be red
+        display.auto_toggle_indicator.configure.assert_called_with(
+            background="#a51d2d"
+        )
+        display.life_toggle_indicator.configure.assert_called_with(
+            background="#a51d2d"
+        )
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)

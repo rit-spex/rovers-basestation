@@ -626,10 +626,8 @@ class TkinterDisplay(BaseDisplay):
 
         telemetry = self._snapshot_telemetry()
         self._update_auto_status_indicator(telemetry)
-        self._update_auto_toggle_indicator(telemetry)
-        self._update_arm_toggle_indicator(telemetry)
+        self._update_module_toggle_indicators(telemetry)
         self._update_rover_status_indicator(telemetry)
-        self._update_life_toggle_indicator(telemetry)
 
     def _get_mode_flags(self) -> tuple[bool, bool]:
         with self._mode_lock:
@@ -660,24 +658,46 @@ class TkinterDisplay(BaseDisplay):
             if self.auto_status_text_label is not None:
                 self.auto_status_text_label.config(text="Teleop")
 
-    def _update_auto_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
-        auto_toggle = resolve_boolean_flag(
-            telemetry, ["auto_toggle", "auto_enabled", "autonomy_enabled"]
+    def _update_module_toggle_indicators(self, telemetry: Dict[str, Any]) -> None:
+        """Update Auto/Arm/Life toggle colors based on active module view.
+
+        The toggle for the currently displayed module gets a distinctive
+        "active display" colour (blue) while the others stay red. This
+        gives immediate visual feedback about which module panel is shown.
+
+        Only updates once subsystem enablement data has been received so
+        toggles remain in their default (red) state until the rover sends
+        its first ``subsystem_enabled`` heartbeat.
+        """
+        has_subsystem_info = any(
+            key in telemetry
+            for key in ("arm_enabled", "auto_enabled", "life_enabled")
         )
-        if auto_toggle is not None:
-            self._set_indicator_color(self.auto_toggle_indicator, auto_toggle)
+        if not has_subsystem_info:
+            return
+
+        active_view = self._get_active_module_view()
+        module_indicators: Dict[str, Any] = {
+            "auto": self.auto_toggle_indicator,
+            "arm": self.arm_toggle_indicator,
+            "life": self.life_toggle_indicator,
+        }
+        for module_key, indicator in module_indicators.items():
+            is_active = module_key == active_view
+            self._set_indicator_color(
+                indicator, is_active, on_color="#1c71d8"
+            )
+
+    # Thin wrappers kept for backward-compat / tests ----------------
+
+    def _update_auto_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
+        self._update_module_toggle_indicators(telemetry)
 
     def _update_arm_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
-        arm_toggle = resolve_boolean_flag(
-            telemetry,
-            [
-                "arm_toggle",
-                "arm_enabled",
-                "manipulator_enabled",
-            ],
-        )
-        if arm_toggle is not None:
-            self._set_indicator_color(self.arm_toggle_indicator, arm_toggle)
+        self._update_module_toggle_indicators(telemetry)
+
+    def _update_life_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
+        self._update_module_toggle_indicators(telemetry)
 
     def _update_rover_status_indicator(self, telemetry: Dict[str, Any]) -> None:
         estop = resolve_estop_status(telemetry)
@@ -687,13 +707,6 @@ class TkinterDisplay(BaseDisplay):
         self._set_indicator_color(self.rover_status_indicator, ok_state)
         if self.rover_status_text_label is not None:
             self.rover_status_text_label.config(text="OK" if ok_state else "ESTOPPED")
-
-    def _update_life_toggle_indicator(self, telemetry: Dict[str, Any]) -> None:
-        life_toggle = resolve_boolean_flag(
-            telemetry, ["life_toggle", "life_enabled", "life_detection"]
-        )
-        if life_toggle is not None:
-            self._set_indicator_color(self.life_toggle_indicator, life_toggle)
 
     def _set_indicator_color(self, indicator, is_on: bool, on_color: str = "#26a269"):
         if not indicator:
@@ -762,7 +775,7 @@ class TkinterDisplay(BaseDisplay):
     def _update_module_text(self):
         if not getattr(self, "module_text", None):
             return
-        self.module_text.delete(1.0, tk.END)
+
         module_key = self._get_active_module_view()
         module_label = self._get_module_view_label(module_key)
 
@@ -774,23 +787,36 @@ class TkinterDisplay(BaseDisplay):
 
         td_copy = self._snapshot_telemetry()
         if not td_copy:
-            self.module_text.insert(tk.END, f"{module_label} module data unavailable\n")
+            new_content = f"{module_label} module data unavailable\n"
+        else:
+            received_at = td_copy.get("_received_at")
+            freshness_text = self._format_telemetry_freshness(received_at)
+
+            filtered = filter_telemetry_for_module(td_copy, module_key)
+            filtered = {
+                key: value
+                for key, value in filtered.items()
+                if not (isinstance(key, str) and key.startswith("_"))
+            }
+
+            if not filtered:
+                new_content = (
+                    f"{module_label} Data ({freshness_text}):\n\n"
+                    "Waiting for module data…\n"
+                )
+            else:
+                lines = [f"{module_label} Data ({freshness_text}):\n"]
+                for key, value in filtered.items():
+                    lines.append(f"{key}: {value}")
+                new_content = "\n".join(lines) + "\n"
+
+        # Only rewrite the widget when the content actually changed to
+        # avoid visible blank-frame flickering from delete-then-insert.
+        old_content = self.module_text.get("1.0", tk.END).rstrip("\n")
+        if new_content.rstrip("\n") == old_content:
             return
-
-        received_at = td_copy.get("_received_at")
-        freshness_text = self._format_telemetry_freshness(received_at)
-
-        filtered = filter_telemetry_for_module(td_copy, module_key) or td_copy
-        filtered = {
-            key: value
-            for key, value in filtered.items()
-            if not (isinstance(key, str) and key.startswith("_"))
-        }
-        self.module_text.insert(
-            tk.END, f"{module_label} Data ({freshness_text}):\n\n"
-        )
-        for key, value in filtered.items():
-            self.module_text.insert(tk.END, f"{key}: {value}\n")
+        self.module_text.delete("1.0", tk.END)
+        self.module_text.insert(tk.END, new_content)
 
     def _format_telemetry_freshness(self, received_at: Any) -> str:
         if not isinstance(received_at, (int, float)):
