@@ -57,31 +57,7 @@ XBEE_NO_GUI=1 python -m xbee
 
 ### VMware + Container Input Passthrough (SpaceMouse + Gamepads)
 
-If controllers work on host Linux but not inside an Ubuntu VM/container, the usual cause is device passthrough/permissions, not protocol logic.
-
-**Why this happens:**
-
-- Gamepads use Linux input nodes (typically `/dev/input/event*`) via the `inputs` library.
-- SpaceMouse uses HID access (typically `/dev/hidraw*`) via `hidapi`.
-- In VM+container setups, these devices may be visible on host but hidden from guest/container.
-
-#### VMware checklist
-
-- Ensure the USB device is connected to the **guest VM**, not the host/shared endpoint.
-- In VM USB settings, enable showing USB/HID input devices and connect from removable devices menu.
-- Prefer USB controller compatibility that matches your hardware (USB 2.0 vs 3.0 can matter for some devices).
-
-#### Container checklist (Docker / Compose)
-
-- Pass input devices into the container:
-    - `/dev/input` (gamepads)
-    - `/dev/hidraw*` (SpaceMouse)
-- Add device cgroup rules and group permissions as needed (for example `group_add` for `input`/`plugdev`).
-- If using restrictive security settings, ensure device access is not blocked by container policy.
-
-> If SpaceMouse/gamepads work only when running the container as `root`, passthrough is usually fine and user permissions are the real issue. Fix `devices` + `device_cgroup_rules` + `group_add` (typically `input` / `plugdev`) instead of keeping root.
-
-Compose supports `devices`, `device_cgroup_rules`, `group_add`, and `privileged` (use with care).
+If controllers work on host Linux but not inside an Ubuntu VM/container, the usual cause is device passthrough/permissions, you most likely just did not run it as root.
 
 #### Built-in diagnostics
 
