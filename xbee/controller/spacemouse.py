@@ -241,7 +241,7 @@ class SpaceMouse:
         manufacturer = str(info.get("manufacturer_string") or "").lower()
         product = str(info.get("product_string") or "").lower()
         if "3dconnexion" in manufacturer and (
-            "spacemouse" in product or "space mouse" in product
+            "spacemouse" in product or "space mouse" in product or "space" in product
         ):
             return True
         if "spacemouse" in product or "space mouse" in product:
