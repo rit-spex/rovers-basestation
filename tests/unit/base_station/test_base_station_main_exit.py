@@ -1,6 +1,6 @@
 import pytest
 
-import xbee.core.base_station as bs
+import xbee.app as bs
 
 
 def test_main_re_raises_system_exit(monkeypatch):
@@ -57,9 +57,6 @@ def test_main_re_raises_system_exit(monkeypatch):
     monkeypatch.setattr(
         bs, "_create_control_loop", lambda base_station, display: (lambda: None)
     )
-
-    # Ensure pygame.init is a no-op
-    monkeypatch.setattr(bs.pygame, "init", lambda: None)
 
     with pytest.raises(SystemExit):
         bs.main()

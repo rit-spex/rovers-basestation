@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.tkinter_display import HeadlessDisplay, TkinterDisplay, create_display
+from xbee.display.base import HeadlessDisplay, create_display
+from xbee.display.gui import TkinterDisplay
 
 
 class TestHeadlessDisplay:
@@ -20,7 +21,7 @@ class TestHeadlessDisplay:
         # Guard test to catch future regression in initialization.
         assert display is not None  # NOSONAR
 
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.logger")
     def test_update_controller_display_logs_debug(self, mock_logger):
         """Test update_controller_display logs debug information."""
         display = HeadlessDisplay()
@@ -30,7 +31,7 @@ class TestHeadlessDisplay:
         mock_logger.debug.assert_called_once()
         assert "HeadlessDisplay updated controller" in mock_logger.debug.call_args[0][0]
 
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.logger")
     def test_update_controller_values_logs_debug(self, mock_logger):
         """Test update_controller_values logs debug information."""
         display = HeadlessDisplay()
@@ -39,7 +40,7 @@ class TestHeadlessDisplay:
 
         mock_logger.debug.assert_called_once()
 
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.logger")
     def test_update_modes_logs_debug(self, mock_logger):
         """Test update_modes logs debug information."""
         display = HeadlessDisplay()
@@ -48,7 +49,7 @@ class TestHeadlessDisplay:
 
         mock_logger.debug.assert_called_once()
 
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.logger")
     def test_update_telemetry_logs_debug(self, mock_logger):
         """Test update_telemetry logs debug information."""
         display = HeadlessDisplay()
@@ -58,7 +59,7 @@ class TestHeadlessDisplay:
 
         mock_logger.debug.assert_called_once()
 
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.logger")
     def test_update_communication_status_logs_info(self, mock_logger):
         """Test update_communication_status logs info message."""
         display = HeadlessDisplay()
@@ -88,9 +89,9 @@ class TestTkinterDisplayInitialization:
     """Test TkinterDisplay initialization."""
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
     def test_tkinter_display_initialization_success(self, mock_tk, mock_ttk):
         """Test TkinterDisplay initializes with tkinter available."""
         mock_root = Mock()
@@ -104,10 +105,10 @@ class TestTkinterDisplayInitialization:
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-    @patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-    @patch("xbee.core.tkinter_display.ttk")
-    @patch("xbee.core.tkinter_display.tk")
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.gui.TK_AVAILABLE", True)
+    @patch("xbee.display.gui.ttk")
+    @patch("xbee.display.gui.tk")
+    @patch("xbee.display.gui.logger")
     def test_tkinter_display_initialization_failure(
         self, mock_logger, mock_tk, mock_ttk
     ):
@@ -123,8 +124,8 @@ class TestTkinterDisplayInitialization:
 class TestCreateDisplayFactory:
     """Test create_display factory function."""
 
-    @patch("xbee.core.tkinter_display.os.getenv")
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.os.getenv")
+    @patch("xbee.display.base.logger")
     def test_create_display_headless_when_no_gui_env(self, mock_logger, mock_getenv):
         """Test create_display returns HeadlessDisplay when XBEE_NO_GUI is set."""
         mock_getenv.return_value = "1"
@@ -136,12 +137,13 @@ class TestCreateDisplayFactory:
         assert "HeadlessDisplay" in mock_logger.info.call_args[0][0]
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.os.getenv")
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
+    @patch("xbee.display.base.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
     def test_create_display_tkinter_when_gui_available(
         self, mock_tkinter_display, mock_getenv
     ):
         """Test create_display returns TkinterDisplay when GUI is available."""
+
         # Ensure our mock returns the correct values depending on the key asked
         def fake_getenv(key, default=None):
             if key == "XBEE_TEST_OVERRIDE_GUI":
@@ -159,13 +161,14 @@ class TestCreateDisplayFactory:
         assert display == mock_instance
 
     @patch.dict("os.environ", {"XBEE_TEST_OVERRIDE_GUI": "1"}, clear=False)
-    @patch("xbee.core.tkinter_display.os.getenv")
-    @patch("xbee.core.tkinter_display.TkinterDisplay")
-    @patch("xbee.core.tkinter_display.logger")
+    @patch("xbee.display.base.os.getenv")
+    @patch("xbee.display.gui.TkinterDisplay")
+    @patch("xbee.display.base.logger")
     def test_create_display_falls_back_to_headless_on_error(
         self, mock_logger, mock_tkinter_display, mock_getenv
     ):
         """Test create_display falls back to HeadlessDisplay on TkinterDisplay error."""
+
         # Ensure the function correctly reports the XBEE_TEST_OVERRIDE_GUI variable so
         # the create_display function will attempt to instantiate a TkinterDisplay
         def fake_getenv(key, default=None):

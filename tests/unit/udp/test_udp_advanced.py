@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.udp_communication import (
+from xbee.communication.udp_backend import (
     SimulationCommunicationManager,
     UdpCommunicationManager,
     UdpMessage,
@@ -260,7 +260,7 @@ class TestUdpCommunicationManagerAdvanced:
 class TestSimulationCommunicationManager:
     """Test SimulationCommunicationManager."""
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_initialization(self, mock_udp_manager):
         """Test SimulationCommunicationManager initialization."""
         mock_instance = Mock()
@@ -271,7 +271,7 @@ class TestSimulationCommunicationManager:
         # auto_start=True is passed to UdpCommunicationManager
         mock_udp_manager.assert_called_once_with(auto_start=True)
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_initialization_no_auto_start(self, mock_udp_manager):
         """Test initialization without auto start."""
         mock_instance = Mock()
@@ -282,7 +282,7 @@ class TestSimulationCommunicationManager:
         # auto_start=False is passed to UdpCommunicationManager
         mock_udp_manager.assert_called_once_with(auto_start=False)
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_send_controller_data(self, mock_udp_manager):
         """Test sending controller data through simulation manager."""
         mock_instance = Mock()
@@ -295,7 +295,7 @@ class TestSimulationCommunicationManager:
         assert result is True
         mock_instance.send_controller_data.assert_called_once()
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_send_quit_message(self, mock_udp_manager):
         """Test sending quit message through simulation manager."""
         mock_instance = Mock()
@@ -308,7 +308,7 @@ class TestSimulationCommunicationManager:
         assert result is True
         mock_instance.send_quit_message.assert_called_once()
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_send_heartbeat(self, mock_udp_manager):
         """Test sending heartbeat through simulation manager."""
         mock_instance = Mock()
@@ -321,7 +321,7 @@ class TestSimulationCommunicationManager:
         assert result is True
         mock_instance.send_heartbeat.assert_called_once()
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_register_telemetry_handler(self, mock_udp_manager):
         """Test registering telemetry handler."""
         mock_instance = Mock()
@@ -333,7 +333,7 @@ class TestSimulationCommunicationManager:
 
         mock_instance.register_message_handler.assert_called_once()
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_cleanup(self, mock_udp_manager):
         """Test cleanup stops UDP manager."""
         mock_instance = Mock()
@@ -344,7 +344,7 @@ class TestSimulationCommunicationManager:
 
         mock_instance.stop.assert_called_once()
 
-    @patch("xbee.core.udp_communication.UdpCommunicationManager")
+    @patch("xbee.communication.udp_backend.UdpCommunicationManager")
     def test_get_statistics(self, mock_udp_manager):
         """Test getting statistics from simulation manager."""
         mock_instance = Mock()

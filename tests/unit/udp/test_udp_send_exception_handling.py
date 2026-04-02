@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from xbee.core.udp_communication import UdpCommunicationManager
+from xbee.communication.udp_backend import UdpCommunicationManager
 
 
 def test_udp_send_exception_is_handled(monkeypatch):

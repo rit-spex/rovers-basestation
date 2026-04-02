@@ -1,16 +1,10 @@
-import warnings
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.heartbeat import HeartbeatManager
-
-# Suppress pygame pkg_resources deprecation warning
-warnings.filterwarnings(
-    "ignore", message="pkg_resources is deprecated", category=UserWarning
-)
+from xbee.communication.heartbeat import HeartbeatManager
+from xbee.config.constants import CONSTANTS
 
 
 def test_constants_and_enums():

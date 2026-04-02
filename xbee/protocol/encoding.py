@@ -1,0 +1,15 @@
+"""Re-export MessageEncoder and Signal from the rovers-protocol submodule."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SUBMODULE = _REPO_ROOT / "lib" / "rovers-protocol"
+if _SUBMODULE.exists() and str(_SUBMODULE) not in sys.path:
+    sys.path.insert(0, str(_SUBMODULE))
+
+from rover_protocol import MessageEncoder, Signal  # noqa: E402
+
+__all__ = ["MessageEncoder", "Signal"]

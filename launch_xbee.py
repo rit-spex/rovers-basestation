@@ -11,29 +11,50 @@ import os
 import sys
 import warnings
 
-if __name__ == "__main__":
-    # Suppress pygame pkg_resources deprecation warning
+
+def _configure_warning_filters() -> None:
     warnings.filterwarnings(
-        "ignore", message="pkg_resources is deprecated", category=UserWarning
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources is deprecated as an API.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources package is slated for removal.*",
     )
 
-    # Add current dir to py path
+
+def _prepend_repo_root() -> None:
+    """Ensure the current repository root is importable."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, current_dir)
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+
+
+def main() -> int:
+    """Run the basestation launcher and return a process exit code."""
+    _configure_warning_filters()
+    _prepend_repo_root()
 
     try:
-        from xbee.core.base_station import main
+        from xbee.app import main as app_main
 
-        main()
+        app_main()
+        return 0
     except KeyboardInterrupt:
         print("\nShutdown by user")
-        sys.exit(0)
+        return 0
     except SystemExit:
-        # Re-raise SystemExit to preserve exit codes
+        # Re-raise SystemExit to preserve explicit exit codes from app code.
         raise
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         import traceback
 
         traceback.print_exc()
-        sys.exit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
-from xbee.core.udp_communication import UdpCommunicationManager
+from xbee.communication.udp_backend import UdpCommunicationManager
 
 
 def _udp_writer(um, errors):

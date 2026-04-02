@@ -4,13 +4,13 @@ import threading
 import time
 from unittest.mock import Mock
 
-from xbee.core.communication import CommunicationManager
+from xbee.communication.manager import CommunicationManager
 
 
 def test_communication_manager_duplicate_suppression_concurrent(monkeypatch):
     # Use the real UdpCommunicationManager (in simulation_mode) with its
     # inflight duplicate suppression but monkeypatch sockets to avoid binding.
-    from xbee.core.udp_communication import UdpCommunicationManager
+    from xbee.communication.udp_backend import UdpCommunicationManager
 
     monkeypatch.setattr(UdpCommunicationManager, "_setup_sockets", lambda self: None)
     cm = CommunicationManager(xbee_device=None, remote_xbee=None, simulation_mode=True)

@@ -2,7 +2,7 @@
 Pytest configuration and shared fixtures for rovers-basestation tests.
 
 This conftest.py ensures the project root is in sys.path so that
-imports like `xbee.core`, `auto_boot.auto_boot`, and `utils.GPS` work
+imports like `xbee.app`, `auto_boot.auto_boot`, and `utils.GPS` work
 correctly during test collection and execution.
 """
 
@@ -31,6 +31,7 @@ _TKINTER_FONT_MODULE = "tkinter.font"
 # Don't import the real tkinter here - instead replace the module in
 # sys.modules with a lightweight stub below. Importing tkinter early can
 # trigger GUI initialisation and we explicitly want to avoid that during tests.
+
 
 # Define a tiny stub with required members used by the application
 class _TkStub:
@@ -102,6 +103,8 @@ ttk_stub.Frame = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Label = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.LabelFrame = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Scrollbar = _widget_stub  # type: ignore[attr-defined]
+ttk_stub.Combobox = _widget_stub  # type: ignore[attr-defined]
+ttk_stub.Separator = _widget_stub  # type: ignore[attr-defined]
 ttk_stub.Style = lambda: _StyleStub()  # type: ignore[attr-defined]
 
 font_stub = types.ModuleType(_TKINTER_FONT_MODULE)

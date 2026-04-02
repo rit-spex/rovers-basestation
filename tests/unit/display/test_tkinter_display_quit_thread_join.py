@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-from xbee.core.tkinter_display import TkinterDisplay
+from xbee.display.gui import TkinterDisplay
 
 
 @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)
-@patch("xbee.core.tkinter_display.TK_AVAILABLE", True)
-@patch("xbee.core.tkinter_display.ttk")
-@patch("xbee.core.tkinter_display.tk")
+@patch("xbee.display.gui.TK_AVAILABLE", True)
+@patch("xbee.display.gui.ttk")
+@patch("xbee.display.gui.tk")
 def test_tkinter_display_quit_joins_update_thread(mock_tk, mock_ttk):
     mock_root = Mock()
     mock_root.after_idle = Mock()

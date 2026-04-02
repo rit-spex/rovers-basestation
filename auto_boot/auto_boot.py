@@ -1,3 +1,5 @@
+"""Auto-boot helper for launching the basestation after XBee connectivity checks."""
+
 import logging
 import os
 import subprocess
@@ -10,7 +12,7 @@ try:
     # Try to import the CONSTANTS config; if import fails, leave as None.
     # This lets runtime logic fall back to defaults while keeping static typing
     # permissive for CI checks.
-    from xbee.core.command_codes import CONSTANTS  # type: ignore
+    from xbee.config.constants import CONSTANTS  # type: ignore
 except Exception:
     CONSTANTS = None
 
@@ -57,8 +59,8 @@ def _get_config_value(attr_name: str, default_value: Any) -> Any:
 
 
 _DEFAULT_PORT = "/dev/ttyUSB0"
-_DEFAULT_BAUD_RATE = 9600
-_DEFAULT_REMOTE_ADDRESS = "0013A20040ABCDEF"
+_DEFAULT_BAUD_RATE = 230400
+_DEFAULT_REMOTE_ADDRESS = "0013A200423A7DDD"
 
 PORT = os.getenv("XBEE_PORT", _get_config_value("DEFAULT_PORT", _DEFAULT_PORT))
 _baud_env = os.getenv(
@@ -103,19 +105,30 @@ def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
             and _xbee_device is not _XBeeDeviceStub
             and callable(_xbee_device)
         ):
-            return _xbee_device, globals().get("XBeeException", Exception)
+            return _xbee_device, globals().get("XBeeException", Exception), None, None
         try:
             # Use CamelCase aliasing for imported classes to satisfy stylistic rules
-            from digi.xbee.devices import XBeeDevice as _XBeeDeviceCls
-            from digi.xbee.devices import XBeeException as _XBeeExceptionCls
+            from digi.xbee.devices import (
+                RemoteXBeeDevice as _RemoteXBeeDeviceCls,
+                XBee64BitAddress as _XBee64BitAddressCls,
+                XBeeDevice as _XBeeDeviceCls,
+                XBeeException as _XBeeExceptionCls,
+            )
 
-            return _XBeeDeviceCls, _XBeeExceptionCls
+            return (
+                _XBeeDeviceCls,
+                _XBeeExceptionCls,
+                _RemoteXBeeDeviceCls,
+                _XBee64BitAddressCls,
+            )
         except Exception as e:
             # Preserve the original error as the cause of the ImportError
             raise ImportError(_XBEE_LIBS_NOT_AVAILABLE_MSG) from e
 
     try:
-        xbee_device_cls, xbee_exception_cls = _resolve_xbee_classes()
+        xbee_device_cls, xbee_exception_cls, remote_xbee_cls, xbee64_addr_cls = (
+            _resolve_xbee_classes()
+        )
     except ImportError:
         logger.warning(_XBEE_LIBS_NOT_AVAILABLE_MSG)
         return False
@@ -133,7 +146,13 @@ def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
             device.open()
 
             try:
-                device.send_data(REMOTE_XBEE, "ping")
+                target: Any = REMOTE_XBEE
+                if remote_xbee_cls is not None and xbee64_addr_cls is not None:
+                    target = remote_xbee_cls(
+                        device,
+                        xbee64_addr_cls.from_hex_string(str(REMOTE_XBEE)),
+                    )
+                device.send_data(target, "ping")
                 logger.info("SUCCESS: Robot XBee reachable! Connection established.")
                 return True
             except xbee_exception_cls as e:
@@ -153,7 +172,7 @@ def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
     return False
 
 
-def launch_xbee_script(exit_on_error: bool = False):
+def launch_xbee_script(exit_on_error: bool = False) -> bool:
     expanded_dir = os.path.expanduser(XBEE_SCRIPT_DIR)
     logger.info("Changing directory to: %s", expanded_dir)
     try:
@@ -163,7 +182,7 @@ def launch_xbee_script(exit_on_error: bool = False):
         if exit_on_error:
             sys.exit(1)
         return False
-    logger.info("Launching Xbee.py...")
+    logger.info("Launching xbee module...")
 
     env = os.environ.copy()
     env["XBEE_NO_GUI"] = "1"

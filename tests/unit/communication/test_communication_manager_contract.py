@@ -1,8 +1,9 @@
 from typing import Any, cast
 from unittest.mock import Mock
+from unittest.mock import patch
 
-from xbee.core.communication import CommunicationManager
-from xbee.core.xbee_communication import XbeeCommunicationManager
+from xbee.communication.manager import CommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 
 def test_send_package_passes_bytes_to_hardware():
@@ -102,3 +103,33 @@ def test_send_package_passes_memoryview_to_hardware():
     assert cm.send_package(mv) is True
     # Ensure the same memoryview type was received by the transport
     assert received == [memoryview]
+
+
+def test_register_telemetry_handler_starts_udp_backend_in_simulation_mode():
+    with patch("xbee.communication.manager.UdpCommunicationManager") as mock_udp_cls:
+        mock_udp = Mock()
+        mock_udp.running = False
+        mock_udp_cls.return_value = mock_udp
+
+        cm = CommunicationManager(simulation_mode=True)
+        handler = Mock()
+
+        cm.register_telemetry_handler(handler)
+
+        mock_udp.register_telemetry_handler.assert_called_once_with(handler)
+        mock_udp.start.assert_called_once()
+
+
+def test_register_telemetry_handler_does_not_restart_running_udp_backend():
+    with patch("xbee.communication.manager.UdpCommunicationManager") as mock_udp_cls:
+        mock_udp = Mock()
+        mock_udp.running = True
+        mock_udp_cls.return_value = mock_udp
+
+        cm = CommunicationManager(simulation_mode=True)
+        handler = Mock()
+
+        cm.register_telemetry_handler(handler)
+
+        mock_udp.register_telemetry_handler.assert_called_once_with(handler)
+        mock_udp.start.assert_not_called()

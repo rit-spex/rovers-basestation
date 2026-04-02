@@ -1,33 +1,39 @@
-import pygame
-import time
+"""Small utility to print raw Xbox controller events via ``inputs``.
 
-def debug_xbox():
-    pygame.init()
-    pygame.joystick.init()
-    
-    count = pygame.joystick.get_count()
-    joy = None
-    for i in range(count):
-        j = pygame.joystick.Joystick(i)
-        if "Xbox" in j.get_name():
-            joy = j
-            break
-            
-    if not joy:
-        print("No Xbox controller found")
-        return
-        
-    joy.init()
-    print(f"Monitoring {joy.get_name()}. Move sticks/triggers. Ctrl+C to stop.")
-    
+Useful for debugging local controller mappings outside the full app.
+"""
+
+import importlib
+from collections.abc import Callable, Iterable
+from typing import Any, cast
+
+
+def _iter_events(get_gamepad_fn: Callable[[], Iterable[Any]]) -> Iterable[Any]:
+    """Yield events from the ``inputs`` gamepad stream forever."""
+    while True:
+        yield from get_gamepad_fn()
+
+
+def debug_xbox() -> None:
     try:
-        while True:
-            pygame.event.pump()
-            axes = [joy.get_axis(i) for i in range(joy.get_numaxes())]
-            print(f"\rAxes: " + ", ".join([f"{i}: {v:+.2f}" for i, v in enumerate(axes)]), end="")
-            time.sleep(0.1)
+        inputs = importlib.import_module("inputs")
+    except Exception as exc:
+        print(f"inputs library not available: {exc}")
+        return
+
+    get_gamepad = getattr(inputs, "get_gamepad", None)
+    if not callable(get_gamepad):
+        print("inputs.get_gamepad not available in installed inputs package")
+        return
+    get_gamepad_fn = cast(Callable[[], Iterable[Any]], get_gamepad)
+
+    print("Listening for gamepad events (Ctrl+C to stop)...")
+    try:
+        for event in _iter_events(get_gamepad_fn):
+            print(f"{event.ev_type} {event.code}: {event.state}")
     except KeyboardInterrupt:
         print("\nStopped.")
+
 
 if __name__ == "__main__":
     debug_xbox()

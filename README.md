@@ -4,14 +4,11 @@ Control system for the RIT SPEX rover. Supports real XBee hardware or UDP simula
 
 ## Start
 
-### Python 3.12+ (in case basestation isnt check this)
+### Python 3.11+
 
-Basestation needs at least python 3.11, the ubuntu version we use for SPEX in the VM is 22.04 which has a default official python version of 3.10 which wont work due to changes with default parameters in 3.11 for int.to_bytes() specifically byteorder which defaults to Big-endian in 3.11 but doesn't have a default in 3.10 or below
+Basestation requires Python 3.11+ (see `pyproject.toml`). Ubuntu 22.04 ships with 3.10 by default, so install 3.11+ when setting up the VM or CI.
 
-^
-though tbh i might just pass in the argument and supress warnings so that we dont gotta install a higher version every time someone new joins, but for now the ci-cd pipeline is gonna use ubuntu 22.04 and py 3.11.
-
-Install SDL2: `sudo apt-get install libsdl2-dev`
+**Note for nerds:** Using 3.11 due to changes with default parameters in 3.11 for int.to_bytes() specifically byteorder which defaults to Big-endian in 3.11 but doesn't have a default in 3.10 or below. I dunno I could change this later so we dont have to install newer python but whatever.
 
 ### Setup
 
@@ -28,7 +25,19 @@ source .venv/bin/activate      # Linux/Mac
 pip install -r requirements.txt
 ```
 
-**Note**: XBee libraries are optional. If not installed, the system automatically uses simulation mode.
+### Shared protocol submodule
+
+This project depends on the shared protocol package used by both basestation and rover ROS:
+
+```bash
+git submodule update --init --recursive
+```
+
+Expected submodule location:
+
+- `lib/rovers-protocol`
+
+**Note**: XBee libraries are optional at runtime. `requirements.txt` includes them by default, but simulation-only setups can omit those packages and the system will use UDP simulation mode.
 
 ### Running
 
@@ -46,6 +55,21 @@ For running as a service or on devices without a display:
 XBEE_NO_GUI=1 python -m xbee
 ```
 
+### VMware + Container Input Passthrough (SpaceMouse + Gamepads)
+
+If controllers work on host Linux but not inside an Ubuntu VM/container, the usual cause is device passthrough/permissions, you most likely just did not run it as root.
+
+#### Built-in diagnostics
+
+Basestation now logs Linux input visibility at startup (counts for `/dev/input/event*`, `/dev/hidraw*`, and SpaceMouse HID enumeration). This makes passthrough/permission failures explicit in logs.
+
+- Enabled by default on Linux
+- Disable with:
+
+```bash
+export XBEE_INPUT_DIAGNOSTICS=0
+```
+
 ### Testing
 
 ```bash
@@ -57,7 +81,7 @@ python run_tests.py
 
 ### Simulation vs Real Hardware
 
-In `xbee/core/command_codes.py`:
+In `xbee/config/constants.py`:
 
 ```python
 SIMULATION_MODE = True   # UDP testing mode
@@ -89,154 +113,101 @@ export XBEE_DEFAULT_CREEP=0  # Disable default creep mode
 
 ## Core Architecture
 
-The basestation is organized into modules, including ones to handle controller input, communication with the rover (note this may be moved to a lib), and provide a UI for updates.
+The basestation runs on a Raspberry Pi with a monitor and game controllers. It reads controller input, encodes it using the shared protocol, and sends it to the rover via XBee radio. The rover sends telemetry back over UDP, which the GUI displays.
+
+The encoding/decoding logic lives in the **rovers-protocol** shared submodule at `lib/rovers-protocol/`. Both this repo and rovers-ros use the same protocol so changes only need to happen once.
 
 ```
-*not all files are shown
-
-                    [BaseStation]
-                    Main control loop is here and also handles
-                    pygame events for controller and cleanup
-                    on shutdown
-                                     ^
-                                     | explanation
-                                     |
-  start script       init         control
-[launch_xbee.py]------------> [base_station.py]-----.
-                                    ^ |             |
-   And then there is the tkinter    | |             |
-   display which is the GUI of      | |             |
-   the program, this communicates   | | info        |
-   back and forth with the control  | |             |
-                                    | v             |
-                              [tkinter_display.py]--+--. explanation
-                                     GUI            |  |
-      .---------------------------------------------*  *-> [TkinterDisplay]
-      |                                                    [HeadlessDisplay]
-      |   [ControllerManager]                              GUI display using tkinter
-      |   [ControllerState]                                for controller stuff,
-      |   [InputProcessor]                                 telemetry, and modes.
-      |   Control also communicates the pygame             Goes to headless mode for
-      |   events to controller_manager.py which            daemon/service operation.
-      |   processes the inputs from the controller
-      |   and tracks the connected controller(s)                    Simulation
-      |   along with all the button, joystick, and     .-> [udp_communication.py]
-      |   flags for things like creep & reverse        |   [UdpCommunicationManager]
-      |                                                |   [SimulationCommunicationManager]
-      *----------------------.                         |   UDP based communication using
-                             |                         |   network based msg transmission
-                             v                         |   for testing without hardware.
-                   [controller_manager.py]             |   Has simulated telemetry
-                             |                         |   processing and reception.
-                             | controller state        |
-                             |                         |
-       /```````````````\     v     /````````````````````
-      |      .-------[communication.py]-------.
-      |      |      general msg handling      |                  Real Hardware
-      |      |                                |        .-> [xbee_communication.py]
-      |      *-> [CommunicationManager]       |        |   [XbeeCommunicationManager]
-      |          [MessageFormatter]           |        |   Xbee based communication to
-      |          Formats msgs and transmits.  |        |   rover. Manages the actual
-      |          API for sending:             |        |   Xbee radio transmissions
-      |           - controller data           |        |   and has duplicate
-      |           - heartbeat                 |        |   supression and retries.
-      |           - custom msgs               |        |   Also has "in-flight" msg
-      |          Where hardware vs simulation |        |   tracking, aka tracking the
-      |          mode is abstracted           |        |   rover's status and sending
-      |                                       |        |   commands over.
-      |                      .----------------*        |
-      |         (dependency) | data encoding           |
-      |                      v                         |
-      |      .---------[encoding.py]                   |
-      |      |                                         |
-      |      *-> [MessageEncoder]                      |
-      |          [Signal]                              |
-      |          Technically for both encoding         |
-      |          and decoding, I didn't make           |
-      |          the name, ask Tyler. Packs            |
-      |          compact msgs into efficiently         |
-      |          bits wise with Signal defs.           |
-      |                                                |
-      *------------------------------------------------*
-
-\                                                                                          /
- *```````````````````````````````````````````\/```````````````````````````````````````````*
-                                     [command_codes.py]
-                                     [CONSTANTS]
-                                     Constants and configs.
-                                     Has ALL repository wide settings,
-                                     controller mappings, message IDs,
-                                     and tuning params.
+  ┌────────────────┐    XBee Radio       ┌─────────────────┐
+  |                |   ───────────────>  |                 |
+  │ BASESTATION    │   controller data   │  ROVER (ROS 2)  │
+  │ (Raspberry Pi) │  <───────────────   │  (Jetson Orin)  │
+  │                │   telemetry (UDP)   │                 │
+  └────────────────┘                     └─────────────────┘
 ```
 
-#### Util Files
+### Modules
 
-| File | Use |
-|------|---------|
-| **utils/gps.py** | GPS data reading using I2C. Reads NMEA sentences from the GPS module on the rover and parses out location data. May be deprecated when lidar-based localization is implemented. |
-| **auto_boot/auto_boot.py** | Auto boot for the raspberry pi we have serving as the basestation on the rover to launch the basestation script on system startup after letting XBee connect first. |
-| **launch_xbee.py** | Start script. Sets up the logging and starts the basestation. |
+```
+xbee/
+├── app.py                  # BaseStation orchestrator + control loop
+├── config/constants.py     # All config (from protocol.yaml)
+├── controller/             # Gamepad reading, state, hotplug
+├── protocol/encoding.py    # Re-exports MessageEncoder from rover_protocol submodule
+├── communication/          # XBee + UDP backends
+└── display/                # tkinter GUI + headless fallback
 
-#### Other Files
+lib/rovers-protocol/        # Shared submodule
+├── protocol.yaml           # Source of truth for all messages
+└── rover_protocol/         # Python package (codec, constants, schema)
+```
+
+### Data Flows
+
+### Controller → Rover
+
+```
+Gamepad (USB/Bluetooth)
+    │
+    v
+InputEventSource.poll_events()           # OS-level gamepad events
+    │
+    v
+BaseStation.send_command(event)          # Routes to ControllerManager
+    │
+    v
+InputProcessor                           # Normalizes axis/button values
+    │
+    v
+ControllerState                          # Stores current values per controller
+    │
+    v
+CommunicationManager.send_controller_data()
+    │
+    v
+MessageFormatter.create_xbox_message()   # Calls MessageEncoder.encode_data()
+    │                                     # which bit-packs values per protocol.yaml
+    v
+XbeeCommunicationManager.send_package()  # Actual radio stuff ┐
+    -- OR --                                                  |> Based on flag
+UdpCommunicationManager.send_package()   # Simulation ────────┘
+```
+
+### Rover → Basestation (telemetry mostly)
+
+```
+Rover ROS nodes publish to /ROVER/TELEMETRY/* topics
+    │
+    v
+TelemetryUplink ROS node               # Collects topics, encodes with MessageEncoder
+    │
+    v
+UDP packet                             # Sent to basestation_ip:5002
+    │
+    v
+UdpCommunicationManager._receive_loop()
+    │
+    v
+MessageEncoder.decode_data()           # Decodes compact bytes back to dict
+    │
+    v
+BaseStation._handle_telemetry_data()   # Stores in self.telemetry_data
+    │
+    v
+TkinterDisplay.update_telemetry()      # GUI shows latest values
+```
+
+### Other Files
 
 | File | Use |
 |------|---------|
-| **pyproject.toml** | Repo's config for python tooling for Black, isort, Ruff, and pytest. |
-| **requirements.txt** | Dependencies. |
-| **requirements-dev.txt** | Dev dependencies for linting, testing, and type checking. |
-| **run_tests.py** | Test runner. |
+| **utils/gps.py** | GPS data reading using I2C from the GPS module. |
+| **auto_boot/auto_boot.py** | Auto-starts basestation on Raspberry Pi boot. |
+| **launch_xbee.py** | Start script — sets up logging and launches basestation. |
 
-### File Connections
-
-1. **Startup**:
-```
-`launch_xbee.py`
-    V
-`base_station.main()`
-    V
-Makes a `BaseStation` instance
-```
-3. **Controller Input**:
-```
-Pygame events
-    V
-`BaseStation._process_controller_events()`
-    V
-`ControllerManager`
-    V
-`InputProcessor`
-    V
-Update controller state
-```
-4. **Msg Transmission**: 
-```
-Controller state
-    V
-`CommunicationManager.send_controller_data()`
-    V
-`MessageFormatter.create_xbox_message()` or `create_n64_message()`
-    V
-`MessageEncoder.encode_data()` (in encoding.py)
-    V
-Hardware (`XbeeCommunicationManager` or `UdpCommunicationManager`)
-```
-5. **Show Updates**:
-```
-`BaseStation._update_display_data()`
-    V
-`TkinterDisplay.update_*()` methods
-    V
-GUI Thingamajigs, Doohickies, Thingamabobs, Doodads, and Whatchamacallits
-```
-6. **Heartbeat**:
-```
-`HeartbeatManager.update()`
-    V
-`CommunicationManager.send_heartbeat()`
-    V
-Hardware
-```
 ## Message Protocol
+
+All message definitions live in `lib/rovers-protocol/protocol.yaml`.
 
 ### Format
 
@@ -245,90 +216,33 @@ Compact bit-packed messages for bandwidth efficiency:
 | Byte | Content |
 |------|---------|
 | 0 | Message ID |
-| 1-N | Payload |
+| 1-N | Bit-packed signal payload |
 
-### Message IDs
+### Message IDs (from protocol.yaml)
 
-| ID | Purpose |
-|----|---------|
-| `0xF0` | Xbox controller data |
-| `0xDF` | N64 controller data |
-| `0xAA` | Heartbeat |
-| `0xFE` | Quit command |
-| `0xB0` | Status update |
-| `0xC0` | GPS position |
-| `0xD0` | Sensor reading |
-| `0xE0` | Error code |
+**To Rover (basestation → rover):**
 
-### Xbox Controller Message
+| ID | Name | Signals |
+|----|------|---------|
+| `0x01` | heartbeat | timestamp (16-bit) |
+| `0x02` | xbox | AXIS_LY, AXIS_RY, A, B, X, Y, LEFT_BUMPER, RIGHT_BUMPER, AXIS_LT, AXIS_RT |
+| `0x03` | n64 | A, B, L, R, C_UP, C_DOWN, C_LEFT, C_RIGHT, DP_UP–DP_RIGHT, Z |
+| `0x04` | quit | QUIT (1-bit bool) |
+| `0x05` | auto_state | auto_state (8-bit) |
+| `0x06` | spacemouse | x, y, z, rx, ry, rz, buttons |
 
-```
-[0xF0][LY][RY][BTN1][BTN2]
-```
-- LY/RY: Joystick Y-axis (0-200, 100=neutral)
-- BTN1/BTN2: Button states (2 bits each)
+**From Rover (rover → basestation telemetry):**
 
-## Sending Messages
-
-### Built-in Helpers
-
-```python
-from xbee.core.communication import CommunicationManager
-
-comm = CommunicationManager(xbee_device, remote_xbee)
-
-comm.send_heartbeat()
-comm.send_status_update(status_code=0, battery_level=85, signal_strength=90)
-comm.send_gps_position(latitude=40.7128, longitude=-74.0060)
-comm.send_sensor_reading(sensor_id=5, value=1234)
-```
-
-### Custom Messages
-
-1. Add ID to `command_codes.py`:
-```python
-COMPACT_MESSAGES.CAMERA = 0xCA
-```
-
-2. Send:
-```python
-comm.send_compact_message([CONSTANTS.COMPACT_MESSAGES.CAMERA, 0x01])
-```
-
-## Data Packing
-
-### 16-bit Integer
-
-```python
-# Pack
-high_byte = (value >> 8) & 0xFF
-low_byte = value & 0xFF
-
-# Unpack
-value = (high_byte << 8) | low_byte
-```
-
-### Float (4 bytes)
-
-```python
-import struct
-packed = struct.pack('>f', 23.5)
-unpacked = struct.unpack('>f', data)[0]
-```
-
-### Boolean Flags
-
-```python
-# Pack 8 bools into 1 byte
-flags = (motor_on << 0) | (camera_on << 1) | (arm_on << 2)
-
-# Unpack
-motor_on = (flags >> 0) & 1
-```
+| ID | Name | Signals |
+|----|------|---------|
+| `0xF0` | life_detection | color_sensor, limit switches, auger, pump, slides, tubes |
+| `0xF1` | arm_encoders | base, shoulder, elbow, wrist, claw (all 16-bit) |
+| `0xF2` | drive_imu | speed L/R (joystick), yaw/pitch/roll (16-bit) |
+| `0xF3` | rover_estop | rover_estop (1-bit bool) |
+| `0xF4` | subsystem_enabled | arm, auto, life enabled (1-bit bools) |
+| `0xF5` | control_mode | control_mode (8-bit) |
 
 ## Development
-
-### Tools
 
 ```bash
 pip install -r requirements-dev.txt
@@ -341,9 +255,15 @@ mypy .           # Type check
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `XBEE_NO_GUI` | Run headless | `0` |
-| `XBEE_DEFAULT_CREEP` | Enable creep on startup | `1` |
-| `XBEE_PORT` | XBee serial port | From config |
-| `XBEE_BAUD` | XBee baud rate | From config |
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `XBEE_NO_GUI` | `""` | Set to `"1"` to disable tkinter GUI |
+| `XBEE_DEFAULT_CREEP` | `1` | Set to `"0"` to disable default creep mode |
+| `BASESTATION_LOG_EVERY_UPDATES` | `0` | Log every N control loop iterations (0 = debug only) |
+| `XBEE_INFLIGHT_WAIT_TIMEOUT` | `30.0` | Timeout (seconds) for XBee inflight message ack |
+| `XBEE_TEST_ENABLE_INPUTS` | `0` | Allow controller inputs under pytest |
+| `XBEE_JOYSTICK_RAW_MODE` | `""` | Force joystick raw mode (`signed` or `unsigned`) when auto-detection is not reliable |
+| `XBEE_INPUT_DIAGNOSTICS` | `1` (Linux) | Set to `0` to disable startup Linux input/HID visibility diagnostics |
+| `ROVER_PROTOCOL_TRACE` | `""` | Set to `"1"` to enable real-time hex-level protocol tracing for TX/RX messages |
+
+> For nerds that want more details, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).

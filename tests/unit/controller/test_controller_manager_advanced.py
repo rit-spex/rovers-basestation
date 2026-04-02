@@ -6,12 +6,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.controller_manager import (
-    ControllerManager,
-    ControllerState,
-    InputProcessor,
-)
+from xbee.config.constants import CONSTANTS
+from xbee.controller.detection import detect_controller_type
+from xbee.controller.manager import ControllerManager, InputProcessor
+from xbee.controller.state import ControllerState
 
 
 class TestControllerStateAdvanced:
@@ -154,8 +152,12 @@ class TestControllerStateAdvanced:
         """
         state = ControllerState()
 
-        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.C_DOWN, CONSTANTS.N64.BUTTON.ON)
-        state.update_value(CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.A, CONSTANTS.N64.BUTTON.OFF)
+        state.update_value(
+            CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.C_DOWN, CONSTANTS.N64.BUTTON.ON
+        )
+        state.update_value(
+            CONSTANTS.N64.NAME, CONSTANTS.N64.BUTTON.A, CONSTANTS.N64.BUTTON.OFF
+        )
 
         values = state.get_controller_values(CONSTANTS.N64.NAME)
 
@@ -182,31 +184,21 @@ class TestControllerManagerAdvanced:
 
     def test_detect_controller_type_xbox(self):
         """Test detecting Xbox controller type."""
-        manager = ControllerManager()
-
-        assert manager._detect_controller_type("Xbox Controller") == CONSTANTS.XBOX.NAME
-        assert manager._detect_controller_type("X-Box Gamepad") == CONSTANTS.XBOX.NAME
+        assert detect_controller_type("Xbox Controller") == CONSTANTS.XBOX.NAME
+        assert detect_controller_type("X-Box Gamepad") == CONSTANTS.XBOX.NAME
 
     def test_detect_controller_type_n64(self):
         """Test detecting N64 controller type (dinput)."""
-        manager = ControllerManager()
-
-        assert (
-            manager._detect_controller_type("DInput Controller") == CONSTANTS.N64.NAME
-        )
+        assert detect_controller_type("DInput Controller") == CONSTANTS.N64.NAME
 
     def test_detect_controller_type_unknown(self):
         """Test detecting unknown controller type."""
-        manager = ControllerManager()
-
-        assert manager._detect_controller_type("Generic Gamepad") is None
+        assert detect_controller_type("Generic Gamepad") is None
 
     def test_detect_controller_type_non_string(self):
         """Test detecting controller type with non-string returns None."""
-        manager = ControllerManager()
-
-        assert manager._detect_controller_type(None) is None  # type: ignore[arg-type]  # noqa
-        assert manager._detect_controller_type(123) is None  # type: ignore[arg-type]  # noqa
+        assert detect_controller_type(None) is None  # type: ignore[arg-type]  # noqa
+        assert detect_controller_type(123) is None  # type: ignore[arg-type]  # noqa
 
     def test_should_quit_on_button_xbox_home(self):
         """Test quit detection on Xbox home button."""
@@ -428,7 +420,7 @@ class TestInputProcessorAdvanced:
         manager.reverse_mode = True
         processor = InputProcessor(manager)
 
-        multiplier = processor._calculate_axis_multiplier(CONSTANTS.N64.NAME)
+        multiplier = processor._calculate_multiplier(CONSTANTS.N64.NAME)
 
         assert multiplier == pytest.approx(CONSTANTS.CONTROLLER_MODES.NORMAL_MULTIPLIER)
 
@@ -439,7 +431,7 @@ class TestInputProcessorAdvanced:
         manager.reverse_mode = False
         processor = InputProcessor(manager)
 
-        multiplier = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        multiplier = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
 
         assert multiplier == pytest.approx(CONSTANTS.CONTROLLER_MODES.CREEP_MULTIPLIER)
 
@@ -450,7 +442,7 @@ class TestInputProcessorAdvanced:
         manager.reverse_mode = True
         processor = InputProcessor(manager)
 
-        multiplier = processor._calculate_axis_multiplier(CONSTANTS.XBOX.NAME)
+        multiplier = processor._calculate_multiplier(CONSTANTS.XBOX.NAME)
 
         assert multiplier == pytest.approx(-CONSTANTS.CONTROLLER_MODES.CREEP_MULTIPLIER)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from xbee.core import (
+from xbee.communication.udp_backend import (
     SimulationCommunicationManager,
     UdpCommunicationManager,
     UdpMessage,

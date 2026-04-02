@@ -1,217 +1,201 @@
 """
-Tests for BaseStation event dispatching.
+Tests for BaseStation event dispatching via send_command().
+
+All tests exercise the real production entry point (send_command) instead of
+now-removed _dispatch_* helper methods.
 """
 
 from unittest.mock import Mock, patch
 
-import pygame
+from xbee.controller.events import (
+    JOYAXISMOTION,
+    JOYBUTTONDOWN,
+    JOYBUTTONUP,
+    JOYDEVICEADDED,
+    JOYDEVICEREMOVED,
+    JOYHATMOTION,
+)
 
 
-class TestEventDispatching:
-    """Test event dispatching methods."""
+class TestSendCommandDispatching:
+    """Test that send_command routes each event type to the correct handler."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_hotplug_event_added(
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_device_added(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test JOYDEVICEADDED event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+        """Test JOYDEVICEADDED event is routed to handle_controller_added."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_controller_added = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_added.return_value = False
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
-        base._dispatch_hotplug_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_controller_added.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_hotplug_event_removed(
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_device_removed(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test JOYDEVICEREMOVED event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+        """Test JOYDEVICEREMOVED event is routed to handle_controller_removed."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_controller_removed = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_removed.return_value = False
 
         event = Mock()
-        event.type = pygame.JOYDEVICEREMOVED
+        event.type = JOYDEVICEREMOVED
 
-        base._dispatch_hotplug_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_controller_removed.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_hotplug_falls_back_to_internal_handler(
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_device_added_triggers_quit(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler when controller_manager lacks method."""
-        from xbee.core.base_station import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])  # No methods
-        base._handle_controller_hotplug = Mock()
-
-        event = Mock()
-        event.type = pygame.JOYDEVICEADDED
-
-        base._dispatch_hotplug_event(event)
-
-        base._handle_controller_hotplug.assert_called_once_with(event)
-
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_axis_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test axis motion event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+        """Test JOYDEVICEADDED sets quit when handler returns True."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_axis_motion = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_added.return_value = True
 
         event = Mock()
+        event.type = JOYDEVICEADDED
 
-        base._dispatch_axis_event(event)
+        base.send_command(event)
+
+        assert base.quit is True
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_device_removed_triggers_quit(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYDEVICEREMOVED sets quit when handler returns True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        base.controller_manager = Mock()
+        base.controller_manager.has_joysticks.return_value = False
+        base.controller_manager.handle_controller_removed.return_value = True
+
+        event = Mock()
+        event.type = JOYDEVICEREMOVED
+
+        base.send_command(event)
+
+        assert base.quit is True
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_axis_motion(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYAXISMOTION event is routed to handle_axis_motion."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        base.controller_manager = Mock()
+        base.controller_manager.has_joysticks.return_value = True
+
+        event = Mock()
+        event.type = JOYAXISMOTION
+
+        base.send_command(event)
 
         base.controller_manager.handle_axis_motion.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_axis_falls_back_to_internal_handler(
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_button_down(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler for axis event."""
-        from xbee.core.base_station import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_axis_motion = Mock()
-
-        event = Mock()
-
-        base._dispatch_axis_event(event)
-
-        base._handle_axis_motion.assert_called_once_with(event)
-
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_button_down_event(
-        self, mock_controller, mock_heartbeat, mock_comm
-    ):
-        """Test button down event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+        """Test JOYBUTTONDOWN event is routed to handle_button_down."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_button_down = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
-        event.type = pygame.JOYBUTTONDOWN
+        event.type = JOYBUTTONDOWN
 
-        base._dispatch_button_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_button_down.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_button_up_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test button up event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_button_up(
+        self, mock_controller, mock_heartbeat, mock_comm
+    ):
+        """Test JOYBUTTONUP event is routed to handle_button_up."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_button_up = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
-        event.type = pygame.JOYBUTTONUP
+        event.type = JOYBUTTONUP
 
-        base._dispatch_button_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_button_up.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_button_falls_back(
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
+    def test_send_command_routes_joyhat(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
-        """Test fallback to internal handler for button event."""
-        from xbee.core.base_station import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_button_event = Mock()
-
-        event = Mock()
-        event.type = pygame.JOYBUTTONDOWN
-
-        base._dispatch_button_event(event)
-
-        base._handle_button_event.assert_called_once_with(event)
-
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_joypad_event(self, mock_controller, mock_heartbeat, mock_comm):
-        """Test joypad event is dispatched correctly."""
-        from xbee.core.base_station import BaseStation
+        """Test JOYHATMOTION event is routed to handle_joypad."""
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
-        base.controller_manager.handle_joypad = Mock()
+        base.controller_manager.has_joysticks.return_value = True
 
         event = Mock()
+        event.type = JOYHATMOTION
 
-        base._dispatch_joypad_event(event)
+        base.send_command(event)
 
         base.controller_manager.handle_joypad.assert_called_once_with(event)
-
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
-    def test_dispatch_joypad_falls_back(
-        self, mock_controller, mock_heartbeat, mock_comm
-    ):
-        """Test fallback to internal handler for joypad event."""
-        from xbee.core.base_station import BaseStation
-
-        base = BaseStation()
-        base.controller_manager = Mock(spec=[])
-        base._handle_joypad_motion = Mock()
-
-        event = Mock()
-
-        base._dispatch_joypad_event(event)
-
-        base._handle_joypad_motion.assert_called_once_with(event)
 
 
 class TestInternalEventHandlers:
     """Test internal event handler methods."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_controller_hotplug_quit(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test controller hotplug can trigger quit."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
@@ -219,19 +203,19 @@ class TestInternalEventHandlers:
 
         event = Mock()
 
-        with patch("xbee.core.base_station.logger"):
+        with patch("xbee.app.logger"):
             base._handle_controller_hotplug(event)
 
         assert base.quit is True
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_controller_hotplug_no_quit(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test controller hotplug does not trigger quit."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
@@ -243,15 +227,15 @@ class TestInternalEventHandlers:
 
         assert base.quit is False
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_axis_motion_joystick_axis(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test handling joystick axis motion."""
-        from xbee.core.base_station import BaseStation
-        from xbee.core.command_codes import CONSTANTS
+        from xbee.app import BaseStation
+        from xbee.config.constants import CONSTANTS
 
         base = BaseStation()
         base.input_processor = Mock()
@@ -263,15 +247,15 @@ class TestInternalEventHandlers:
 
         base.input_processor.process_joystick_axis.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_axis_motion_trigger_axis(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test handling trigger axis motion."""
-        from xbee.core.base_station import BaseStation
-        from xbee.core.command_codes import CONSTANTS
+        from xbee.app import BaseStation
+        from xbee.config.constants import CONSTANTS
 
         base = BaseStation()
         base.input_processor = Mock()
@@ -283,12 +267,12 @@ class TestInternalEventHandlers:
 
         base.input_processor.process_trigger_axis.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_button_event_quit(self, mock_controller, mock_heartbeat, mock_comm):
         """Test button event can trigger quit."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.input_processor = Mock()
@@ -298,18 +282,18 @@ class TestInternalEventHandlers:
         event = Mock()
         event.instance_id = 0
 
-        with patch("xbee.core.base_station.logger"):
+        with patch("xbee.app.logger"):
             base._handle_button_event(event)
 
         assert base.quit is True
         base.input_processor.process_button.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_handle_joypad_motion(self, mock_controller, mock_heartbeat, mock_comm):
         """Test handling joypad motion."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.input_processor = Mock()
@@ -324,34 +308,34 @@ class TestInternalEventHandlers:
 class TestSendCommand:
     """Test send_command method."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_no_joysticks(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test send_command returns early when no joysticks connected."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
         base.controller_manager.has_joysticks.return_value = False
 
         event = Mock()
-        event.type = pygame.JOYAXISMOTION
+        event.type = JOYAXISMOTION
 
         result = base.send_command(event)
 
         assert result is None
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_device_added_no_joysticks(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test send_command processes JOYDEVICEADDED even without joysticks."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
@@ -359,20 +343,20 @@ class TestSendCommand:
         base.controller_manager.handle_controller_added = Mock()
 
         event = Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event.type = JOYDEVICEADDED
 
         _ = base.send_command(event)
 
         base.controller_manager.handle_controller_added.assert_called_once_with(event)
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("xbee.core.base_station.ControllerManager")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    @patch("xbee.app.ControllerManager")
     def test_send_command_unknown_event_type(
         self, mock_controller, mock_heartbeat, mock_comm
     ):
         """Test send_command handles unknown event types."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
         base.controller_manager = Mock()
@@ -389,36 +373,28 @@ class TestSendCommand:
 class TestControllerDisconnect:
     """Tests for controller disconnection behavior."""
 
-    @patch("xbee.core.base_station.CommunicationManager")
-    @patch("xbee.core.base_station.HeartbeatManager")
-    @patch("pygame.joystick.Joystick")
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
     def test_disconnect_triggers_quit_with_multiple_controllers(
-        self, mock_joy, mock_heartbeat, mock_comm
+        self, mock_heartbeat, mock_comm
     ):
         """Test that disconnecting one of multiple controllers triggers base station quit."""
-        from xbee.core.base_station import BaseStation
+        from xbee.app import BaseStation
 
         base = BaseStation()
 
         # Add two joysticks
-        joy1 = Mock()
-        joy1.get_instance_id.return_value = 1
-        joy1.get_name.return_value = "Xbox Controller"
+        event_add1 = Mock()
+        event_add1.type = JOYDEVICEADDED
+        event_add1.instance_id = 1
+        event_add1.name = "Xbox Controller"
+        base.send_command(event_add1)
 
-        joy2 = Mock()
-        joy2.get_instance_id.return_value = 2
-        joy2.get_name.return_value = "N64 Controller"
-
-        with patch("pygame.joystick.Joystick", side_effect=[joy1, joy2]):
-            event_add1 = Mock(spec=pygame.event.Event)
-            event_add1.type = pygame.JOYDEVICEADDED
-            event_add1.device_index = 0
-            base.send_command(event_add1)
-
-            event_add2 = Mock(spec=pygame.event.Event)
-            event_add2.type = pygame.JOYDEVICEADDED
-            event_add2.device_index = 1
-            base.send_command(event_add2)
+        event_add2 = Mock()
+        event_add2.type = JOYDEVICEADDED
+        event_add2.instance_id = 2
+        event_add2.name = "N64 Controller"
+        base.send_command(event_add2)
 
         assert base.controller_manager.has_joysticks() is True
         assert len(base.controller_manager.joysticks) == 2
@@ -427,8 +403,8 @@ class TestControllerDisconnect:
         assert base.quit is False
 
         # Disconnect one
-        event_remove = Mock(spec=pygame.event.Event)
-        event_remove.type = pygame.JOYDEVICEREMOVED
+        event_remove = Mock()
+        event_remove.type = JOYDEVICEREMOVED
         event_remove.instance_id = 1
 
         base.send_command(event_remove)
@@ -438,3 +414,41 @@ class TestControllerDisconnect:
             base.quit is True
         ), "BaseStation should quit when one of the controllers is disconnected"
         assert len(base.controller_manager.joysticks) == 1
+
+
+class TestPeripheralDisconnectTriggersQuit:
+    """Keyboard and SpaceMouse disconnects should trigger quit (e-stop)."""
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    def test_keyboard_disconnect_triggers_quit(self, mock_heartbeat, mock_comm):
+        """Keyboard on_disconnect callback should set base.quit = True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        assert base.quit is False
+
+        # Simulate keyboard disconnect callback
+        base._on_keyboard_disconnect()
+
+        assert base.quit is True, (
+            "BaseStation should quit when keyboard disconnects"
+        )
+        assert base._keyboard_disconnect_pending.is_set()
+
+    @patch("xbee.app.CommunicationManager")
+    @patch("xbee.app.HeartbeatManager")
+    def test_spacemouse_disconnect_triggers_quit(self, mock_heartbeat, mock_comm):
+        """SpaceMouse on_disconnect callback should set base.quit = True."""
+        from xbee.app import BaseStation
+
+        base = BaseStation()
+        assert base.quit is False
+
+        # Simulate SpaceMouse disconnect callback
+        base._on_spacemouse_disconnect()
+
+        assert base.quit is True, (
+            "BaseStation should quit when SpaceMouse disconnects"
+        )
+        assert base._spacemouse_disconnect_pending.is_set()

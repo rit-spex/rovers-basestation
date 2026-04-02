@@ -16,12 +16,12 @@ class TestXbeeMain:
         import runpy
         import types
 
-        stub_mod = types.ModuleType("xbee.core.base_station")
+        stub_mod = types.ModuleType("xbee.app")
         stub_mod.main = Mock()  # type: ignore[attr-defined]
 
-        old_mod = sys.modules.get("xbee.core.base_station")
+        old_mod = sys.modules.get("xbee.app")
         try:
-            sys.modules["xbee.core.base_station"] = stub_mod
+            sys.modules["xbee.app"] = stub_mod
             # Ensure the module is reimported fresh for the test
             importlib.invalidate_caches()
             if "xbee.__main__" in sys.modules:
@@ -36,9 +36,9 @@ class TestXbeeMain:
                 del sys.modules["xbee.__main__"]
             # Restore previous module if any
             if old_mod is not None:
-                sys.modules["xbee.core.base_station"] = old_mod
+                sys.modules["xbee.app"] = old_mod
             else:
-                del sys.modules["xbee.core.base_station"]
+                del sys.modules["xbee.app"]
 
     def test_main_module_can_be_found(self):
         """Test module can be loaded for running."""
@@ -53,12 +53,12 @@ class TestXbeeMain:
         import importlib
         import types
 
-        stub_mod = types.ModuleType("xbee.core.base_station")
+        stub_mod = types.ModuleType("xbee.app")
         stub_mod.main = Mock()  # type: ignore[attr-defined]
 
-        old_mod = sys.modules.get("xbee.core.base_station")
+        old_mod = sys.modules.get("xbee.app")
         try:
-            sys.modules["xbee.core.base_station"] = stub_mod
+            sys.modules["xbee.app"] = stub_mod
             importlib.invalidate_caches()
             if "xbee.__main__" in sys.modules:
                 del sys.modules["xbee.__main__"]
@@ -71,6 +71,6 @@ class TestXbeeMain:
             if "xbee.__main__" in sys.modules:
                 del sys.modules["xbee.__main__"]
             if old_mod is not None:
-                sys.modules["xbee.core.base_station"] = old_mod
+                sys.modules["xbee.app"] = old_mod
             else:
-                del sys.modules["xbee.core.base_station"]
+                del sys.modules["xbee.app"]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from xbee.core.xbee_communication import XbeeCommunicationManager
+from xbee.communication.xbee_backend import XbeeCommunicationManager
 
 
 def test_xbee_inflight_wait_timeout_env_zero(monkeypatch):

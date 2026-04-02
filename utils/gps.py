@@ -1,11 +1,7 @@
 """GPS helper module.
 
-This module provides a robust, test-friendly GPS interface that reads
-NMEA lines from an I2C-attached GPS device.
-
-The implementation deliberately tolerates the absence of hardware
-and of Adafruit's Blinka (`board`/`busio`) by falling back to a
-no-op behavior in non-hardware environments.
+Reads NMEA lines from an I2C-attached GPS. Falls back to no-op
+when hardware/Blinka is unavailable.
 """
 
 from __future__ import annotations
@@ -23,15 +19,23 @@ shutdown_event = threading.Event()
 
 
 def stop_gps_reader() -> None:
-    """Request a clean shutdown of the GPS reader loop.
-
-    The reader checks :data:`shutdown_event` and exits the read loop when
-    signaled. Tests may set this event to terminate the running thread.
-    """
+    """Request a clean shutdown of the GPS reader loop."""
     shutdown_event.set()
 
 
 try:
+    import warnings
+
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources is deprecated as an API.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        message="pkg_resources package is slated for removal.*",
+    )
     import board  # type: ignore
     import busio  # type: ignore
 except (ImportError, NotImplementedError):
@@ -85,13 +89,7 @@ def _reset_i2c_signature_cache() -> None:
 
 
 def _init_i2c_bus():
-    """Initialize I2C bus using board and busio modules.
-
-    Raises
-    ------
-    RuntimeError
-        If no compatible bus driver is available.
-    """
+    """Initialize I2C bus using board and busio modules."""
     if board is None or busio is None:
         raise RuntimeError("board/busio not available")
     try:
@@ -103,13 +101,7 @@ def _init_i2c_bus():
 
 
 def _scan_for_gps(i2c, gps_address: int) -> Optional[int]:
-    """Scan the I2C bus for a GPS device and return its address.
-
-    Returns
-    -------
-    Optional[int]
-        The 7-bit address of the GPS device or ``None`` if not found.
-    """
+    """Scan the I2C bus for a GPS device and return its address."""
     try:
         devices = i2c.scan()
     except Exception as e:  # pragma: no cover - hardware error
@@ -189,7 +181,6 @@ def _validate_nmea_checksum(text: str) -> bool:
 
 
 def _process_nmea_line(line: bytes) -> None:
-    """Process and validate a single NMEA line."""
     text = _decode_line(line)
     if text is None:
         return
@@ -202,9 +193,6 @@ def _process_nmea_line(line: bytes) -> None:
 
 
 def _process_partial_buffer(partial: bytes, max_size: int) -> bytes:
-    """Process partial buffer and extract newlines, returning the remaining
-    partial buffer.
-    """
     if len(partial) > max_size:
         cutoff = len(partial) - max_size
         newline_idx = partial.find(b"\n", cutoff)
@@ -272,10 +260,6 @@ def _read_and_parse_nmea(i2c, device):
 
 
 def _register_signal_handlers() -> None:
-    """Register signal handlers that set :data:`shutdown_event` on shutdown
-    signals.
-    """
-
     def _handle_shutdown(signum, frame):
         shutdown_event.set()
 
@@ -290,7 +274,6 @@ def _register_signal_handlers() -> None:
 
 
 def cleanup_i2c_bus(i2c) -> None:
-    """Cleanup I2C bus resources when finishing the reader loop."""
     if i2c is None:
         return
     try:
@@ -306,21 +289,13 @@ def cleanup_i2c_bus(i2c) -> None:
 
 
 def _log_shutdown_status() -> None:
-    """Log the final shutdown status.
-
-    This is a lightweight, test-friendly helper called by :func:`run_gps_reader`.
-    """
+    """Log the final shutdown status."""
     if shutdown_event.is_set():
         logger.info("GPS reader stopped by user")
 
 
 def run_gps_reader(gps_address: Optional[int] = None) -> None:
-    """Start the GPS reader loop.
-
-    If ``board``/``busio`` cannot be imported, the function logs a warning and
-    returns without raising, enabling test and CI environments to import this
-    module without needing the hardware drivers.
-    """
+    """Start the GPS reader loop. No-op when board/busio is unavailable."""
     if gps_address is None:
         gps_address = GPS_I2C_ADDRESS
     if board is None or busio is None:

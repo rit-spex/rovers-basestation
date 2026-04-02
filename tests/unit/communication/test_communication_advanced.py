@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from xbee.core.command_codes import CONSTANTS
-from xbee.core.communication import CommunicationManager, MessageFormatter
+from xbee.communication.manager import CommunicationManager, MessageFormatter
+from xbee.config.constants import CONSTANTS
 
 
 class TestMessageFormatterAdvanced:
@@ -40,77 +40,6 @@ class TestMessageFormatterAdvanced:
         # First byte should be START_MESSAGE
         start_byte = int.from_bytes(CONSTANTS.START_MESSAGE, byteorder="big")
         assert message[0] == start_byte
-
-
-class TestCommunicationManagerSendMethods:
-    """Test CommunicationManager specialized send methods."""
-
-    def test_send_status_update(self):
-        """Test send_status_update formats and sends correctly."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_status_update(
-            status_code=1, battery_level=85, signal_strength=90
-        )
-
-        assert result is True
-        comm.hardware_com.send_package.assert_called()
-
-    def test_send_error_code(self):
-        """Test send_error_code formats and sends correctly."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_error_code(error_code=42, severity=5)
-
-        assert result is True
-        comm.hardware_com.send_package.assert_called()
-
-    def test_send_gps_position(self):
-        """Test send_gps_position formats and sends correctly."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_gps_position(latitude=40.7128, longitude=-74.0060)
-
-        assert result is True
-        comm.hardware_com.send_package.assert_called()
-
-    def test_send_sensor_reading(self):
-        """Test send_sensor_reading formats and sends correctly."""
-        comm = CommunicationManager(simulation_mode=True)
-        comm.hardware_com = Mock()
-        comm.hardware_com.send_package.return_value = True
-
-        result = comm.send_sensor_reading(sensor_id=5, reading=1234)
-
-        assert result is True
-        comm.hardware_com.send_package.assert_called()
-
-    def test_send_sensor_reading_invalid_reading_type(self):
-        """Test send_sensor_reading raises ValueError for invalid type."""
-        comm = CommunicationManager(simulation_mode=True)
-
-        with pytest.raises(ValueError, match="reading must be an int"):
-            comm.send_sensor_reading(sensor_id=5, reading="invalid")  # type: ignore[arg-type]  # noqa
-
-    def test_send_sensor_reading_out_of_range(self):
-        """Test send_sensor_reading raises ValueError for out of range."""
-        comm = CommunicationManager(simulation_mode=True)
-
-        with pytest.raises(ValueError, match="reading out of bounds"):
-            comm.send_sensor_reading(sensor_id=5, reading=70000)
-
-    def test_send_sensor_reading_negative(self):
-        """Test send_sensor_reading raises ValueError for negative value."""
-        comm = CommunicationManager(simulation_mode=True)
-
-        with pytest.raises(ValueError, match="reading out of bounds"):
-            comm.send_sensor_reading(sensor_id=5, reading=-1)
 
 
 class TestCommunicationManagerControllerData:
@@ -253,7 +182,7 @@ class TestCommunicationManagerRetry:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.side_effect = [False, False, True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_package(b"\x01\x02", retry_count=3)
 
         assert result is True
@@ -265,7 +194,7 @@ class TestCommunicationManagerRetry:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.return_value = False
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_package(b"\x01\x02", retry_count=2)
 
         assert result is False
@@ -292,7 +221,7 @@ class TestCommunicationManagerCompactMessage:
         # First call raises TypeError, subsequent call succeeds
         comm.hardware_com.send_package.side_effect = [TypeError("Not bytes"), True]
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_compact_message([0xAB, 0x01])
 
         assert result is True
@@ -303,7 +232,7 @@ class TestCommunicationManagerCompactMessage:
         comm.hardware_com = Mock()
         comm.hardware_com.send_package.side_effect = RuntimeError("Network error")
 
-        with patch("xbee.core.communication.logger"):
+        with patch("xbee.communication.manager.logger"):
             result = comm.send_compact_message([0xAB, 0x01])
 
         assert result is False
