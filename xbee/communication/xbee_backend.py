@@ -13,8 +13,10 @@ import os
 import threading
 import time
 from typing import Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
-
 from utils.bytes import convert_to_bytes
+from xbee.protocol.encoding import MessageEncoder
+from digi.xbee.devices import TimeoutException
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,11 @@ class XbeeCommunicationManager:
         self.enabled = True
         self.last_message: Optional[bytes] = None
         self._telemetry_handler: Optional[Callable[[dict], None]] = None
+        self.message_handlers: Dict[str, Callable[[list], None]] = {}
+        self._decoder = MessageEncoder()
+
+        if self.xbee_device:
+            self.xbee_device.add_data_received_callback(self._handle_received_message)
 
         # Inflight tracking: {message_bytes: (Event, result_dict, timestamp)}
         self._inflight_messages: Dict[bytes, Tuple[threading.Event, dict, float]] = {}
@@ -72,6 +79,41 @@ class XbeeCommunicationManager:
                 default_max_age,
             )
             self.inflight_entry_max_age = default_max_age
+
+    def _handle_received_message(self, message) -> None:
+        self._try_handle_protocol_message(self._convert_to_bytes(message.data))
+
+    def _try_handle_protocol_message(self, message: bytes) -> bool:
+        try:
+            decoded, message_id = self._decoder.decode_data(message)
+            if not self._decoder.is_from_rover(message_id):
+                return False
+
+            message_name = self._decoder.get_message_name(message_id)
+            logger.info(
+                "[protocol rx] id=0x%02X name=%s payload=%s bytes=%s",
+                message_id,
+                message_name,
+                decoded,
+                message.hex(" "),
+            )
+
+            telemetry_payload = dict(decoded)
+            telemetry_payload["_message_id"] = message_id
+            telemetry_payload["_message_name"] = self._decoder.get_message_name(
+                message_id
+            )
+
+            with self._message_lock:
+                self.last_telemetry = telemetry_payload.copy()
+                telemetry_handler = self._telemetry_handler
+
+            if telemetry_handler:
+                telemetry_handler(telemetry_payload)
+            return True
+        except Exception:
+            logger.exception("Error parsing compact telemetry message")
+            return False
 
     def send_package(
         self,
@@ -131,10 +173,12 @@ class XbeeCommunicationManager:
     def disable(self):
         self.enabled = False
 
-    def register_telemetry_handler(self, handler: Callable[[dict], None]) -> None:
-        """Register telemetry callback (reserved for future receive-path support)."""
-        self._telemetry_handler = handler
-
+    def register_telemetry_handler(
+        self, handler: Callable[[Dict[str, Any]], None]
+    ) -> None:
+        with self._message_lock:
+            self._telemetry_handler = handler
+    
     def _convert_to_bytes(self, data: PayloadLike) -> bytes:
         return convert_to_bytes(data)
 

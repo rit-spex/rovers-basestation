@@ -110,7 +110,6 @@ class UdpCommunicationManager:
         self.host = CONSTANTS.COMMUNICATION.UDP_HOST
         self.basestation_port = CONSTANTS.COMMUNICATION.UDP_BASESTATION_PORT
         self.rover_port = CONSTANTS.COMMUNICATION.UDP_ROVER_PORT
-        self.telemetry_port = CONSTANTS.COMMUNICATION.UDP_TELEMETRY_PORT
 
         self.send_socket: Optional[socket.socket] = None
         self.receive_socket: Optional[socket.socket] = None
@@ -153,9 +152,9 @@ class UdpCommunicationManager:
 
         receive_socket = self.receive_socket
         try:
-            receive_socket.bind((self.host, self.telemetry_port))
+            receive_socket.bind((self.host, self.basestation_port))
             receive_socket.settimeout(1.0)
-            logger.info("UDP receiver bound to %s:%d", self.host, self.telemetry_port)
+            logger.info("UDP receiver bound to %s:%d", self.host, self.basestation_port)
             logger.info("UDP sender configured for %s:%d", self.host, self.rover_port)
 
         except Exception:
