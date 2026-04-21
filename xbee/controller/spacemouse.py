@@ -26,6 +26,7 @@ import logging
 import struct
 import threading
 import time
+from collections import deque
 from typing import Any, Callable, Dict, Optional
 
 from xbee.config.constants import CONSTANTS
@@ -41,6 +42,7 @@ _REPORT_BUTTONS = 0x03  # button state
 _MIN_3AXIS_LEN = 7  # 1 byte report ID + 6 bytes (3 × int16)
 _MIN_6DOF_LEN = 13  # 1 byte report ID + 12 bytes (6 × int16)
 _MIN_BUTTON_LEN = 3  # 1 byte report ID + 2 bytes (uint16 button mask)
+_BUFFER_LENGTH = 5  # History length for each axis
 
 
 class SpaceMouse:
@@ -63,6 +65,7 @@ class SpaceMouse:
         poll_interval: float = 0.001,
         reconnect_interval: float = 2.0,
         on_disconnect: Optional[Callable[[], None]] = None,
+
     ) -> None:
         self._vendor_id = vendor_id or CONSTANTS.SPACEMOUSE.VENDOR_ID
         self._product_id = product_id or CONSTANTS.SPACEMOUSE.PRODUCT_ID
@@ -80,6 +83,16 @@ class SpaceMouse:
         self._thread: Optional[threading.Thread] = None
         self._dev: Any = None  # hid.device instance
         self._seen_split_rotation_report = False
+
+        # Buffers for all 6 Degrees of Freedom
+        self.history = {
+            CONSTANTS.SPACEMOUSE.AXIS_X: deque(maxlen=_BUFFER_LENGTH),
+            CONSTANTS.SPACEMOUSE.AXIS_Y: deque(maxlen=_BUFFER_LENGTH),
+            CONSTANTS.SPACEMOUSE.AXIS_Z: deque(maxlen=_BUFFER_LENGTH),
+            CONSTANTS.SPACEMOUSE.AXIS_RX: deque(maxlen=_BUFFER_LENGTH),
+            CONSTANTS.SPACEMOUSE.AXIS_RY: deque(maxlen=_BUFFER_LENGTH),
+            CONSTANTS.SPACEMOUSE.AXIS_RZ: deque(maxlen=_BUFFER_LENGTH),
+        }
 
     # ------------------------------------------------------------------
     # Public API
@@ -298,6 +311,19 @@ class SpaceMouse:
     # Report parsing
     # ------------------------------------------------------------------
 
+    def _apply_filter(self, axis, value):
+        """Adds value to history. Returns value if last N signs match, else 0."""
+        self.history[axis].append(value)
+
+        if len(self.history[axis]) < _BUFFER_LENGTH:
+            return 0
+
+        # Logic: All values must be > 0 or all values must be < 0
+        history = self.history[axis]
+        if all(v > 0 for v in history) or all(v < 0 for v in history):
+            return value
+        return 0
+
     def _process_report(self, data: list[int]) -> None:
         if not data:
             return
@@ -325,17 +351,17 @@ class SpaceMouse:
         """Parse translation-only report: x, y, z (3 × int16)."""
         x, y, z = struct.unpack("<hhh", bytes(data[1:7]))
         with self._lock:
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_X] = x
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_Y] = -y
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_Z] = -z
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_X] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_X, x)
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Y] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_Y, -y)
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Z] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_Z, -z)
 
     def _parse_rotation(self, data: list[int]) -> None:
         """Parse rotation-only report: rx, ry, rz (3 × int16)."""
         rx, ry, rz = struct.unpack("<hhh", bytes(data[1:7]))
         with self._lock:
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RX] = rx
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RY] = ry
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RZ] = -rz
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RX] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RX, rx)
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RY] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RY, ry)
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RZ] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RZ, -rz)
 
     def _parse_6dof(self, data: list[int]) -> None:
         """Parse a 6DOF combined translation/rotation report.
@@ -353,12 +379,12 @@ class SpaceMouse:
         """
         vals = struct.unpack("<hhhhhh", bytes(data[1:13]))
         with self._lock:
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_X] = vals[0]
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_Y] = -vals[1]
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_Z] = -vals[2]
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RX] = vals[3]
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RY] = vals[4]
-            self._state[CONSTANTS.SPACEMOUSE.AXIS_RZ] = -vals[5]
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_X] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_X, vals[0])
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Y] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_Y, -vals[1])
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_Z] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_Z, -vals[2])
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RX] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RX, vals[3])
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RY] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RY, vals[4])
+            self._state[CONSTANTS.SPACEMOUSE.AXIS_RZ] = self._apply_filter(CONSTANTS.SPACEMOUSE.AXIS_RZ, -vals[5])
 
     def _parse_buttons(self, data: list[int]) -> None:
         """Parse a button-state report (uint16 bitmask)."""
