@@ -14,8 +14,6 @@ import threading
 import time
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
 
-from digi.xbee.devices import TimeoutException
-
 from utils.bytes import convert_to_bytes
 from xbee.protocol.encoding import MessageEncoder
 

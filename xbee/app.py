@@ -915,6 +915,43 @@ def _create_control_loop(base_station: BaseStation, display: BaseDisplay):
 # ---------------------------------------------------------------------------
 
 
+def _init_display(display: BaseDisplay, base_station: "BaseStation") -> None:
+    """Push initial state to the display and bind keyboard fallback."""
+    if hasattr(display, "update_communication_status"):
+        display.update_communication_status(base_station.xbee_enabled, 0)
+    if hasattr(display, "update_modes"):
+        display.update_modes(
+            creep=base_station.creep_mode, reverse=base_station.reverse_mode
+        )
+    if hasattr(display, "set_simulation_mode"):
+        display.set_simulation_mode(not base_station.xbee_enabled)
+    if hasattr(display, "root") and display.root is not None:
+        base_station.keyboard.bind_tkinter(display.root)
+
+
+def _run_display(base_station: "BaseStation", display: BaseDisplay) -> None:
+    """Block on the display (GUI or headless) until shutdown."""
+    try:
+        if getattr(display, "headless", False):
+            try:
+                while not base_station.quit:
+                    time.sleep(0.1)
+            except KeyboardInterrupt:
+                base_station.quit = True
+                raise
+        else:
+            display.run()
+            base_station.quit = True
+    except (KeyboardInterrupt, SystemExit) as exc:
+        logger.info("Shutdown from main thread: %s", exc)
+        base_station.quit = True
+        raise
+    except Exception:
+        logger.exception("Unhandled exception in main loop; shutting down")
+        base_station.quit = True
+        raise
+
+
 def main():
     """Launch the basestation (GUI or headless)."""
     display = create_display()
@@ -930,46 +967,14 @@ def main():
         base_station.heartbeat_manager.get_interval() / CONSTANTS.CONVERSION.NS_PER_S,
     )
 
-    if hasattr(display, "update_communication_status"):
-        display.update_communication_status(base_station.xbee_enabled, 0)
-    if hasattr(display, "update_modes"):
-        display.update_modes(
-            creep=base_station.creep_mode, reverse=base_station.reverse_mode
-        )
-    if hasattr(display, "set_simulation_mode"):
-        display.set_simulation_mode(not base_station.xbee_enabled)
-
-    # Bind keyboard events to tkinter window as a fallback input source.
-    # The `inputs` library captures global key events but may not work on
-    # all platforms (e.g. Windows without elevated permissions).  Tkinter
-    # key bindings work reliably when the GUI window is focused.
-    if hasattr(display, "root") and display.root is not None:
-        base_station.keyboard.bind_tkinter(display.root)
+    _init_display(display, base_station)
 
     control_loop = _create_control_loop(base_station, display)
     control_thread = threading.Thread(target=control_loop, daemon=True)
     control_thread.start()
 
     try:
-        if getattr(display, "headless", False):
-            try:
-                while not base_station.quit:
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                base_station.quit = True
-                raise
-        else:
-            display.run()
-            # GUI closed normally: request control-loop shutdown.
-            base_station.quit = True
-    except (KeyboardInterrupt, SystemExit) as exc:
-        logger.info("Shutdown from main thread: %s", exc)
-        base_station.quit = True
-        raise
-    except Exception:
-        logger.exception("Unhandled exception in main loop; shutting down")
-        base_station.quit = True
-        raise
+        _run_display(base_station, display)
     finally:
         control_thread.join(timeout=5.0)
         if control_thread.is_alive():

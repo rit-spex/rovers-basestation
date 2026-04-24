@@ -124,7 +124,7 @@ class KeyboardInput:
         # Thread-safe state
         self._lock = threading.Lock()
         # Raw key-down tracking (True = currently physically held)
-        self._keys_down: Dict[str, bool] = {sig: False for sig in _ALL_SIGNALS}
+        self._keys_down: Dict[str, bool] = dict.fromkeys(_ALL_SIGNALS, False)
         # Pending release timestamps (signal -> monotonic time when release
         # was first seen).  Empty means no pending release.
         self._pending_release: Dict[str, float] = {}
@@ -222,7 +222,7 @@ class KeyboardInput:
 
     @staticmethod
     def _zero_state() -> Dict[str, int]:
-        return {sig: NOT_PRESSED for sig in _ALL_SIGNALS}
+        return dict.fromkeys(_ALL_SIGNALS, NOT_PRESSED)
 
     # ------------------------------------------------------------------
     # Background thread
@@ -334,27 +334,37 @@ class KeyboardInput:
             return  # Not a mapped key
 
         with self._lock:
-            if state == 1:
-                # Key pressed (or re-pressed within the release debounce
-                # window – cancel the pending release and stay HELD).
-                if signal in self._pending_release:
-                    self._pending_release.pop(signal, None)
-                    return
-                if not self._keys_down[signal]:
-                    self._state[signal] = JUST_PRESSED
-                    self._keys_down[signal] = True
-            elif state == 0:
-                # Key released – defer commit so a follow-up press from a
-                # noisy keyboard driver can cancel it.
-                if self._keys_down[signal]:
-                    self._pending_release[signal] = time.monotonic()
-            elif state == 2:
-                # Key repeat (held) on Linux – treat as still down and
-                # cancel any pending release for this key.
-                self._pending_release.pop(signal, None)
-                if not self._keys_down[signal]:
-                    self._state[signal] = JUST_PRESSED
-                    self._keys_down[signal] = True
+            self._apply_key_state_unlocked(signal, state)
+
+    def _apply_key_state_unlocked(self, signal: str, state: int) -> None:
+        """Update key state machine for one signal. Caller must hold self._lock."""
+        if state == 1:
+            self._on_key_press_unlocked(signal)
+        elif state == 0:
+            self._on_key_release_unlocked(signal)
+        elif state == 2:
+            self._on_key_repeat_unlocked(signal)
+
+    def _on_key_press_unlocked(self, signal: str) -> None:
+        # Re-press within the debounce window cancels the pending release.
+        if signal in self._pending_release:
+            self._pending_release.pop(signal, None)
+            return
+        if not self._keys_down[signal]:
+            self._state[signal] = JUST_PRESSED
+            self._keys_down[signal] = True
+
+    def _on_key_release_unlocked(self, signal: str) -> None:
+        # Defer commit so a follow-up press from a noisy driver can cancel it.
+        if self._keys_down[signal]:
+            self._pending_release[signal] = time.monotonic()
+
+    def _on_key_repeat_unlocked(self, signal: str) -> None:
+        # Key repeat (held) on Linux – cancel any pending release.
+        self._pending_release.pop(signal, None)
+        if not self._keys_down[signal]:
+            self._state[signal] = JUST_PRESSED
+            self._keys_down[signal] = True
 
     # ------------------------------------------------------------------
     # Tkinter integration (fallback input when `inputs` library unavailable)

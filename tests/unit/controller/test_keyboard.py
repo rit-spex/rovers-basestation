@@ -1,6 +1,5 @@
 """Tests for the KeyboardInput reader."""
 
-import threading
 import time
 from unittest.mock import Mock, patch
 

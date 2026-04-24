@@ -6,7 +6,6 @@ For telemetry interpretation, see telemetry.py.
 """
 
 import logging
-import os
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
@@ -686,7 +685,7 @@ class TkinterDisplay(BaseDisplay):
             "arm": (self.arm_toggle_indicator, "arm_enabled"),
             "life": (self.life_toggle_indicator, "life_enabled"),
         }
-        for module_key, (indicator, telemetry_key) in module_indicators.items():
+        for _module_key, (indicator, telemetry_key) in module_indicators.items():
             is_enabled = resolve_boolean_flag(telemetry, [telemetry_key])
             self._set_indicator_color(indicator, is_enabled)
 
@@ -776,63 +775,60 @@ class TkinterDisplay(BaseDisplay):
             except Exception:
                 pass
 
-        # "Nothing" state — no heartbeats ever received
+        new_data_content, freshness_text = self._build_module_content(
+            module_key, module_label
+        )
+        self._render_module_text(module_label, new_data_content, freshness_text)
+
+    def _build_module_content(
+        self, module_key: str, module_label: str
+    ) -> tuple[str, str]:
+        """Return (data_content, freshness_text) for the current module view."""
         if module_key == "nothing":
-            new_data_content = ""
-            freshness_text = ""
-        else:
-            td_copy = self._snapshot_telemetry()
-            if not td_copy:
-                new_data_content = ""
-                freshness_text = ""
-            else:
-                received_at = td_copy.get("_received_at")
-                freshness_text = self._format_telemetry_freshness(received_at)
+            return "", ""
 
-                filtered = filter_telemetry_for_module(td_copy, module_key)
-                filtered = {
-                    key: value
-                    for key, value in filtered.items()
-                    if not (isinstance(key, str) and key.startswith("_"))
-                }
+        td_copy = self._snapshot_telemetry()
+        if not td_copy:
+            return "", ""
 
-                if not filtered:
-                    new_data_content = (
-                        f"{module_label} Data:\n\n" "Waiting for module data…\n"
-                    )
-                else:
-                    lines = [f"{module_label} Data:"]
-                    for key, value in filtered.items():
-                        lines.append(f"{key}: {value}")
-                    new_data_content = "\n".join(lines) + "\n"
+        received_at = td_copy.get("_received_at")
+        freshness_text = self._format_telemetry_freshness(received_at)
 
-        # Compare only data values (not freshness timestamp) to decide
-        # whether a full rewrite is needed, preventing visible flickering
-        # from delete-then-insert on every cycle.
+        filtered = filter_telemetry_for_module(td_copy, module_key)
+        filtered = {
+            key: value
+            for key, value in filtered.items()
+            if not (isinstance(key, str) and key.startswith("_"))
+        }
+
+        if not filtered:
+            return f"{module_label} Data:\n\nWaiting for module data…\n", freshness_text
+
+        lines = [f"{module_label} Data:"] + [f"{k}: {v}" for k, v in filtered.items()]
+        return "\n".join(lines) + "\n", freshness_text
+
+    def _render_module_text(
+        self, module_label: str, new_data_content: str, freshness_text: str
+    ) -> None:
+        """Write module text widget, minimising rewrites to avoid flicker."""
         last_data = getattr(self, "_last_module_data_content", None)
         if new_data_content != last_data:
             self._last_module_data_content = new_data_content
-            # Build full content with freshness for display
+            display_content = new_data_content
             if freshness_text:
                 display_content = new_data_content.replace(
                     f"{module_label} Data:",
                     f"{module_label} Data ({freshness_text}):",
                     1,
                 )
-            else:
-                display_content = new_data_content
             self.module_text.config(state="normal")
             self.module_text.delete("1.0", tk.END)
             self.module_text.insert(tk.END, display_content)
             self.module_text.config(state="disabled")
         elif freshness_text:
-            # Data unchanged – only update the freshness text in the first line
-            # to avoid a full rewrite.
             try:
                 first_line = self.module_text.get("1.0", "1.end")
-                # Replace the parenthetical freshness in the first line
-                header_prefix = f"{module_label} Data ("
-                if header_prefix in first_line:
+                if f"{module_label} Data (" in first_line:
                     new_first_line = f"{module_label} Data ({freshness_text}):"
                     self.module_text.config(state="normal")
                     self.module_text.delete("1.0", "1.end")
