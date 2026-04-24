@@ -260,7 +260,17 @@ class KeyboardInput:
                 logger.debug("Failed to refresh input device manager", exc_info=True)
             present = self._is_keyboard_present()
             with self._lock:
+                was_connected = self._connected
                 self._connected = present
+            if was_connected and not present:
+                logger.info("Keyboard disconnected (no keyboard devices found)")
+                if self._on_disconnect is not None:
+                    try:
+                        self._on_disconnect()
+                    except Exception:
+                        logger.warning(
+                            "Keyboard on_disconnect callback error", exc_info=True
+                        )
             self._stop_event.wait(self._monitor_interval)
 
     def _read_loop(self) -> None:
