@@ -467,10 +467,25 @@ class InputEventSource:
 
             self._prune_signature_cache()
 
+    def _refresh_input_devices(self) -> None:
+        """Re-enumerate OS input devices so hotplugged controllers are visible.
+
+        The ``inputs`` library only scans devices once at import time, which
+        means controllers connected after the basestation starts will never
+        appear unless we rebuild the DeviceManager.
+        """
+        if inputs is None:
+            return
+        try:
+            inputs.devices = inputs.DeviceManager()
+        except Exception:
+            logger.exception("Failed to refresh input device manager")
+
     def _sync_devices(self) -> None:
         if not INPUTS_AVAILABLE:
             return
 
+        self._refresh_input_devices()
         devices = self._get_connected_gamepad_devices()
         current_keys = {self._device_key(device) for device in devices}
         current_ids = {id(device) for device in devices}
