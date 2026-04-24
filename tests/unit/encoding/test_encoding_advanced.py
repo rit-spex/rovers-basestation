@@ -37,7 +37,7 @@ class TestMessageEncoderEncoding:
         comm = MessageEncoder()
 
         # XBOX_ID is 0xF0
-        result = comm.encode_data({}, b"\xF0")
+        result = comm.encode_data({}, b"\xf0")
 
         assert isinstance(result, bytes)
         assert result[0] == 0xF0
