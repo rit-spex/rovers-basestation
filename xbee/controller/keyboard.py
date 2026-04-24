@@ -135,10 +135,16 @@ class KeyboardInput:
         # one key event.  Used to distinguish a real USB-keyboard unplug
         # (Pi) from the library simply failing to start (Windows laptop).
         self._inputs_ever_connected = False
+        # Set when bind_tkinter() is called so the device monitor knows the
+        # GUI is acting as a fallback input source and shouldn't flip the
+        # connected flag off.
+        self._tkinter_bound = False
 
-        # Background thread
+        # Background threads
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_interval = 0.5
 
     # ------------------------------------------------------------------
     # Public API
@@ -158,6 +164,12 @@ class KeyboardInput:
             target=self._run, name="keyboard-reader", daemon=True
         )
         self._thread.start()
+        self._monitor_thread = threading.Thread(
+            target=self._device_monitor_loop,
+            name="keyboard-monitor",
+            daemon=True,
+        )
+        self._monitor_thread.start()
         logger.info("Keyboard input reader started")
 
     def stop(self) -> None:
@@ -165,6 +177,9 @@ class KeyboardInput:
         if self._thread is not None:
             self._thread.join(timeout=3.0)
             self._thread = None
+        if self._monitor_thread is not None:
+            self._monitor_thread.join(timeout=3.0)
+            self._monitor_thread = None
         logger.info("Keyboard input reader stopped")
 
     def get_state(self) -> Dict[str, int]:
@@ -215,30 +230,38 @@ class KeyboardInput:
 
     def _run(self) -> None:
         """Main loop: read keyboard events continuously."""
-        with self._lock:
-            self._connected = True
-
         try:
             self._read_loop()
         except Exception:
             logger.exception("Keyboard reader thread error")
-        finally:
-            # Only fire the disconnect callback when the ``inputs`` library
-            # was actually working (i.e. at least one key event was captured)
-            # AND the thread wasn't stopped on purpose (normal shutdown).
-            # This avoids false-positives on Windows laptops where ``inputs``
-            # fails immediately but tkinter provides keyboard input instead.
-            if not self._inputs_ever_connected or self._stop_event.is_set():
-                return
+
+    def _is_keyboard_present(self) -> bool:
+        """Return True if the OS reports at least one connected keyboard."""
+        if inputs_lib is None:
+            return False
+        try:
+            return len(list(inputs_lib.devices.keyboards)) > 0
+        except Exception:
+            return False
+
+    def _device_monitor_loop(self) -> None:
+        """Track physical keyboard presence and fire disconnect callback.
+
+        Runs alongside the read loop so we notice unplugs even when the
+        user never pressed a key, and so the connection state shown in the
+        UI reflects the actual hardware (issue #25, #26).
+        """
+        if inputs_lib is None:
+            return
+        while not self._stop_event.is_set():
+            try:
+                inputs_lib.devices = inputs_lib.DeviceManager()
+            except Exception:
+                logger.debug("Failed to refresh input device manager", exc_info=True)
+            present = self._is_keyboard_present()
             with self._lock:
-                self._connected = False
-            if self._on_disconnect is not None:
-                try:
-                    self._on_disconnect()
-                except Exception:
-                    logger.warning(
-                        "Keyboard on_disconnect callback error", exc_info=True
-                    )
+                self._connected = present
+            self._stop_event.wait(self._monitor_interval)
 
     def _read_loop(self) -> None:
         consecutive_errors = 0
@@ -339,7 +362,7 @@ class KeyboardInput:
         root.bind("<KeyPress>", self._on_tk_key_press)
         root.bind("<KeyRelease>", self._on_tk_key_release)
         with self._lock:
-            self._connected = True
+            self._tkinter_bound = True
         logger.info("Keyboard input bound to tkinter window (fallback mode)")
 
     def _on_tk_key_press(self, event) -> None:
