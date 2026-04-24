@@ -114,10 +114,20 @@ class KeyboardInput:
         self._poll_interval = poll_interval
         self._on_disconnect = on_disconnect
 
+        # Release debounce window: when a key release arrives we hold it for
+        # this long before committing.  If a press for the same key arrives
+        # within the window the release is cancelled.  This filters the
+        # spurious release/repeat sequences that some USB / wireless dongle
+        # keyboards emit while a key is physically held.
+        self._release_debounce_seconds = 0.05
+
         # Thread-safe state
         self._lock = threading.Lock()
         # Raw key-down tracking (True = currently physically held)
         self._keys_down: Dict[str, bool] = {sig: False for sig in _ALL_SIGNALS}
+        # Pending release timestamps (signal -> monotonic time when release
+        # was first seen).  Empty means no pending release.
+        self._pending_release: Dict[str, float] = {}
         # Output state with press transitions
         self._state: Dict[str, int] = self._zero_state()
         self._connected = False
@@ -165,6 +175,7 @@ class KeyboardInput:
         - JUST_RELEASED (3) -> NOT_PRESSED (0) on next call
         """
         with self._lock:
+            self._commit_expired_releases_unlocked()
             snapshot = self._state.copy()
             # Advance transient states
             for sig in _ALL_SIGNALS:
@@ -173,6 +184,22 @@ class KeyboardInput:
                 elif self._state[sig] == JUST_RELEASED:
                     self._state[sig] = NOT_PRESSED
             return snapshot
+
+    def _commit_expired_releases_unlocked(self) -> None:
+        """Finalize any release events whose debounce window has expired."""
+        if not self._pending_release:
+            return
+        now = time.monotonic()
+        expired = [
+            sig
+            for sig, ts in self._pending_release.items()
+            if now - ts >= self._release_debounce_seconds
+        ]
+        for sig in expired:
+            self._pending_release.pop(sig, None)
+            if self._keys_down.get(sig):
+                self._state[sig] = JUST_RELEASED
+                self._keys_down[sig] = False
 
     def is_connected(self) -> bool:
         with self._lock:
@@ -277,18 +304,23 @@ class KeyboardInput:
 
         with self._lock:
             if state == 1:
-                # Key pressed
+                # Key pressed (or re-pressed within the release debounce
+                # window – cancel the pending release and stay HELD).
+                if signal in self._pending_release:
+                    self._pending_release.pop(signal, None)
+                    return
                 if not self._keys_down[signal]:
                     self._state[signal] = JUST_PRESSED
                     self._keys_down[signal] = True
-                # If already down, state stays HELD (advanced by get_state)
             elif state == 0:
-                # Key released
+                # Key released – defer commit so a follow-up press from a
+                # noisy keyboard driver can cancel it.
                 if self._keys_down[signal]:
-                    self._state[signal] = JUST_RELEASED
-                    self._keys_down[signal] = False
-            # state == 2 is key repeat (held) on Linux — treat as still down
+                    self._pending_release[signal] = time.monotonic()
             elif state == 2:
+                # Key repeat (held) on Linux – treat as still down and
+                # cancel any pending release for this key.
+                self._pending_release.pop(signal, None)
                 if not self._keys_down[signal]:
                     self._state[signal] = JUST_PRESSED
                     self._keys_down[signal] = True
