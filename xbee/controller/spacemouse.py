@@ -84,7 +84,7 @@ class SpaceMouse:
         self._seen_split_rotation_report = False
 
         # Buffers for all 6 Degrees of Freedom
-        self.history = {
+        self.history: Dict[str, deque] = {
             CONSTANTS.SPACEMOUSE.AXIS_X: deque(maxlen=_BUFFER_LENGTH),
             CONSTANTS.SPACEMOUSE.AXIS_Y: deque(maxlen=_BUFFER_LENGTH),
             CONSTANTS.SPACEMOUSE.AXIS_Z: deque(maxlen=_BUFFER_LENGTH),

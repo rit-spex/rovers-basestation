@@ -687,7 +687,7 @@ class TkinterDisplay(BaseDisplay):
         }
         for _module_key, (indicator, telemetry_key) in module_indicators.items():
             is_enabled = resolve_boolean_flag(telemetry, [telemetry_key])
-            self._set_indicator_color(indicator, is_enabled)
+            self._set_indicator_color(indicator, bool(is_enabled))
 
     def _update_rover_status_indicator(self, telemetry: Dict[str, Any]) -> None:
         estop = resolve_estop_status(telemetry)
