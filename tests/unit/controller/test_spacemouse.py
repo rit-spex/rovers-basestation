@@ -5,7 +5,13 @@ import threading
 
 from xbee.config.constants import CONSTANTS
 from xbee.controller.detection import detect_controller_type
-from xbee.controller.spacemouse import SpaceMouse
+from xbee.controller.spacemouse import _BUFFER_LENGTH, SpaceMouse
+
+
+def _flush_filter(sm: SpaceMouse, data: list[int], times: int = _BUFFER_LENGTH) -> None:
+    """Feed the same report several times so the same-sign filter releases values."""
+    for _ in range(times):
+        sm._process_report(list(data))
 
 
 def test_get_state_returns_all_expected_keys():
@@ -40,7 +46,7 @@ def test_process_report_6dof():
         struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
     )
 
-    sm._process_report(data)
+    _flush_filter(sm, data)
     state = sm.get_state()
 
     # The SpaceMouse class inverts y, z, and rz
@@ -59,7 +65,7 @@ def test_process_report_translation_only():
     raw_x, raw_y, raw_z = 123, -234, 345
     data = [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z))
 
-    sm._process_report(data)
+    _flush_filter(sm, data)
     state = sm.get_state()
 
     assert state["x"] == raw_x
@@ -78,7 +84,7 @@ def test_process_report_rotation_only():
     raw_rx, raw_ry, raw_rz = -111, 222, -333
     data = [0x02] + list(struct.pack("<hhh", raw_rx, raw_ry, raw_rz))
 
-    sm._process_report(data)
+    _flush_filter(sm, data)
     state = sm.get_state()
 
     assert state["rx"] == raw_rx
@@ -97,14 +103,14 @@ def test_split_mode_padded_translation_does_not_reset_rotation():
     # Enter split-report mode by observing a rotation packet.
     raw_rx, raw_ry, raw_rz = 10, -20, 30
     rot = [0x02] + list(struct.pack("<hhh", raw_rx, raw_ry, raw_rz))
-    sm._process_report(rot)
+    _flush_filter(sm, rot)
 
     # Translation-only packet padded to >=13 bytes (common HID read behavior).
     raw_x, raw_y, raw_z = 111, 222, -333
     padded_translation = (
         [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z)) + [0, 0, 0, 0, 0, 0]
     )
-    sm._process_report(padded_translation)
+    _flush_filter(sm, padded_translation)
 
     state = sm.get_state()
     assert state["x"] == raw_x
@@ -139,7 +145,7 @@ def test_parse_6dof_sign_conventions():
     data = [0x01] + list(
         struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
     )
-    sm._process_report(data)
+    _flush_filter(sm, data)
     state = sm.get_state()
 
     # x is NOT inverted
@@ -166,7 +172,7 @@ def test_parse_6dof_negative_raw_values():
     data = [0x01] + list(
         struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
     )
-    sm._process_report(data)
+    _flush_filter(sm, data)
     state = sm.get_state()
 
     assert state["x"] == -500

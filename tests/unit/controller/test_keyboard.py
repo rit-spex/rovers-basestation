@@ -71,52 +71,77 @@ def test_state_transitions_just_released_to_not_pressed():
 
 
 # ------------------------------------------------------------------
-# Disconnect callback – only when inputs was working
+# Device-monitor based connection tracking and disconnect callback
 # ------------------------------------------------------------------
 
 
-def test_disconnect_callback_called_when_inputs_was_active():
-    """If inputs library was working and thread exits, callback fires."""
-    callback = Mock()
-    kb = KeyboardInput(on_disconnect=callback)
-    kb._inputs_ever_connected = True
-    # Simulate _run finishing without stop_event (device lost)
-    kb._stop_event.clear()
+def _run_monitor_once(kb: KeyboardInput) -> None:
+    """Trigger one iteration of the monitor loop then signal it to stop."""
+
+    def stop_after_first_call(*_a, **_kw):
+        kb._stop_event.set()
+
+    with patch.object(kb, "_stop_event") as mock_stop:
+        # First is_set call returns False (enter loop), wait then sets stop.
+        mock_stop.is_set.side_effect = [False, True]
+        mock_stop.wait.side_effect = stop_after_first_call
+        kb._device_monitor_loop()
+
+
+def test_monitor_marks_connected_when_keyboard_present():
+    """Monitor should set _connected=True when inputs reports keyboards."""
+    kb = KeyboardInput()
+    fake_inputs = Mock()
+    fake_inputs.DeviceManager.return_value = Mock(keyboards=[Mock()])
+    fake_inputs.devices = fake_inputs.DeviceManager.return_value
+
+    with patch("xbee.controller.keyboard.inputs_lib", fake_inputs):
+        _run_monitor_once(kb)
+
+    assert kb.is_connected() is True
+
+
+def test_monitor_marks_disconnected_when_no_keyboard():
+    """Monitor should set _connected=False when inputs reports no keyboards."""
+    kb = KeyboardInput()
     with kb._lock:
         kb._connected = True
+    fake_inputs = Mock()
+    fake_inputs.DeviceManager.return_value = Mock(keyboards=[])
+    fake_inputs.devices = fake_inputs.DeviceManager.return_value
 
-    # Call the finally block logic manually via _run
-    # We mock _read_loop to raise so _run's finally block runs
-    with patch.object(kb, "_read_loop", side_effect=OSError("device gone")):
-        kb._run()
+    with patch("xbee.controller.keyboard.inputs_lib", fake_inputs):
+        _run_monitor_once(kb)
 
-    callback.assert_called_once()
     assert kb.is_connected() is False
 
 
-def test_disconnect_callback_not_called_when_inputs_never_worked():
-    """If inputs library never got an event (Windows laptop), no callback."""
+def test_monitor_fires_disconnect_callback_on_unplug():
+    """When keyboard goes from present -> absent, on_disconnect must fire."""
     callback = Mock()
     kb = KeyboardInput(on_disconnect=callback)
-    kb._inputs_ever_connected = False
-    kb._stop_event.clear()
+    with kb._lock:
+        kb._connected = True
+    fake_inputs = Mock()
+    fake_inputs.DeviceManager.return_value = Mock(keyboards=[])
+    fake_inputs.devices = fake_inputs.DeviceManager.return_value
 
-    # _read_loop raises immediately (inputs library fails)
-    with patch.object(kb, "_read_loop", side_effect=OSError("no device")):
-        kb._run()
+    with patch("xbee.controller.keyboard.inputs_lib", fake_inputs):
+        _run_monitor_once(kb)
 
-    callback.assert_not_called()
+    callback.assert_called_once()
 
 
-def test_disconnect_callback_not_called_on_normal_shutdown():
-    """Normal shutdown (stop_event set) should not fire disconnect callback."""
+def test_monitor_does_not_fire_disconnect_when_already_absent():
+    """If keyboard was never present, disconnect callback should not fire."""
     callback = Mock()
     kb = KeyboardInput(on_disconnect=callback)
-    kb._inputs_ever_connected = True
-    kb._stop_event.set()  # Normal shutdown
+    fake_inputs = Mock()
+    fake_inputs.DeviceManager.return_value = Mock(keyboards=[])
+    fake_inputs.devices = fake_inputs.DeviceManager.return_value
 
-    with patch.object(kb, "_read_loop"):
-        kb._run()
+    with patch("xbee.controller.keyboard.inputs_lib", fake_inputs):
+        _run_monitor_once(kb)
 
     callback.assert_not_called()
 
@@ -126,11 +151,16 @@ def test_disconnect_callback_not_called_on_normal_shutdown():
 # ------------------------------------------------------------------
 
 
-def test_bind_tkinter_sets_connected():
+def test_bind_tkinter_marks_tkinter_bound():
+    """bind_tkinter should record the binding without forcing _connected.
+
+    The display state must reflect actual hardware presence (issue #25),
+    so bind_tkinter no longer flips _connected on by itself.
+    """
     kb = KeyboardInput()
     mock_root = Mock()
     kb.bind_tkinter(mock_root)
-    assert kb.is_connected() is True
+    assert kb._tkinter_bound is True
     mock_root.bind.assert_any_call("<KeyPress>", kb._on_tk_key_press)
     mock_root.bind.assert_any_call("<KeyRelease>", kb._on_tk_key_release)
 
@@ -226,3 +256,64 @@ def test_read_loop_doesnt_break_when_never_connected():
 
     # Should have kept retrying past 10 (max_consecutive_errors)
     assert call_count >= 15
+
+
+# ------------------------------------------------------------------
+# Release debounce (issue #24)
+# ------------------------------------------------------------------
+
+
+def _key_event(code: str, state: int):
+    """Build a fake ``inputs`` library key event."""
+    ev = Mock()
+    ev.ev_type = "Key"
+    ev.code = code
+    ev.state = state
+    return ev
+
+
+def test_release_followed_by_press_keeps_held():
+    """A spurious release immediately followed by a press must not show RELEASE.
+
+    Some non-native keyboards emit release/press cycles while a key is held;
+    the debounce window should swallow them and keep the key in HELD state.
+    """
+    kb = KeyboardInput()
+    kb._process_event(_key_event("KEY_Q", 1))  # press
+    kb.get_state()  # advance JUST_PRESSED -> HELD
+    assert kb._state["enable_science"] == HELD
+
+    # Spurious release followed immediately by a press from the noisy driver
+    kb._process_event(_key_event("KEY_Q", 0))
+    kb._process_event(_key_event("KEY_Q", 1))
+
+    # No release should have been committed; key stays HELD
+    state = kb.get_state()
+    assert state["enable_science"] == HELD
+    assert kb._keys_down["enable_science"] is True
+
+
+def test_release_committed_after_debounce_window():
+    """A real release with no follow-up press must eventually be reported."""
+    kb = KeyboardInput()
+    kb._release_debounce_seconds = 0.01  # short window for the test
+    kb._process_event(_key_event("KEY_Q", 1))
+    kb.get_state()  # HELD
+
+    kb._process_event(_key_event("KEY_Q", 0))
+    time.sleep(0.02)  # let debounce expire
+    state = kb.get_state()
+    assert state["enable_science"] == JUST_RELEASED
+
+
+def test_repeat_event_cancels_pending_release():
+    """A key-repeat (state=2) inside the window must keep the key HELD."""
+    kb = KeyboardInput()
+    kb._process_event(_key_event("KEY_Q", 1))
+    kb.get_state()
+    kb._process_event(_key_event("KEY_Q", 0))  # spurious release
+    kb._process_event(_key_event("KEY_Q", 2))  # repeat (still held)
+
+    state = kb.get_state()
+    assert state["enable_science"] == HELD
+    assert "enable_science" not in kb._pending_release
