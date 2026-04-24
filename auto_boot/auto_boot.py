@@ -108,12 +108,10 @@ def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
             return _xbee_device, globals().get("XBeeException", Exception), None, None
         try:
             # Use CamelCase aliasing for imported classes to satisfy stylistic rules
-            from digi.xbee.devices import (
-                RemoteXBeeDevice as _RemoteXBeeDeviceCls,
-                XBee64BitAddress as _XBee64BitAddressCls,
-                XBeeDevice as _XBeeDeviceCls,
-                XBeeException as _XBeeExceptionCls,
-            )
+            from digi.xbee.devices import RemoteXBeeDevice as _RemoteXBeeDeviceCls
+            from digi.xbee.devices import XBee64BitAddress as _XBee64BitAddressCls
+            from digi.xbee.devices import XBeeDevice as _XBeeDeviceCls
+            from digi.xbee.devices import XBeeException as _XBeeExceptionCls
 
             return (
                 _XBeeDeviceCls,

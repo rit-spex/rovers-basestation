@@ -312,9 +312,7 @@ class KeyboardInput:
                     self._inputs_ever_connected
                     and consecutive_errors >= max_consecutive_errors
                 ):
-                    logger.warning(
-                        "Keyboard disconnected (sustained errors)"
-                    )
+                    logger.warning("Keyboard disconnected (sustained errors)")
                     break
                 logger.debug("Keyboard event read failed", exc_info=True)
                 time.sleep(self._poll_interval)

@@ -70,7 +70,9 @@ def test_linux_input_diagnostics_warns_when_no_devices(monkeypatch, caplog):
     )
 
     caplog.set_level(logging.INFO)
-    _log_linux_input_runtime_diagnostics(spacemouse_vendor_id=0x256F, inputs_enabled=True)
+    _log_linux_input_runtime_diagnostics(
+        spacemouse_vendor_id=0x256F, inputs_enabled=True
+    )
 
     messages = [rec.getMessage() for rec in caplog.records]
     assert any("Input diagnostics (Linux)" in msg for msg in messages)
@@ -88,9 +90,13 @@ def test_linux_input_diagnostics_can_be_disabled(monkeypatch, caplog):
     monkeypatch.setattr("xbee.app.sys.platform", "linux")
     caplog.set_level(logging.INFO)
 
-    _log_linux_input_runtime_diagnostics(spacemouse_vendor_id=0x256F, inputs_enabled=True)
+    _log_linux_input_runtime_diagnostics(
+        spacemouse_vendor_id=0x256F, inputs_enabled=True
+    )
 
-    assert not any("Input diagnostics (Linux)" in rec.getMessage() for rec in caplog.records)
+    assert not any(
+        "Input diagnostics (Linux)" in rec.getMessage() for rec in caplog.records
+    )
 
 
 def test_linux_input_diagnostics_noop_on_non_linux(monkeypatch, caplog):
@@ -99,6 +105,8 @@ def test_linux_input_diagnostics_noop_on_non_linux(monkeypatch, caplog):
     monkeypatch.setattr("xbee.app.sys.platform", "win32")
     caplog.set_level(logging.INFO)
 
-    _log_linux_input_runtime_diagnostics(spacemouse_vendor_id=0x256F, inputs_enabled=True)
+    _log_linux_input_runtime_diagnostics(
+        spacemouse_vendor_id=0x256F, inputs_enabled=True
+    )
 
     assert caplog.records == []

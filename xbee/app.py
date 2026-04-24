@@ -17,9 +17,9 @@ CONTROL LOOP (runs at ~TIMING.UPDATE_FREQUENCY)
 4.  _update_display_data()  pushes state to the display
 """
 
+import glob
 import logging
 import os
-import glob
 import sys
 import threading
 import time
@@ -28,6 +28,7 @@ from typing import Any, Dict, Optional
 from xbee.communication.heartbeat import HeartbeatManager
 from xbee.communication.manager import CommunicationManager
 from xbee.config.constants import CONSTANTS
+from xbee.controller.detection import detect_controller_type
 from xbee.controller.events import (
     JOYAXISMOTION,
     JOYBUTTONDOWN,
@@ -38,7 +39,6 @@ from xbee.controller.events import (
     QUIT,
     InputEvent,
 )
-from xbee.controller.detection import detect_controller_type
 from xbee.controller.input_source import InputEventSource, InputSourceError
 from xbee.controller.keyboard import KeyboardInput
 from xbee.controller.manager import ControllerManager, InputProcessor
@@ -232,16 +232,12 @@ class BaseStation:
 
         # SpaceMouse (6DOF HID device – independent of gamepad input pipeline)
         self._spacemouse_disconnect_pending = threading.Event()
-        self.spacemouse = SpaceMouse(
-            on_disconnect=self._on_spacemouse_disconnect
-        )
+        self.spacemouse = SpaceMouse(on_disconnect=self._on_spacemouse_disconnect)
         self.spacemouse.start()
 
         # Keyboard input (life detection control – independent of gamepad pipeline)
         self._keyboard_disconnect_pending = threading.Event()
-        self.keyboard = KeyboardInput(
-            on_disconnect=self._on_keyboard_disconnect
-        )
+        self.keyboard = KeyboardInput(on_disconnect=self._on_keyboard_disconnect)
         self.keyboard.start()
         self._last_kb_state: Dict[str, int] = {}  # cached for display
         _log_linux_input_runtime_diagnostics(
@@ -806,7 +802,10 @@ def _display_has_spacemouse_controller(display: BaseDisplay) -> bool:
             return True
 
         name = controller_data.get("name")
-        if isinstance(name, str) and detect_controller_type(name) == CONSTANTS.SPACEMOUSE.NAME:
+        if (
+            isinstance(name, str)
+            and detect_controller_type(name) == CONSTANTS.SPACEMOUSE.NAME
+        ):
             return True
 
     return False
@@ -976,6 +975,7 @@ def main():
         if control_thread.is_alive():
             logger.warning("Control thread did not exit within 5s")
         import sys
+
         sys.exit(0)
 
 

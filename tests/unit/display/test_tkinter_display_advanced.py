@@ -2,8 +2,8 @@
 Tests for TkinterDisplay advanced functionality.
 """
 
-from unittest.mock import Mock, patch
 import time
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -171,16 +171,10 @@ class TestTkinterDisplayAdvanced:
         display._update_module_toggle_indicators({"arm_enabled": True})
 
         # Enabled toggle should use green
-        display.arm_toggle_indicator.configure.assert_called_with(
-            background="#26a269"
-        )
+        display.arm_toggle_indicator.configure.assert_called_with(background="#26a269")
         # Disabled toggles should be red
-        display.auto_toggle_indicator.configure.assert_called_with(
-            background="#a51d2d"
-        )
-        display.life_toggle_indicator.configure.assert_called_with(
-            background="#a51d2d"
-        )
+        display.auto_toggle_indicator.configure.assert_called_with(background="#a51d2d")
+        display.life_toggle_indicator.configure.assert_called_with(background="#a51d2d")
         display.quit()
 
     @patch.dict("os.environ", {"XBEE_NO_GUI": ""}, clear=False)

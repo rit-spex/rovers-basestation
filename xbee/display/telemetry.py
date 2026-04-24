@@ -154,7 +154,16 @@ def filter_telemetry_for_module(
     prefixes = {
         "life": ("life_", "life ", "victim_", "detection_"),
         "auto": ("auto_", "autonomy_", "lidar_", "nav_", "path_"),
-        "arm": ("arm_", "servo_", "joint_", "encoder_", "gripper_", "wrist_", "shoulder_", "elbow_"),
+        "arm": (
+            "arm_",
+            "servo_",
+            "joint_",
+            "encoder_",
+            "gripper_",
+            "wrist_",
+            "shoulder_",
+            "elbow_",
+        ),
     }
     explicit_keys = {
         "life": {

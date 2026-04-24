@@ -106,17 +106,13 @@ class MessageFormatter:
     def create_spacemouse_message(self, values: Dict) -> list:
         """Create SpaceMouse 6DOF message for transmission."""
         return list(
-            self.encoder.encode_data(
-                values, CONSTANTS.COMPACT_MESSAGES.SPACEMOUSE_ID
-            )
+            self.encoder.encode_data(values, CONSTANTS.COMPACT_MESSAGES.SPACEMOUSE_ID)
         )
 
     def create_keyboard_message(self, values: Dict) -> list:
         """Create keyboard input message for transmission."""
         return list(
-            self.encoder.encode_data(
-                values, CONSTANTS.COMPACT_MESSAGES.KEYBOARD_ID
-            )
+            self.encoder.encode_data(values, CONSTANTS.COMPACT_MESSAGES.KEYBOARD_ID)
         )
 
 

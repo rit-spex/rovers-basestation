@@ -3,9 +3,9 @@
 import struct
 import threading
 
-from xbee.controller.spacemouse import SpaceMouse
-from xbee.controller.detection import detect_controller_type
 from xbee.config.constants import CONSTANTS
+from xbee.controller.detection import detect_controller_type
+from xbee.controller.spacemouse import SpaceMouse
 
 
 def test_get_state_returns_all_expected_keys():
@@ -36,7 +36,9 @@ def test_process_report_6dof():
     raw_rx, raw_ry, raw_rz = 400, 500, 600
 
     # Build a mock HID report: report_id (0x01) + 6 little-endian int16 values
-    data = [0x01] + list(struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz))
+    data = [0x01] + list(
+        struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
+    )
 
     sm._process_report(data)
     state = sm.get_state()
@@ -99,7 +101,9 @@ def test_split_mode_padded_translation_does_not_reset_rotation():
 
     # Translation-only packet padded to >=13 bytes (common HID read behavior).
     raw_x, raw_y, raw_z = 111, 222, -333
-    padded_translation = [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z)) + [0, 0, 0, 0, 0, 0]
+    padded_translation = (
+        [0x01] + list(struct.pack("<hhh", raw_x, raw_y, raw_z)) + [0, 0, 0, 0, 0, 0]
+    )
     sm._process_report(padded_translation)
 
     state = sm.get_state()
@@ -132,7 +136,9 @@ def test_parse_6dof_sign_conventions():
     raw_x, raw_y, raw_z = 1, 1, 1
     raw_rx, raw_ry, raw_rz = 1, 1, 1
 
-    data = [0x01] + list(struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz))
+    data = [0x01] + list(
+        struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
+    )
     sm._process_report(data)
     state = sm.get_state()
 
@@ -157,16 +163,18 @@ def test_parse_6dof_negative_raw_values():
     raw_x, raw_y, raw_z = -500, -300, -100
     raw_rx, raw_ry, raw_rz = -10, -20, -30
 
-    data = [0x01] + list(struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz))
+    data = [0x01] + list(
+        struct.pack("<hhhhhh", raw_x, raw_y, raw_z, raw_rx, raw_ry, raw_rz)
+    )
     sm._process_report(data)
     state = sm.get_state()
 
     assert state["x"] == -500
-    assert state["y"] == 300   # negated: -(-300) = 300
-    assert state["z"] == 100   # negated: -(-100) = 100
+    assert state["y"] == 300  # negated: -(-300) = 300
+    assert state["z"] == 100  # negated: -(-100) = 100
     assert state["rx"] == -10
     assert state["ry"] == -20
-    assert state["rz"] == 30   # negated: -(-30) = 30
+    assert state["rz"] == 30  # negated: -(-30) = 30
 
 
 def test_process_report_ignores_short_translation():

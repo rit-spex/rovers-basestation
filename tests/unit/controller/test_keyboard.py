@@ -5,14 +5,13 @@ import time
 from unittest.mock import Mock, patch
 
 from xbee.controller.keyboard import (
-    KeyboardInput,
     _ALL_SIGNALS,
-    NOT_PRESSED,
-    JUST_PRESSED,
     HELD,
+    JUST_PRESSED,
     JUST_RELEASED,
+    NOT_PRESSED,
+    KeyboardInput,
 )
-
 
 # ------------------------------------------------------------------
 # Basic API

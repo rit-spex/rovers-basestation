@@ -12,11 +12,12 @@ import logging
 import os
 import threading
 import time
-from typing import Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
+
+from digi.xbee.devices import TimeoutException
+
 from utils.bytes import convert_to_bytes
 from xbee.protocol.encoding import MessageEncoder
-from digi.xbee.devices import TimeoutException
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, TypeAlias, Union
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,10 @@ PayloadLike: TypeAlias = Union[bytes, bytearray, memoryview, Sequence[ByteElemen
 
 class XbeeCommunicationManager:
     """Features:
-        - Duplicate message suppression (skips if same as last sent)
-        - Inflight tracking (if another thread is sending the same payload,
-          wait for its result instead of sending again)
-        - Configurable timeouts via environment variables
+    - Duplicate message suppression (skips if same as last sent)
+    - Inflight tracking (if another thread is sending the same payload,
+      wait for its result instead of sending again)
+    - Configurable timeouts via environment variables
     """
 
     def __init__(self, xbee_device=None, remote_xbee=None):
@@ -178,7 +179,7 @@ class XbeeCommunicationManager:
     ) -> None:
         with self._message_lock:
             self._telemetry_handler = handler
-    
+
     def _convert_to_bytes(self, data: PayloadLike) -> bytes:
         return convert_to_bytes(data)
 

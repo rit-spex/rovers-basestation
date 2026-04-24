@@ -431,9 +431,7 @@ class TestPeripheralDisconnectTriggersQuit:
         # Simulate keyboard disconnect callback
         base._on_keyboard_disconnect()
 
-        assert base.quit is True, (
-            "BaseStation should quit when keyboard disconnects"
-        )
+        assert base.quit is True, "BaseStation should quit when keyboard disconnects"
         assert base._keyboard_disconnect_pending.is_set()
 
     @patch("xbee.app.CommunicationManager")
@@ -448,7 +446,5 @@ class TestPeripheralDisconnectTriggersQuit:
         # Simulate SpaceMouse disconnect callback
         base._on_spacemouse_disconnect()
 
-        assert base.quit is True, (
-            "BaseStation should quit when SpaceMouse disconnects"
-        )
+        assert base.quit is True, "BaseStation should quit when SpaceMouse disconnects"
         assert base._spacemouse_disconnect_pending.is_set()

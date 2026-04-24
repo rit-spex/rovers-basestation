@@ -130,8 +130,7 @@ class UdpCommunicationManager:
         self._telemetry_handler: Optional[Callable[[Dict[str, Any]], None]] = None
         self._decoder = MessageEncoder()
         self._protocol_trace = (
-            os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower()
-            in _TRUTHY_ENV
+            os.environ.get("ROVER_PROTOCOL_TRACE", "0").strip().lower() in _TRUTHY_ENV
         )
 
         self._setup_sockets()

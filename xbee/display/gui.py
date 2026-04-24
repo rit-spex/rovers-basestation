@@ -28,8 +28,8 @@ from xbee.display.base import (
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
     BaseDisplay,
-    _GenericWidgetStub,
     _env_flag_enabled,
+    _GenericWidgetStub,
     tk,
     ttk,
 )
@@ -491,9 +491,7 @@ class TkinterDisplay(BaseDisplay):
             else:
                 self.controller_values = dict(values) if values else {}
 
-    def update_keyboard_state(
-        self, state: Dict[str, int], connected: bool
-    ) -> None:
+    def update_keyboard_state(self, state: Dict[str, int], connected: bool) -> None:
         with self._controller_lock:
             self._keyboard_state = state.copy() if state else {}
             self._keyboard_connected = connected
@@ -678,8 +676,7 @@ class TkinterDisplay(BaseDisplay):
         its first ``subsystem_enabled`` heartbeat.
         """
         has_subsystem_info = any(
-            key in telemetry
-            for key in ("arm_enabled", "auto_enabled", "life_enabled")
+            key in telemetry for key in ("arm_enabled", "auto_enabled", "life_enabled")
         )
         if not has_subsystem_info:
             return
@@ -801,8 +798,7 @@ class TkinterDisplay(BaseDisplay):
 
                 if not filtered:
                     new_data_content = (
-                        f"{module_label} Data:\n\n"
-                        "Waiting for module data…\n"
+                        f"{module_label} Data:\n\n" "Waiting for module data…\n"
                     )
                 else:
                     lines = [f"{module_label} Data:"]

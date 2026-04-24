@@ -1,6 +1,5 @@
 from typing import Any, cast
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from xbee.communication.manager import CommunicationManager
 from xbee.communication.xbee_backend import XbeeCommunicationManager
