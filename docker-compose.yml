@@ -1,0 +1,9 @@
+services:
+  basestation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: basestation
+    volumes:
+      - .:/app
+    command: python -m xbee.app
