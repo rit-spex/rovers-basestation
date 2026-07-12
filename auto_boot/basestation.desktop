@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Basestation
+Exec=xterm -hold -e '/home/basestation/rovers-basestation/auto_boot/auto_boot.sh'
+Terminal=false
+StartupNotify=true
