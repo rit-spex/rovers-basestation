@@ -5,7 +5,7 @@
 # purpose       : send protocol messages to the rover and receive
 #                 telemetry, over XBee radio or UDP simulation
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 7/14/2026 - Ryan
 # ------------------------------------------------------------------
 """Rover link.
 
@@ -49,6 +49,16 @@ class Link:
         if connect:
             self.simulation = not self._open_xbee()
             if self.simulation:
+                # this is for headless so a dead radio shouldnt degrade
+                # into loopback simulation that nobody can see (systemd
+                # will probs restart this until the XBee comes back)
+                sim_requested = (env_flag("BASESTATION_SIMULATION")
+                                 or CONSTANTS.SIMULATION_MODE)
+                if env_flag("XBEE_NO_GUI") and not sim_requested:
+                    raise SystemExit(
+                        "XBee unavailable while headless - refusing UDP "
+                        "simulation fallback (set BASESTATION_SIMULATION=1 "
+                        "to simulate on purpose)")
                 self._open_udp()
         # Tracing is always on in simulation - verifying comms is the point.
         self.trace = env_flag("ROVER_PROTOCOL_TRACE", default=self.simulation)

@@ -4,7 +4,7 @@
 # file name     : test_basestation.py
 # purpose       : wire-format and behavior checks for the basestation
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 7/14/2026 - Ryan
 # ------------------------------------------------------------------
 """The tests that matter: bytes on the wire, input math, and quit paths.
 
@@ -83,6 +83,15 @@ def test_stick_deadband_creep_and_clamp():
     pads.reverse_mode = True                  # reverse negates
     pads.handle_event(XBOX, "ABS_Y", 32767)
     assert pads.states[XBOX]["AXIS_LY"] == 0
+
+    # floor boundary raws where raw/32767 scaling would be off by one
+    # against the old basestation, just for b4b wire compat
+    pads.reverse_mode = False
+    pads.handle_event(XBOX, "ABS_Y", -32440)
+    assert pads.states[XBOX]["AXIS_LY"] == 1
+    pads.creep_mode = True
+    pads.handle_event(XBOX, "ABS_Y", -31129)
+    assert pads.states[XBOX]["AXIS_LY"] == 81
 
 
 def test_reverse_mode_swaps_sticks_on_the_wire():
@@ -172,9 +181,35 @@ def test_keyboard_release_debounce_cancels_bounce():
     assert kb.get_state()["pump_1"] == HELD  # release was cancelled
 
 
+def test_keyboard_scan_failure_is_unknown_not_disconnect(monkeypatch):
+    import basestation.keyboard as kbmod
+
+    class Boom:
+        def DeviceManager(self):
+            raise RuntimeError("transient enumeration failure")
+
+    monkeypatch.setattr(kbmod, "inputs", Boom())
+    assert Keyboard._scan_keyboards() is None  # not False: must not fake unplug
+
+
 # ----------------------------------------------------------------------
 # Link duplicate suppression
 # ----------------------------------------------------------------------
+
+def test_headless_refuses_silent_simulation_fallback(monkeypatch):
+    import pytest
+
+    monkeypatch.setenv("XBEE_NO_GUI", "1")
+    monkeypatch.delenv("BASESTATION_SIMULATION", raising=False)
+    monkeypatch.setattr(Link, "_open_xbee", lambda self: False)
+    with pytest.raises(SystemExit):
+        Link()  # dead radio on the field Pi must be loud, not simulated
+
+    monkeypatch.setenv("BASESTATION_SIMULATION", "1")
+    link = Link()  # explicitly requested simulation is still allowed obv
+    assert link.simulation
+    link.close()
+
 
 def test_link_suppresses_duplicate_payloads():
     link = Link(connect=False)

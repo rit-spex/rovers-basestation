@@ -5,7 +5,7 @@
 # purpose       : read keyboard keys that control the life detection
 #                 module and track their press states
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 7/14/2026 - Ryan
 # ------------------------------------------------------------------
 """Keyboard input for life detection control.
 
@@ -178,13 +178,10 @@ class Keyboard:
     def _monitor(self):
         """Track physical keyboard presence (issues #25/#26)."""
         while not self._stop.is_set():
-            try:
-                # inputs.devices is refreshed by the gamepad monitor; rebuild
-                # here too so this works even with gamepads disabled
-                inputs.devices = inputs.DeviceManager()
-                present = bool(inputs.devices.keyboards)
-            except Exception:
-                present = False
+            present = self._scan_keyboards()
+            if present is None:  # enumeration fail so keep last known state
+                self._stop.wait(0.5)
+                continue
             with self._lock:
                 was_present = self._present
                 self._present = present
@@ -193,6 +190,21 @@ class Keyboard:
                 if self._on_disconnect is not None:
                     self._on_disconnect()
             self._stop.wait(0.5)
+
+    @staticmethod
+    def _scan_keyboards():
+        """True/False = keyboard present; None = enumeration failed.
+
+        A DeviceManager rebuild can fail for a bit mid hotplug and that must
+        not be mistaken for the keyboard disconnecting (which quits the app).
+        """
+        try:
+            # inputs.devices is refreshed by the gamepad monitor so rebuild
+            # here too so this works even with gamepads disabled
+            inputs.devices = inputs.DeviceManager()
+            return bool(inputs.devices.keyboards)
+        except Exception:
+            return None
 
     def _on_tk_event(self, pressed):
         def _handler(event):

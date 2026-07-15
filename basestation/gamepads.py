@@ -5,7 +5,7 @@
 # purpose       : read Xbox and N64 gamepads and keep their current
 #                 state ready for protocol encoding
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 7/14/2026 - Ryan
 # ------------------------------------------------------------------
 """Gamepad input via the ``inputs`` library.
 
@@ -122,6 +122,9 @@ class Gamepads:
         # unsigned for adapters that report 0..255 instead
         raw_mode = (os.environ.get("XBEE_JOYSTICK_RAW_MODE") or "").strip().lower()
         self._unsigned_sticks = raw_mode == "unsigned"
+        if not self._unsigned_sticks:
+            log.info("Sticks assumed signed 16-bit; set "
+                     "XBEE_JOYSTICK_RAW_MODE=unsigned if drive does not respond")
         self._stop = threading.Event()
         self._readers = {}  # device key -> reader thread
 
@@ -156,7 +159,9 @@ class Gamepads:
                 inputs.devices = inputs.DeviceManager()  # rescan for hotplug
                 found = {}
                 for device in inputs.devices.gamepads:
-                    key = getattr(device, "device_path", None) or device.name
+                    # inputs 0.5 keeps the path private cuz falling back to the
+                    # name would collide for two identical controllers
+                    key = getattr(device, "_device_path", None) or device.name
                     found[key] = device
                 for key, device in found.items():
                     reader = self._readers.get(key)
@@ -279,7 +284,8 @@ class Gamepads:
         if self._unsigned_sticks:
             value = (float(raw) - 127.5) / 127.5
         else:
-            value = float(raw) / 32767.0
+            # +0.5 centers the asymmetric signed range so same as old basestation
+            value = (float(raw) + 0.5) / 32767.5
         value = max(-1.0, min(1.0, value))
         if abs(value) < DEADBAND:
             value = 0.0

@@ -26,8 +26,8 @@ The wire format lives entirely in
 Requires Python 3.10+.
 
 ```bash
-git clone --recurse-submodules https://github.com/rit-spex/rovers-basestation
-cd rovers-basestation
+git clone --recurse-submodules https://github.com/rit-spex/rovers-basestation2
+cd rovers-basestation2
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -49,6 +49,10 @@ Headless (service / no display):
 XBEE_NO_GUI=1 python -m basestation
 ```
 
+Headless mode refuses the UDP fallback: if the XBee cannot be opened it exits
+non-zero (systemd restarts it until the radio is back). Set
+`BASESTATION_SIMULATION=1` to run headless simulation on purpose.
+
 ## Controls
 
 | Input | Action |
@@ -62,7 +66,7 @@ XBEE_NO_GUI=1 python -m basestation
 | keyboard Q W S H E R 1-4 Z X C V B | life detection controls |
 | SpaceMouse | 6DOF arm control |
 
-Unplugging any input device also quits, which stops the rover. This is an intended safety feature not a bug, stop asking. 
+Unplugging any input device also quits, which stops the rover this is intended and for safety.
 
 ## Module map
 
