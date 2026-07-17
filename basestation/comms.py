@@ -5,7 +5,7 @@
 # purpose       : send protocol messages to the rover and receive
 #                 telemetry, over XBee radio or UDP simulation
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/14/2026 - Ryan
+# last modified : 7/16/2026 - Ryan
 # ------------------------------------------------------------------
 """Rover link.
 
@@ -39,11 +39,22 @@ class Link:
         self.encoder = MessageEncoder()
         self._on_telemetry = on_telemetry
         self._last = {}  # message id -> last transmitted payload
+        # message id -> exact packet length; the shared codec zero pads
+        # reads past the end, so short packets must be rejected here
+        self._packet_lengths = {
+            msg_id: 1 + (sum(s.type.num_bits for s in msg["values"].values()) + 7) // 8
+            for msg_id, msg in self.encoder.get_messages().items()
+        }
         self._stop = threading.Event()
         self._xbee = None
         self._remote = None
         self._udp = None
         self._rx = None
+
+        # xbee rx callback can fire as soon as _open_xbee registers it,
+        # so everything _handle_telemetry touches must exist before connection.
+        # THis is finalized below once the simulation flag is known
+        self.trace = False
 
         self.simulation = True
         if connect:
@@ -108,6 +119,12 @@ class Link:
     # ------------------------------------------------------------------
 
     def _handle_telemetry(self, data: bytes):
+        expected = self._packet_lengths.get(data[0]) if data else None
+        if expected is not None and len(data) < expected:
+            log.warning("Dropping truncated %s packet: %d bytes, expected %d",
+                        self.encoder.get_message_name(data[0]), len(data),
+                        expected)
+            return
         try:
             decoded, message_id = self.encoder.decode_data(data)
         except Exception:
