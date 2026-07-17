@@ -1,5 +1,5 @@
 [Unit]
-Description=autoBoot systemd service
+Description=SPEX rover basestation
 After=network-online.target
 Wants=network-online.target
 
@@ -11,7 +11,6 @@ Restart=on-failure
 RestartSec=10
 StartLimitBurst=5
 StartLimitIntervalSec=60
-TimeoutStartSec=30
 TimeoutStopSec=10
 Environment=HOME=/home/rover
 Environment=XBEE_NO_GUI=1

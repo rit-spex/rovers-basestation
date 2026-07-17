@@ -1,12 +1,12 @@
 # ------------------------------------------------------------------
 #                          SPEX ROVER 2026
 # ------------------------------------------------------------------
-# file name     : conftest.py
-# purpose       : make the basestation package importable in tests
+# file name     : __main__.py
+# purpose       : entry point for `python -m basestation`
 # created on    : 7/12/2026 - Ryan
 # last modified : 7/12/2026 - Ryan
 # ------------------------------------------------------------------
-import sys
-from pathlib import Path
+from basestation.app import main
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+if __name__ == "__main__":
+    main()
