@@ -4,7 +4,7 @@
 # file name     : test_basestation.py
 # purpose       : wire-format and behavior checks for the basestation
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/14/2026 - Ryan
+# last modified : 7/16/2026 - Ryan
 # ------------------------------------------------------------------
 """The tests that matter: bytes on the wire, input math, and quit paths.
 
@@ -209,6 +209,38 @@ def test_headless_refuses_silent_simulation_fallback(monkeypatch):
     link = Link()  # explicitly requested simulation is still allowed obv
     assert link.simulation
     link.close()
+
+
+def test_early_rx_during_connect_does_not_crash(monkeypatch):
+    # xbee telemetry can arrive the moment _open_xbee sees the data
+    # callback before __init__ finishes, this must not blow up rx
+    packet = ENCODER.encode_data({"rover_estop": True}, MSG.ROVER_ESTOP_ID)
+    received = []
+
+    def fake_open_xbee(self):
+        self._handle_telemetry(packet)  # callback fires mid-connect
+        return True
+
+    monkeypatch.setattr(Link, "_open_xbee", fake_open_xbee)
+    link = Link(on_telemetry=received.append)
+    assert received and received[0]["rover_estop"] is True
+    link.close()
+
+
+def test_truncated_telemetry_is_dropped_not_misdecoded():
+    link = Link(connect=False)
+    received = []
+    link._on_telemetry = received.append
+
+    full = ENCODER.encode_data({}, MSG.ARM_ENCODERS_ID)
+    link._handle_telemetry(full)
+    assert len(received) == 1
+
+    # stale protocol rover sends 11 byte arm_encoders packets. The codec
+    # zero pads short reads, so without a length guard this would silently
+    # decode into wrong joint angles instead of being rejected like it should
+    link._handle_telemetry(full[:11])
+    assert len(received) == 1  # dropped, not delivered as garbage
 
 
 def test_link_suppresses_duplicate_payloads():
