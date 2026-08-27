@@ -12,6 +12,8 @@ Golden byte strings were derived from protocol.yaml by hand; if these
 fail after a protocol change, update the goldens on purpose.
 """
 
+import pytest
+
 from basestation.app import xbox_wire_values
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
@@ -256,3 +258,14 @@ def test_link_suppresses_duplicate_payloads():
     link.send(MSG.HEARTBEAT_ID, {"timestamp": 5}, force=True)
     link.send(MSG.HEARTBEAT_ID, {"timestamp": 5}, force=True)
     assert len(sent) == 4  # force bypasses suppression
+
+def test_repeated_device_manager_keeps_type_codes():
+    """inputs 0.5 drains EVENT_MAP's type_codes generator on first use.
+
+    The hotplug monitors rebuild DeviceManager every 0.5 s; without the
+    repair in basestation/__init__.py the second one has an empty
+    type_codes and get_typecode('LED') raises KeyError on Linux.
+    """
+    inputs = pytest.importorskip("inputs")
+    for _ in range(3):
+        assert inputs.DeviceManager().get_typecode("LED") == 0x11
