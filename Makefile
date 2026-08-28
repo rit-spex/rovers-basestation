@@ -1,12 +1,15 @@
 DC = docker compose
 
-build-dc:
+build:
 	$(DC) build
 
-up: build-dc
+build-no-cache:
+	$(DC) build --no-cache
+
+up: build
 	$(DC) up -d
 
-debug: build-dc
+debug: build
 	$(DC) up
 
 down:
