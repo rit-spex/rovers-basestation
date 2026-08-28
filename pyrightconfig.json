@@ -1,9 +1,0 @@
-{
-  "typeCheckingMode": "standard",
-  "extraPaths": [
-    "lib/rovers-protocol"
-  ],
-  "exclude": [
-    "tests"
-  ]
-}

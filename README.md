@@ -1,269 +1,121 @@
 # SPEX Rover Basestation
 
-Control system for the RIT SPEX rover. Supports real XBee hardware or UDP simulation for testing.
+Control system for the RIT SPEX rover. Reads game controllers, a SpaceMouse,
+and a keyboard; encodes their state with the shared rover protocol; and sends
+it to the rover over XBee radio (or UDP when no radio is present). Telemetry
+from the rover is decoded and shown in a tkinter GUI.
 
-## Start
+```
+                      XBee radio / UDP
+                      
+  +----------------+  ----------------->  +-----------------+
+  | BASESTATION    |   controller data    |  ROVER (ROS 2)  |
+  | (Raspberry Pi) |  <-----------------  |  (Jetson Orin)  |
+  +----------------+   telemetry          +-----------------+
+          |                                       |
+          +--------- lib/rovers-protocol ---------+
+                    (shared git submodule)
+```
 
-### Python 3.11+
+The wire format lives entirely in
+[rovers-protocol](https://github.com/rit-spex/rovers-protocol)
+(`protocol.yaml`). This repo never defines message bytes itself.
 
-Basestation requires Python 3.11+ (see `pyproject.toml`). Ubuntu 22.04 ships with 3.10 by default, so install 3.11+ when setting up the VM or CI.
+## Setup
 
-**Note for nerds:** Using 3.11 due to changes with default parameters in 3.11 for int.to_bytes() specifically byteorder which defaults to Big-endian in 3.11 but doesn't have a default in 3.10 or below. I dunno I could change this later so we dont have to install newer python but whatever.
-
-### Setup
+Requires Python 3.10+.
 
 ```bash
-# Create and activate virtual environment
+git clone --recurse-submodules https://github.com/rit-spex/rovers-basestation
+cd rovers-basestation
 python -m venv .venv
-
-# Activate (choose based on your shell)
-.venv\Scripts\Activate.ps1     # Windows PowerShell
-source .venv/Scripts/activate  # Windows with any Bash thingy
-source .venv/bin/activate      # Linux/Mac
-
-# Install dependencies
+source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### Shared protocol submodule
-
-This project depends on the shared protocol package used by both basestation and rover ROS:
+## Running
 
 ```bash
-git submodule update --init --recursive
+python -m basestation
 ```
 
-Expected submodule location:
+With no XBee radio attached it automatically runs in **UDP simulation mode**,
+sending to the same loopback ports the `rovers-ros` `xbee_udp` node listens
+on, so you can test end-to-end against the ROS stack on one machine.
 
-- `lib/rovers-protocol`
-
-**Note**: XBee libraries are optional at runtime. `requirements.txt` includes them by default, but simulation-only setups can omit those packages and the system will use UDP simulation mode.
-
-### Running
+Headless (service / no display):
 
 ```bash
-python launch_xbee.py
-# or
-python -m xbee
+XBEE_NO_GUI=1 python -m basestation
 ```
 
-### Headless Mode
+Headless mode refuses the UDP fallback: if the XBee cannot be opened it exits
+non-zero (systemd restarts it until the radio is back). Set
+`BASESTATION_SIMULATION=1` to run headless simulation on purpose.
 
-For running as a service or on devices without a display:
+## Controls
 
-```bash
-XBEE_NO_GUI=1 python -m xbee
+| Input | Action |
+|-------|--------|
+| Xbox left/right stick (Y) | drive |
+| Xbox LT / RT | trigger buttons |
+| Xbox LB / RB | autonomous state -1 / +1 |
+| hold SELECT + D-pad up/down | reverse mode on/off |
+| hold START + D-pad up/down | creep mode on/off |
+| Xbox HOME or N64 START | quit (sends QUIT to the rover) |
+| keyboard Q W S H E R 1-4 Z X C V B | life detection controls |
+| SpaceMouse | 6DOF arm control |
+
+Unplugging any input device also quits, which stops the rover this is intended and for safety.
+
+## Module map
+
 ```
-
-### VMware + Container Input Passthrough (SpaceMouse + Gamepads)
-
-If controllers work on host Linux but not inside an Ubuntu VM/container, the usual cause is device passthrough/permissions, you most likely just did not run it as root.
-
-#### Built-in diagnostics
-
-Basestation now logs Linux input visibility at startup (counts for `/dev/input/event*`, `/dev/hidraw*`, and SpaceMouse HID enumeration). This makes passthrough/permission failures explicit in logs.
-
-- Enabled by default on Linux
-- Disable with:
-
-```bash
-export XBEE_INPUT_DIAGNOSTICS=0
-```
-
-### Testing
-
-```bash
-# Run pytest through the run_tests.py script (defaults to pytest)
-python run_tests.py
+basestation/
+  app.py         control loop + main()
+  gamepads.py    Xbox/N64 reading, mode flags, hotplug
+  spacemouse.py  SpaceMouse HID reader
+  keyboard.py    life-detection keys with press states
+  comms.py       XBee/UDP link, dedup, telemetry decode
+  gui.py         tkinter GUI + headless fallback
+  protocol.py    shared rovers-protocol import shim
+tools/           debug_gamepad.py, gps_reader.py
+auto_boot/       systemd service for the Pi
+tests/           wire-format and behavior tests
 ```
 
 ## Configuration
 
-### Simulation vs Real Hardware
-
-In `xbee/config/constants.py`:
-
-```python
-SIMULATION_MODE = True   # UDP testing mode
-SIMULATION_MODE = False  # Real XBee hardware
-```
-
-### Communication Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `DEFAULT_PORT` | Serial port for XBee | `/dev/ttyUSB0` (Linux), `COM9` (Windows) |
-| `REMOTE_XBEE_ADDRESS` | Target XBee address | `0013A200423A7DDD` |
-| `UDP_BASESTATION_PORT` | Basestation send port | `5000` |
-| `UDP_ROVER_PORT` | Rover receive port | `5005` |
-| `UDP_TELEMETRY_PORT` | Telemetry receive port | `5002` |
-
-### Controller Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `UPDATE_FREQUENCY` | Message send interval | 40ms |
-| `DEADBAND_THRESHOLD` | Joystick deadzone | 0.10 |
-| `CREEP_MULTIPLIER` | Slow mode multiplier | 0.2 |
-
-Override creep mode default:
-```bash
-export XBEE_DEFAULT_CREEP=0  # Disable default creep mode
-```
-
-## Core Architecture
-
-The basestation runs on a Raspberry Pi with a monitor and game controllers. It reads controller input, encodes it using the shared protocol, and sends it to the rover via XBee radio. The rover sends telemetry back over UDP, which the GUI displays.
-
-The encoding/decoding logic lives in the **rovers-protocol** shared submodule at `lib/rovers-protocol/`. Both this repo and rovers-ros use the same protocol so changes only need to happen once.
-
-```
-  ┌────────────────┐    XBee Radio       ┌─────────────────┐
-  |                |   ───────────────>  |                 |
-  │ BASESTATION    │   controller data   │  ROVER (ROS 2)  │
-  │ (Raspberry Pi) │  <───────────────   │  (Jetson Orin)  │
-  │                │   telemetry (UDP)   │                 │
-  └────────────────┘                     └─────────────────┘
-```
-
-### Modules
-
-```
-xbee/
-├── app.py                  # BaseStation orchestrator + control loop
-├── config/constants.py     # All config (from protocol.yaml)
-├── controller/             # Gamepad reading, state, hotplug
-├── protocol/encoding.py    # Re-exports MessageEncoder from rover_protocol submodule
-├── communication/          # XBee + UDP backends
-└── display/                # tkinter GUI + headless fallback
-
-lib/rovers-protocol/        # Shared submodule
-├── protocol.yaml           # Source of truth for all messages
-└── rover_protocol/         # Python package (codec, constants, schema)
-```
-
-### Data Flows
-
-### Controller → Rover
-
-```
-Gamepad (USB/Bluetooth)
-    │
-    v
-InputEventSource.poll_events()           # OS-level gamepad events
-    │
-    v
-BaseStation.send_command(event)          # Routes to ControllerManager
-    │
-    v
-InputProcessor                           # Normalizes axis/button values
-    │
-    v
-ControllerState                          # Stores current values per controller
-    │
-    v
-CommunicationManager.send_controller_data()
-    │
-    v
-MessageFormatter.create_xbox_message()   # Calls MessageEncoder.encode_data()
-    │                                     # which bit-packs values per protocol.yaml
-    v
-XbeeCommunicationManager.send_package()  # Actual radio stuff ┐
-    -- OR --                                                  |> Based on flag
-UdpCommunicationManager.send_package()   # Simulation ────────┘
-```
-
-### Rover → Basestation (telemetry mostly)
-
-```
-Rover ROS nodes publish to /ROVER/TELEMETRY/* topics
-    │
-    v
-TelemetryUplink ROS node               # Collects topics, encodes with MessageEncoder
-    │
-    v
-UDP packet                             # Sent to basestation_ip:5002
-    │
-    v
-UdpCommunicationManager._receive_loop()
-    │
-    v
-MessageEncoder.decode_data()           # Decodes compact bytes back to dict
-    │
-    v
-BaseStation._handle_telemetry_data()   # Stores in self.telemetry_data
-    │
-    v
-TkinterDisplay.update_telemetry()      # GUI shows latest values
-```
-
-### Other Files
-
-| File | Use |
-|------|---------|
-| **utils/gps.py** | GPS data reading using I2C from the GPS module. |
-| **auto_boot/auto_boot.py** | Auto-starts basestation on Raspberry Pi boot. |
-| **launch_xbee.py** | Start script — sets up logging and launches basestation. |
-
-## Message Protocol
-
-All message definitions live in `lib/rovers-protocol/protocol.yaml`.
-
-### Format
-
-Compact bit-packed messages for bandwidth efficiency:
-
-| Byte | Content |
-|------|---------|
-| 0 | Message ID |
-| 1-N | Bit-packed signal payload |
-
-### Message IDs (from protocol.yaml)
-
-**To Rover (basestation → rover):**
-
-| ID | Name | Signals |
-|----|------|---------|
-| `0x01` | heartbeat | timestamp (16-bit) |
-| `0x02` | xbox | AXIS_LY, AXIS_RY, A, B, X, Y, LEFT_BUMPER, RIGHT_BUMPER, AXIS_LT, AXIS_RT |
-| `0x03` | n64 | A, B, L, R, C_UP, C_DOWN, C_LEFT, C_RIGHT, DP_UP–DP_RIGHT, Z |
-| `0x04` | quit | QUIT (1-bit bool) |
-| `0x05` | auto_state | auto_state (8-bit) |
-| `0x06` | spacemouse | x, y, z, rx, ry, rz, buttons |
-
-**From Rover (rover → basestation telemetry):**
-
-| ID | Name | Signals |
-|----|------|---------|
-| `0xF0` | life_detection | color_sensor, limit switches, auger, pump, slides, tubes |
-| `0xF1` | arm_encoders | base, shoulder, elbow, wrist, claw (all 16-bit) |
-| `0xF2` | drive_imu | speed L/R (joystick), yaw/pitch/roll (16-bit) |
-| `0xF3` | rover_estop | rover_estop (1-bit bool) |
-| `0xF4` | subsystem_enabled | arm, auto, life enabled (1-bit bools) |
-| `0xF5` | control_mode | control_mode (8-bit) |
-
-## Development
-
-```bash
-pip install -r requirements-dev.txt
-
-black .          # Format
-isort .          # Sort imports
-ruff check .     # Lint
-mypy .           # Type check
-```
-
-## Environment Variables
+Everything shared (ports, message IDs, timing, controller mappings) comes
+from `protocol.yaml` in the submodule. Environment variables:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `XBEE_NO_GUI` | `""` | Set to `"1"` to disable tkinter GUI |
-| `XBEE_DEFAULT_CREEP` | `1` | Set to `"0"` to disable default creep mode |
-| `BASESTATION_LOG_EVERY_UPDATES` | `0` | Log every N control loop iterations (0 = debug only) |
-| `XBEE_INFLIGHT_WAIT_TIMEOUT` | `30.0` | Timeout (seconds) for XBee inflight message ack |
-| `XBEE_TEST_ENABLE_INPUTS` | `0` | Allow controller inputs under pytest |
-| `XBEE_JOYSTICK_RAW_MODE` | `""` | Force joystick raw mode (`signed` or `unsigned`) when auto-detection is not reliable |
-| `XBEE_INPUT_DIAGNOSTICS` | `1` (Linux) | Set to `0` to disable startup Linux input/HID visibility diagnostics |
-| `ROVER_PROTOCOL_TRACE` | `""` | Set to `"1"` to enable real-time hex-level protocol tracing for TX/RX messages |
+| `XBEE_NO_GUI` | off | headless mode |
+| `BASESTATION_SIMULATION` | off | force UDP simulation even with a radio |
+| `XBEE_PORT` / `XBEE_BAUD` | from protocol.yaml | XBee serial port settings |
+| `XBEE_DEFAULT_CREEP` | `1` | start in creep mode |
+| `XBEE_JOYSTICK_RAW_MODE` | `signed` | set `unsigned` for 0-255 stick adapters |
+| `XBEE_TRIGGER_THRESHOLD` | `0.05` | trigger press threshold (0-1) |
+| `ROVER_PROTOCOL_TRACE` | on in simulation | log every tx/rx packet |
 
-> For nerds that want more details, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
+## Ports (UDP simulation)
+
+| Port | Direction | What |
+|------|-----------|------|
+| 5005 | basestation -> rover | encoded controller messages |
+| 5002 | rover -> basestation | encoded telemetry |
+
+* Please let a maintainer know if you change these ports on either end
+
+## Testing
+
+```bash
+pip install pytest
+pytest
+```
+
+## Known gaps
+
+- Arm control modes ([#20](https://github.com/rit-spex/rovers-basestation/issues/20))
+  need a new to-rover message in `protocol.yaml` first; not implemented here.

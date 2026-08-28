@@ -1,214 +1,77 @@
-"""Auto-boot helper for launching the basestation after XBee connectivity checks."""
+# ------------------------------------------------------------------
+#                          SPEX ROVER 2026
+# ------------------------------------------------------------------
+# file name     : auto_boot.py
+# purpose       : wait until the rover XBee answers a ping, then
+#                 launch the basestation headless
+# created on    : 7/12/2026 - Ryan
+# last modified : 7/12/2026 - Ryan
+# ------------------------------------------------------------------
+"""Boot helper for the Raspberry Pi: block until the rover's XBee is
+reachable, then start the basestation. Run by the systemd service."""
 
 import logging
 import os
 import subprocess
 import sys
 import time
-from typing import Any, Optional, Type, cast
 
-CONSTANTS: Any = None
-try:
-    # Try to import the CONSTANTS config; if import fails, leave as None.
-    # This lets runtime logic fall back to defaults while keeping static typing
-    # permissive for CI checks.
-    from xbee.config.constants import CONSTANTS  # type: ignore
-except Exception:
-    CONSTANTS = None
+log = logging.getLogger("auto_boot")
 
-# Module-level placeholders so code/tests can patch them at runtime.
-XBeeException: Type[BaseException] = Exception
+RETRY_SECONDS = 1
+MAX_RETRIES = 300  # about 5 minutes
 
 
-class _XBeeDeviceStub:
-    """A minimal, non-operational XBee device implementation used as a
-    module-level placeholder. This keeps the attribute callable so tests can
-    monkeypatch it, and prevents static analysis from inferring the value is
-    always None.
-    """
-
-    def __init__(self, *args, **kwargs):
-        # Stub for tests/runtime: raises if used; do not perform hardware operations.
-        self._args = args
-        self._kwargs = kwargs
-
-    def open(self):
-        raise XBeeException(_XBEE_LIBS_NOT_AVAILABLE_MSG)
-
-    def send_data(self, *args, **kwargs):
-        raise XBeeException(_XBEE_LIBS_NOT_AVAILABLE_MSG)
-
-    def close(self):
-        # No-op for stub
-        return None
-
-
-XBeeDevice: Optional[Type] = _XBeeDeviceStub
-# Module-level placeholder: tests can monkeypatch XBeeDevice; the stub raises on use.
-
-logger = logging.getLogger(__name__)
-
-
-def _get_config_value(attr_name: str, default_value: Any) -> Any:
-    if CONSTANTS is None:
-        return default_value
-    communication = getattr(CONSTANTS, "COMMUNICATION", None)
-    if communication is None:
-        return default_value
-    return getattr(communication, attr_name, default_value)
-
-
-_DEFAULT_PORT = "/dev/ttyUSB0"
-_DEFAULT_BAUD_RATE = 230400
-_DEFAULT_REMOTE_ADDRESS = "0013A200423A7DDD"
-
-PORT = os.getenv("XBEE_PORT", _get_config_value("DEFAULT_PORT", _DEFAULT_PORT))
-_baud_env = os.getenv(
-    "XBEE_BAUD", str(_get_config_value("DEFAULT_BAUD_RATE", _DEFAULT_BAUD_RATE))
-)
-try:
-    BAUD_RATE = int(_baud_env)
-except ValueError:
-    logger.error(
-        "Invalid XBEE_BAUD environment variable '%s', using default", _baud_env
-    )
-    BAUD_RATE = int(_get_config_value("DEFAULT_BAUD_RATE", _DEFAULT_BAUD_RATE))
-RETRY_DELAY = 1
-MAX_CONNECTION_RETRIES = 300  # 5 minutes of retries with 1s delay
-_DEFAULT_XBEE_SCRIPT_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")
-)
-XBEE_SCRIPT_DIR = os.getenv("XBEE_SCRIPT_DIR", _DEFAULT_XBEE_SCRIPT_DIR)
-XBEE_SCRIPT_NAME = "xbee"
-
-REMOTE_XBEE = os.getenv(
-    "XBEE_REMOTE_ADDRESS",
-    _get_config_value("REMOTE_XBEE_ADDRESS", _DEFAULT_REMOTE_ADDRESS),
-)
-
-# reuse msg string for lib warnings
-_XBEE_LIBS_NOT_AVAILABLE_MSG = (
-    "Digi XBee libraries are not available - cannot attempt to connect."
-)
-
-
-def wait_for_xbee_connection() -> bool:  # NOSONAR S3516
-    # false positive: returns diff vals based on runtime imports
-    logger.info("Waiting for Digi XBee to connect to robot...")
-
-    # Prefer using monkeypatched XBeeDevice (tests) or else import runtime Digi XBee classes.
-    def _resolve_xbee_classes():
-        # Return monkeypatched XBeeDevice if not our internal stub; otherwise import runtime classes.
-        _xbee_device = globals().get("XBeeDevice")
-        if (
-            _xbee_device is not None
-            and _xbee_device is not _XBeeDeviceStub
-            and callable(_xbee_device)
-        ):
-            return _xbee_device, globals().get("XBeeException", Exception), None, None
-        try:
-            # Use CamelCase aliasing for imported classes to satisfy stylistic rules
-            from digi.xbee.devices import RemoteXBeeDevice as _RemoteXBeeDeviceCls
-            from digi.xbee.devices import XBee64BitAddress as _XBee64BitAddressCls
-            from digi.xbee.devices import XBeeDevice as _XBeeDeviceCls
-            from digi.xbee.devices import XBeeException as _XBeeExceptionCls
-
-            return (
-                _XBeeDeviceCls,
-                _XBeeExceptionCls,
-                _RemoteXBeeDeviceCls,
-                _XBee64BitAddressCls,
-            )
-        except Exception as e:
-            # Preserve the original error as the cause of the ImportError
-            raise ImportError(_XBEE_LIBS_NOT_AVAILABLE_MSG) from e
-
+def wait_for_rover() -> bool:
+    """Ping the rover XBee until it answers (or we give up)."""
     try:
-        xbee_device_cls, xbee_exception_cls, remote_xbee_cls, xbee64_addr_cls = (
-            _resolve_xbee_classes()
-        )
+        from digi.xbee.devices import (RemoteXBeeDevice, XBee64BitAddress,
+                                       XBeeDevice, XBeeException)
     except ImportError:
-        logger.warning(_XBEE_LIBS_NOT_AVAILABLE_MSG)
+        log.error("digi-xbee not installed")
         return False
 
-    # Tell type checkers these variables are concrete classes (we'd have
-    # already returned if import/resolution failed above).
-    xbee_device_cls = cast(Type, xbee_device_cls)
-    xbee_exception_cls = cast(Type[BaseException], xbee_exception_cls)
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from basestation.protocol import CONSTANTS
 
-    retry_count = 0
-    while retry_count < MAX_CONNECTION_RETRIES:
-        retry_count += 1
+    comm = CONSTANTS.COMMUNICATION
+    port = os.environ.get("XBEE_PORT", comm.DEFAULT_PORT)
+    baud = int(os.environ.get("XBEE_BAUD", comm.DEFAULT_BAUD_RATE))
+
+    log.info("Waiting for rover XBee on %s...", port)
+    for _ in range(MAX_RETRIES):
         try:
-            device = xbee_device_cls(PORT, BAUD_RATE)
+            device = XBeeDevice(port, baud)
             device.open()
-
             try:
-                target: Any = REMOTE_XBEE
-                if remote_xbee_cls is not None and xbee64_addr_cls is not None:
-                    target = remote_xbee_cls(
-                        device,
-                        xbee64_addr_cls.from_hex_string(str(REMOTE_XBEE)),
-                    )
-                device.send_data(target, "ping")
-                logger.info("SUCCESS: Robot XBee reachable! Connection established.")
+                remote = RemoteXBeeDevice(
+                    device,
+                    XBee64BitAddress.from_hex_string(comm.REMOTE_XBEE_ADDRESS))
+                device.send_data(remote, "ping")
+                log.info("Rover XBee reachable")
                 return True
-            except xbee_exception_cls as e:
-                logger.warning("WARNING: Robot XBee not responding yet: %s", e)
-                logger.info("Retrying in %d seconds...", RETRY_DELAY)
-                time.sleep(RETRY_DELAY)
+            except XBeeException as exc:
+                log.warning("Rover not responding yet: %s", exc)
             finally:
-                try:
-                    device.close()
-                except Exception:
-                    pass
-        except (xbee_exception_cls, OSError) as e:
-            logger.warning("WARNING: Connection failed: %s", e)
-            logger.info("Retrying in %d seconds...", RETRY_DELAY)
-            time.sleep(RETRY_DELAY)
-    logger.error("Failed to connect after %d attempts", MAX_CONNECTION_RETRIES)
+                device.close()
+        except Exception as exc:
+            log.warning("Connection failed: %s", exc)
+        time.sleep(RETRY_SECONDS)
+    log.error("Rover unreachable after %d attempts", MAX_RETRIES)
     return False
 
 
-def launch_xbee_script(exit_on_error: bool = False) -> bool:
-    expanded_dir = os.path.expanduser(XBEE_SCRIPT_DIR)
-    logger.info("Changing directory to: %s", expanded_dir)
-    try:
-        os.chdir(expanded_dir)
-    except OSError as err:
-        logger.error("Failed to change directory to '%s': %s", expanded_dir, err)
-        if exit_on_error:
-            sys.exit(1)
-        return False
-    logger.info("Launching xbee module...")
-
+def main() -> int:
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s - %(name)s - %(message)s")
+    if not wait_for_rover():
+        return 1
     env = os.environ.copy()
     env["XBEE_NO_GUI"] = "1"
-    env["XBEE_PORT"] = PORT
-    env["XBEE_BAUD"] = str(BAUD_RATE)
-    try:
-        subprocess.run([sys.executable, "-m", XBEE_SCRIPT_NAME], check=True, env=env)
-        return True
-    except KeyboardInterrupt:
-        raise
-    except subprocess.CalledProcessError as exc:
-        logger.error("XBee process failed with return code %s", exc.returncode)
-        if exit_on_error:
-            sys.exit(exc.returncode)
-        return False
-    except Exception as exc:
-        logger.exception("Unexpected error while launching XBee process: %s", exc)
-        if exit_on_error:
-            sys.exit(1)
-        return False
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return subprocess.run([sys.executable, "-m", "basestation"],
+                          cwd=repo_root, env=env).returncode
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-    if not wait_for_xbee_connection():
-        logger.error("Failed to establish XBee connection. Exiting.")
-        sys.exit(1)
-    launch_xbee_script(exit_on_error=True)
+    raise SystemExit(main())
