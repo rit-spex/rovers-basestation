@@ -7,3 +7,7 @@ services:
     volumes:
       - .:/app
     command: python -m xbee.app
+
+networks:
+  rovers_simulation_udp:
+    name: rovers_simulation_udp
