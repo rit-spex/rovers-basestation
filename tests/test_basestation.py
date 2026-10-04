@@ -4,7 +4,7 @@
 # file name     : test_basestation.py
 # purpose       : wire-format and behavior checks for the basestation
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/16/2026 - Ryan
+# last modified : 10/1/2026 - Zach
 # ------------------------------------------------------------------
 """The tests that matter: bytes on the wire, input math, and quit paths.
 
@@ -64,9 +64,9 @@ def test_spacemouse_and_keyboard_encode():
 # Stick math
 # ----------------------------------------------------------------------
 
-def test_stick_deadband_creep_and_clamp():
+def test_stick_deadband_speed_and_clamp():
     pads = make_gamepads()
-    pads.creep_mode = False
+    pads.drive_speed = 100
 
     pads.handle_event(XBOX, "ABS_Y", 32767)   # full deflection
     assert pads.states[XBOX]["AXIS_LY"] == 200
@@ -77,11 +77,11 @@ def test_stick_deadband_creep_and_clamp():
     pads.handle_event(XBOX, "ABS_Y", 2000)    # inside 10% deadband
     assert pads.states[XBOX]["AXIS_LY"] == 100
 
-    pads.creep_mode = True                    # creep scales to 20%
+    pads.drive_speed = 25                     # scales to 25%
     pads.handle_event(XBOX, "ABS_Y", 32767)
-    assert pads.states[XBOX]["AXIS_LY"] == 120
+    assert pads.states[XBOX]["AXIS_LY"] == 125
 
-    pads.creep_mode = False
+    pads.drive_speed = 100
     pads.reverse_mode = True                  # reverse negates
     pads.handle_event(XBOX, "ABS_Y", 32767)
     assert pads.states[XBOX]["AXIS_LY"] == 0
@@ -91,9 +91,9 @@ def test_stick_deadband_creep_and_clamp():
     pads.reverse_mode = False
     pads.handle_event(XBOX, "ABS_Y", -32440)
     assert pads.states[XBOX]["AXIS_LY"] == 1
-    pads.creep_mode = True
+    pads.drive_speed = 25
     pads.handle_event(XBOX, "ABS_Y", -31129)
-    assert pads.states[XBOX]["AXIS_LY"] == 81
+    assert pads.states[XBOX]["AXIS_LY"] == 76
 
 
 def test_reverse_mode_swaps_sticks_on_the_wire():
@@ -109,6 +109,7 @@ def test_reverse_mode_swaps_sticks_on_the_wire():
 
 def test_mode_combos():
     pads = make_gamepads()
+    assert pads.drive_speed == 25
     pads.handle_event(XBOX, "BTN_SELECT", 1)
     pads.handle_event(XBOX, "ABS_HAT0Y", -1)  # up
     assert pads.reverse_mode is True
@@ -118,9 +119,31 @@ def test_mode_combos():
 
     pads.handle_event(XBOX, "BTN_START", 1)
     pads.handle_event(XBOX, "ABS_HAT0Y", 1)
-    assert pads.creep_mode is False
+    assert pads.drive_speed == 25
     pads.handle_event(XBOX, "ABS_HAT0Y", -1)
-    assert pads.creep_mode is True
+    assert pads.drive_speed == 25
+
+    pads.handle_event(XBOX, "ABS_HAT0X", -1)
+    pads.handle_event(XBOX, "ABS_HAT0X", 0)
+    pads.handle_event(XBOX, "ABS_HAT0X", -1)
+    assert pads.drive_speed == 0
+
+    speeds = []
+    for _ in range(6):
+        pads.handle_event(XBOX, "ABS_HAT0X", 0)
+        pads.handle_event(XBOX, "ABS_HAT0X", 1)
+        speeds.append(pads.drive_speed)
+    assert speeds == [25, 50, 75, 100, 100, 100]
+
+def test_drive_speed_recalc_held_stick():
+    pads = make_gamepads()
+    pads.handle_event(XBOX, "ABS_Y", 32767)
+    assert pads.states[XBOX]["AXIS_LY"] == 125
+
+    pads.handle_event(XBOX, "BTN_START", 1)
+    pads.handle_event(XBOX, "ABS_HAT0X", 1)
+    assert pads.drive_speed == 50
+    assert pads.states[XBOX]["AXIS_LY"] == 150
 
 
 def test_auto_state_bumpers_clamp():

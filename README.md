@@ -61,7 +61,7 @@ non-zero (systemd restarts it until the radio is back). Set
 | Xbox LT / RT | trigger buttons |
 | Xbox LB / RB | autonomous state -1 / +1 |
 | hold SELECT + D-pad up/down | reverse mode on/off |
-| hold START + D-pad up/down | creep mode on/off |
+| hold START + D-pad left/right | decrease/increase drive speed by 25% |
 | Xbox HOME or N64 START | quit (sends QUIT to the rover) |
 | keyboard Q W S H E R 1-4 Z X C V B | life detection controls |
 | SpaceMouse | 6DOF arm control |
@@ -94,7 +94,6 @@ from `protocol.yaml` in the submodule. Environment variables:
 | `XBEE_NO_GUI` | off | headless mode |
 | `BASESTATION_SIMULATION` | off | force UDP simulation even with a radio |
 | `XBEE_PORT` / `XBEE_BAUD` | from protocol.yaml | XBee serial port settings |
-| `XBEE_DEFAULT_CREEP` | `1` | start in creep mode |
 | `XBEE_JOYSTICK_RAW_MODE` | `signed` | set `unsigned` for 0-255 stick adapters |
 | `XBEE_TRIGGER_THRESHOLD` | `0.05` | trigger press threshold (0-1) |
 | `ROVER_PROTOCOL_TRACE` | on in simulation | log every tx/rx packet |

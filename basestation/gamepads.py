@@ -5,7 +5,7 @@
 # purpose       : read Xbox and N64 gamepads and keep their current
 #                 state ready for protocol encoding
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/14/2026 - Ryan
+# last modified : 10/1/2026 - Zach
 # ------------------------------------------------------------------
 """Gamepad input via the ``inputs`` library.
 
@@ -71,7 +71,10 @@ NEUTRAL = CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
 AXIS_MIN = CONSTANTS.XBOX.JOYSTICK.MIN_VALUE
 AXIS_MAX = CONSTANTS.XBOX.JOYSTICK.MAX_VALUE
 DEADBAND = CONSTANTS.TIMING.DEADBAND_THRESHOLD
-CREEP_MULTIPLIER = CONSTANTS.CONTROLLER_MODES.CREEP_MULTIPLIER
+DEFAULT_DRIVE_SPEED = 25
+DRIVE_BOUND_MIN = 0
+DRIVE_BOUND_MAX = 100
+DRIVE_SPEED_INCREMENT = 25
 
 # Raw trigger value above which the trigger counts as pressed.
 # ponytail: assumes 0..255 trigger range; some pads report 0..1023, still
@@ -104,7 +107,7 @@ class Gamepads:
 
     Mode controls (Xbox):
         hold SELECT + D-pad up/down  -> reverse mode on/off
-        hold START  + D-pad up/down  -> creep mode on/off
+        hold START  + D-pad left/right -> drive speed -/+25%
         LEFT/RIGHT bumper press      -> autonomous state -1/+1
         HOME button                  -> quit
     """
@@ -113,8 +116,9 @@ class Gamepads:
         self._on_quit = on_quit or (lambda: None)
         self._lock = threading.Lock()
         self.states = {XBOX: _defaults(MSG.XBOX_ID), N64: _defaults(MSG.N64_ID)}
+        self._stick_values = {signal: 0.0 for signal in XBOX_STICKS.values()}
         self.devices = {}  # device key -> {"name": str, "type": str}
-        self.creep_mode = env_flag("XBEE_DEFAULT_CREEP", default=True)
+        self.drive_speed = DEFAULT_DRIVE_SPEED
         self.reverse_mode = False
         self.auto_state = CONSTANTS.AUTO_STATE.MIN
         self._held = {"BTN_SELECT": False, "BTN_START": False}
@@ -268,17 +272,33 @@ class Gamepads:
                     n64["DP_" + code.rsplit("_", 1)[1]] = bool(value)
             return
 
-        # Xbox: D-pad + held SELECT/START toggles a drive mode
+        # Xbox: SELECT + up/down toggles reverse mode.
+        # START + left/right adjusts drive speed.
         up = (code == "ABS_HAT0Y" and value == -1) or (code == "BTN_DPAD_UP" and value)
         down = (code == "ABS_HAT0Y" and value == 1) or (code == "BTN_DPAD_DOWN" and value)
+        left = (code == "ABS_HAT0X" and value == -1) or (code == "BTN_DPAD_LEFT" and value)
+        right = (code == "ABS_HAT0X" and value == 1) or (code == "BTN_DPAD_RIGHT" and value)
+        if left or right:
+            if self._held["BTN_START"]:
+                with self._lock:
+                    delta = DRIVE_SPEED_INCREMENT if right else DRIVE_SPEED_INCREMENT * -1
+                    self.drive_speed = max(
+                        DRIVE_BOUND_MIN,
+                        min(DRIVE_BOUND_MAX, self.drive_speed + delta),
+                    )
+                    self._recalc_sticks_locked()
+                    speed = self.drive_speed
+                log.info("Drive speed %d%%", speed)
+                # Insert vibrations here
+            return
+
         if not (up or down):
             return
-        if self._held["BTN_SELECT"]:
-            self.reverse_mode = bool(up)
-            log.info("Reverse mode %s", "on" if self.reverse_mode else "off")
-        if self._held["BTN_START"]:
-            self.creep_mode = bool(up)
-            log.info("Creep mode %s", "on" if self.creep_mode else "off")
+        with self._lock:
+            if self._held["BTN_SELECT"]:
+                self.reverse_mode = bool(up)
+                log.info("Reverse mode %s", "on" if self.reverse_mode else "off")
+            self._recalc_sticks_locked()
 
     def _handle_stick(self, signal, raw):
         if self._unsigned_sticks:
@@ -289,11 +309,16 @@ class Gamepads:
         value = max(-1.0, min(1.0, value))
         if abs(value) < DEADBAND:
             value = 0.0
-        multiplier = CREEP_MULTIPLIER if self.creep_mode else 1.0
+        with self._lock:
+            self._stick_values[signal] = value
+            self._recalc_sticks_locked()
+
+    def _recalc_sticks_locked(self):
+        multiplier = self.drive_speed / 100
         if self.reverse_mode:
             multiplier = -multiplier
-        converted = floor(multiplier * value * 100 + NEUTRAL)
-        with self._lock:
+        for signal, value in self._stick_values.items():
+            converted = floor(multiplier * value * 100 + NEUTRAL)
             self.states[XBOX][signal] = max(AXIS_MIN, min(AXIS_MAX, converted))
 
     def _adjust_auto_state(self, delta):
