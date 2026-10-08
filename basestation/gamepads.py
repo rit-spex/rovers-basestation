@@ -71,10 +71,6 @@ NEUTRAL = CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
 AXIS_MIN = CONSTANTS.XBOX.JOYSTICK.MIN_VALUE
 AXIS_MAX = CONSTANTS.XBOX.JOYSTICK.MAX_VALUE
 DEADBAND = CONSTANTS.TIMING.DEADBAND_THRESHOLD
-DEFAULT_DRIVE_SPEED = 25
-DRIVE_BOUND_MIN = 0
-DRIVE_BOUND_MAX = 100
-DRIVE_SPEED_INCREMENT = 25
 
 # Raw trigger value above which the trigger counts as pressed.
 # ponytail: assumes 0..255 trigger range; some pads report 0..1023, still
@@ -118,7 +114,7 @@ class Gamepads:
         self.states = {XBOX: _defaults(MSG.XBOX_ID), N64: _defaults(MSG.N64_ID)}
         self._stick_values = {signal: 0.0 for signal in XBOX_STICKS.values()}
         self.devices = {}  # device key -> {"name": str, "type": str}
-        self.drive_speed = DEFAULT_DRIVE_SPEED
+        self.drive_speed = CONSTANTS.DRIVE_SPEED.DEFAULT
         self.reverse_mode = False
         self.auto_state = CONSTANTS.AUTO_STATE.MIN
         self._held = {"BTN_SELECT": False, "BTN_START": False}
@@ -281,10 +277,10 @@ class Gamepads:
         if left or right:
             if self._held["BTN_START"]:
                 with self._lock:
-                    delta = DRIVE_SPEED_INCREMENT if right else DRIVE_SPEED_INCREMENT * -1
+                    delta = CONSTANTS.DRIVE_SPEED.INCREMENT if right else CONSTANTS.DRIVE_SPEED.INCREMENT * -1
                     self.drive_speed = max(
-                        DRIVE_BOUND_MIN,
-                        min(DRIVE_BOUND_MAX, self.drive_speed + delta),
+                        CONSTANTS.DRIVE_SPEED.MIN,
+                        min(CONSTANTS.DRIVE_SPEED.MAX, self.drive_speed + delta),
                     )
                     self._recalc_sticks_locked()
                     speed = self.drive_speed
