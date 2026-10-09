@@ -5,7 +5,7 @@
 # purpose       : wire the inputs, rover link, and display together
 #                 and run the 40 ms control loop
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 10/1/2026 - Zach
 # ------------------------------------------------------------------
 """Basestation application.
 
@@ -117,7 +117,7 @@ class BaseStation:
             "states": states,
             "spacemouse": spacemouse_state,
             "keyboard": keyboard_state,
-            "creep": self.gamepads.creep_mode,
+            "drive_speed": self.gamepads.drive_speed,
             "reverse": self.gamepads.reverse_mode,
             "auto_state": self.gamepads.auto_state,
             "simulation": self.link.simulation,

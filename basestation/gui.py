@@ -5,7 +5,7 @@
 # purpose       : tkinter status display for the basestation, with a
 #                 headless fallback for services and tests
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 10/1//2026 - Zach
 # ------------------------------------------------------------------
 """Basestation display.
 
@@ -31,7 +31,7 @@ except ImportError:
     tk = None
 
 WINDOW_SIZE = "800x560"
-SIDEBAR_WIDTH = 140
+SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
 RED, GREEN, BLUE = "#a51d2d", "#26a269", "#1c71d8"
 
@@ -154,11 +154,16 @@ class Display:
         self._indicators = {}
         self._indicator_labels = {}
         row = 0
-        for name, with_label in (("Creep Mode", False), ("Reverse", False),
+        for name, with_label in (("Rover Status", True),
+                                 ("Reverse", False),
                                  ("Auto Status", True), ("Auto Toggle", False),
-                                 ("Arm Toggle", False), ("Rover Status", True),
+                                 ("Arm Toggle", False),
                                  ("Life Toggle", False)):
             row = self._add_indicator(sidebar, row, name, with_label)
+
+        self.speed_label = ttk.Label(sidebar, text="Drive Speed: -")
+        self.speed_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
+        row += 1
 
         self.comm_label = ttk.Label(sidebar, text="Comm:\n-", justify="left")
         self.comm_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
@@ -226,7 +231,7 @@ class Display:
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
-        self._set_indicator("Creep Mode", snap.get("creep"))
+        self.speed_label.config(text=f'Drive Speed: {snap["drive_speed"]}%')
         self._set_indicator("Reverse", snap.get("reverse"))
 
         auto_on = bool(telemetry.get("auto_enabled"))
