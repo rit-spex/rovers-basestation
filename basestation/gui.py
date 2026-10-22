@@ -30,7 +30,7 @@ try:
 except ImportError:
     tk = None
 
-WINDOW_SIZE = "800x560"
+WINDOW_SIZE = "800x640" #revert to 560 b4 push
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
 RED, GREEN, BLUE = "#a51d2d", "#26a269", "#1c71d8"
@@ -49,13 +49,13 @@ MODULE_LABELS = {"nothing": "Nothing", "life": "Life Detection",
 KEY_STATE_LABELS = {0: "-", 1: "PRESS", 2: "HOLD", 3: "REL"}
 
 
-def create_display(simulation: bool = False):
+def create_display(drive_speeds, auto_modes, simulation: bool = False):
     """The tkinter display, or the headless one when GUI is unavailable."""
     if env_flag("XBEE_NO_GUI") or tk is None:
         log.info("Using headless display")
         return HeadlessDisplay()
     try:
-        return Display(simulation)
+        return Display(simulation, drive_speeds, auto_modes)
     except Exception as exc:
         log.warning("GUI unavailable (%s) - using headless display", exc)
         return HeadlessDisplay()
@@ -80,8 +80,10 @@ class HeadlessDisplay:
 class Display:
     """Tkinter GUI: mode/status sidebar, input devices, module telemetry."""
 
-    def __init__(self, simulation: bool):
+    def __init__(self, simulation: bool, drive_speeds, auto_modes):
         self.simulation = simulation
+        self.drive_speeds = drive_speeds
+        self.auto_modes = auto_modes
         self._lock = threading.Lock()
         self._snapshot = {}
         self._module_view = "nothing"
@@ -155,14 +157,38 @@ class Display:
         self._indicator_labels = {}
         row = 0
         for name, with_label in (("Rover Status", True),
-                                 ("Reverse", False),
                                  ("Auto Status", True), ("Auto Toggle", False),
                                  ("Arm Toggle", False),
-                                 ("Life Toggle", False)):
+                                 ("Life Toggle", False), ("Reverse", False)):
             row = self._add_indicator(sidebar, row, name, with_label)
 
-        self.speed_label = ttk.Label(sidebar, text="Drive Speed: -")
-        self.speed_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(sidebar, text="Drive Speed", font=("Arial", 11, "bold")).grid(
+            row=row, column=0, sticky="w", pady=(6, 0))
+        row += 1
+
+        speed_bar = ttk.Frame(sidebar)
+        speed_bar.grid(row=row, column=0, sticky="w", pady=(4, 0))
+        self.speed_boxes = {}
+        for column, percent in enumerate(self.drive_speeds):
+            self.speed_boxes[percent] = self._add_choice(
+                speed_bar, column, f"{percent}%", INDICATOR_SIZE // 2)
+        row += 1
+        ttk.Separator(sidebar).grid(row=row, column=0, sticky="ew", pady=4)
+        row += 1
+
+        ttk.Label(sidebar, text="Requested Mode", font=("Arial", 11, "bold")).grid(
+            row=row, column=0, sticky="w", pady=(6, 0))
+        row += 1
+
+        mode_bar = ttk.Frame(sidebar)
+        mode_bar.grid(row=row, column=0, sticky="w", pady=(4, 0))
+        self.mode_boxes = {}
+        for column, (value, name) in enumerate(self.auto_modes.items()):
+            label = name.removeprefix("auto_").capitalize()
+            self.mode_boxes[value] = self._add_choice(
+                mode_bar, column, label, INDICATOR_SIZE)
+        row += 1
+        ttk.Separator(sidebar).grid(row=row, column=0, sticky="ew", pady=4)
         row += 1
 
         self.comm_label = ttk.Label(sidebar, text="Comm:\n-", justify="left")
@@ -188,6 +214,19 @@ class Display:
             self._indicator_labels[name] = label
         ttk.Separator(parent).grid(row=row + 1, column=0, sticky="ew", pady=4)
         return row + 2
+
+    def _add_choice(self, parent, column, text, height):
+        parent.columnconfigure(column, weight=1, uniform="choices")
+        frame = ttk.Frame(parent)
+        frame.grid(row=0, column=column, sticky="ew", pady=2)
+        frame.columnconfigure(0, weight=1)
+        box = tk.Frame(frame, width=INDICATOR_SIZE, height=height,
+                       background="#333", highlightthickness=1,
+                       highlightbackground="#333")
+        box.grid(row=0, column=0, padx=2)
+        box.grid_propagate(False)
+        ttk.Label(frame, text=text).grid(row=1, column=0)
+        return box
 
     def _build_panels(self, parent):
         panels = ttk.Frame(parent)
@@ -231,8 +270,12 @@ class Display:
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
-        self.speed_label.config(text=f'Drive Speed: {snap["drive_speed"]}%')
+        for percent, box in self.speed_boxes.items():
+            box.config(background=BLUE if percent <= snap["drive_speed"] else "#333")
         self._set_indicator("Reverse", snap.get("reverse"))
+
+        for value, box in self.mode_boxes.items():
+            box.config(background=BLUE if value == snap["auto_state"] else "#333")
 
         auto_on = bool(telemetry.get("auto_enabled"))
         self._set_indicator("Auto Status", True, "#d22" if auto_on else BLUE)
