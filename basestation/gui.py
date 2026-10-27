@@ -157,7 +157,7 @@ class Display:
         self._indicator_labels = {}
         row = 0
         for name, with_label in (("Rover Status", True),
-                                 ("Auto Status", True), ("Auto Toggle", False),
+                                 ("Auto Toggle", False),
                                  ("Arm Toggle", False),
                                  ("Life Toggle", False), ("Reverse", False)):
             row = self._add_indicator(sidebar, row, name, with_label)
@@ -176,7 +176,7 @@ class Display:
         ttk.Separator(sidebar).grid(row=row, column=0, sticky="ew", pady=4)
         row += 1
 
-        ttk.Label(sidebar, text="Requested Mode", font=("Arial", 11, "bold")).grid(
+        ttk.Label(sidebar, text="Control Mode", font=("Arial", 11, "bold")).grid(
             row=row, column=0, sticky="w", pady=(6, 0))
         row += 1
 
@@ -274,13 +274,15 @@ class Display:
             box.config(background=BLUE if percent <= snap["drive_speed"] else "#333")
         self._set_indicator("Reverse", snap.get("reverse"))
 
+        confirmed_mode = None  # yeah
+        confirmed_mode = telemetry.get("control_mode") # does NOT work whatsoever
         for value, box in self.mode_boxes.items():
-            box.config(background=BLUE if value == snap["auto_state"] else "#333")
-
-        auto_on = bool(telemetry.get("auto_enabled"))
-        self._set_indicator("Auto Status", True, "#d22" if auto_on else BLUE)
-        self._indicator_labels["Auto Status"].config(
-            text="Autonomous" if auto_on else "Teleop")
+            color = "#333"
+            if value == confirmed_mode:
+                color = GREEN
+            elif value == snap["auto_state"]:
+                color = BLUE
+            box.config(background=color)
 
         self._set_indicator("Auto Toggle", telemetry.get("auto_enabled"))
         self._set_indicator("Arm Toggle", telemetry.get("arm_enabled"))
