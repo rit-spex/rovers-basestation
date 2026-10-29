@@ -275,7 +275,7 @@ class Display:
         self._set_indicator("Reverse", snap.get("reverse"))
 
         confirmed_mode = None  # yeah
-        confirmed_mode = telemetry.get("control_mode") # does NOT work whatsoever
+        confirmed_mode = telemetry.get("control_mode") # does NOT work whatsoever. nothing sends control mode back yet.
         for value, box in self.mode_boxes.items():
             color = "#333"
             if value == confirmed_mode:
