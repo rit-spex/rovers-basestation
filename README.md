@@ -59,7 +59,7 @@ non-zero (systemd restarts it until the radio is back). Set
 |-------|--------|
 | Xbox left/right stick (Y) | drive |
 | Xbox LT / RT | trigger buttons |
-| Xbox LB / RB | autonomous state -1 / +1 |
+| hold START + Xbox LB / RB | autonomous state -1 / +1 |
 | hold SELECT + D-pad up/down | reverse mode on/off |
 | hold START + D-pad left/right | decrease/increase drive speed by 25% |
 | Xbox HOME or N64 START | quit (sends QUIT to the rover) |
