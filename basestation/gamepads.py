@@ -320,7 +320,7 @@ class Gamepads:
 
     def _adjust_auto_state(self, delta):
         clamped = max(CONSTANTS.AUTO_STATE.MIN,
-                      min(CONSTANTS.AUTO_STATE.MAX, self.auto_state + delta))
+                      min(max(CONSTANTS.AUTO_STATE.NAME_BY_VALUE), self.auto_state + delta))
         if clamped != self.auto_state:
             self.auto_state = clamped
             log.info("Auto state -> %d", self.auto_state)
