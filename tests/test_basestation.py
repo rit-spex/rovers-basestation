@@ -148,10 +148,11 @@ def test_drive_speed_recalc_held_stick():
 
 def test_auto_state_bumpers_clamp():
     pads = make_gamepads()
+    pads.handle_event(XBOX, "BTN_START", 1)
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TR", 1)
         pads.handle_event(XBOX, "BTN_TR", 0)
-    assert pads.auto_state == 5
+    assert pads.auto_state == 2
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TL", 1)
         pads.handle_event(XBOX, "BTN_TL", 0)
