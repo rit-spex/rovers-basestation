@@ -5,7 +5,7 @@
 # purpose       : wire the inputs, rover link, and display together
 #                 and run the 40 ms control loop
 # created on    : 7/12/2026 - Ryan
-# last modified : 10/1/2026 - Zach
+# last modified : 11/9/2026 - Zach
 # ------------------------------------------------------------------
 """Basestation application.
 
@@ -164,10 +164,7 @@ def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     station = BaseStation()
-    drive_speeds = range(CONSTANTS.DRIVE_SPEED.MIN, CONSTANTS.DRIVE_SPEED.MAX + 1,
-                         CONSTANTS.DRIVE_SPEED.INCREMENT)
-    display = create_display(drive_speeds, CONSTANTS.AUTO_STATE.NAME_BY_VALUE,
-                             simulation=station.link.simulation)
+    display = create_display(simulation=station.link.simulation)
     if display.root is not None:
         station.keyboard.bind_tkinter(display.root)
 
