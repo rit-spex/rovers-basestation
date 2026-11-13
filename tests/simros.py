@@ -21,7 +21,9 @@ COMM = CONSTANTS.COMMUNICATION # harder to read w/o shortening
 def main():
     encoder = MessageEncoder()
     request_size = len(encoder.encode_data({}, MSG.AUTO_STATE_ID))
+    heartbeat_size = len(encoder.encode_data({}, MSG.HEARTBEAT_ID))
     target = (COMM.UDP_HOST, COMM.UDP_TELEMETRY_PORT)
+    mode = None
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rover:
         rover.bind((COMM.UDP_HOST, COMM.UDP_ROVER_PORT))
@@ -29,13 +31,19 @@ def main():
         try:
             while True:
                 data, _ = rover.recvfrom(4096)
-                if (len(data) != request_size) or (data[0] != MSG.AUTO_STATE_ID):
+                if not data:
                     continue
-                values, _ = encoder.decode_data(data)
-                mode = values["auto_state"]
+                if data[0] == MSG.AUTO_STATE_ID and len(data) == request_size:
+                    values, _ = encoder.decode_data(data)
+                    mode = values["auto_state"]
+                elif data[0] != MSG.HEARTBEAT_ID or len(data) != heartbeat_size:
+                    continue
+                if mode is None:
+                    continue
                 reply = encoder.encode_data({"control_mode": mode}, MSG.CONTROL_MODE_ID)
                 rover.sendto(reply, target)
-                print(f"auto_state {mode} -> control_mode {mode}")
+                if data[0] == MSG.AUTO_STATE_ID:
+                    print(f"auto_state {mode} -> control_mode {mode}")
         except KeyboardInterrupt:
             print("\nstopped\n")
 
