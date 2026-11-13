@@ -5,7 +5,7 @@
 # purpose       : tkinter status display for the basestation, with a
 #                 headless fallback for services and tests
 # created on    : 7/12/2026 - Ryan
-# last modified : 10/1//2026 - Zach
+# last modified : 11/9/2026 - Zach
 # ------------------------------------------------------------------
 """Basestation display.
 
@@ -20,7 +20,7 @@ import threading
 import time
 
 from basestation.keyboard import Keyboard
-from basestation.protocol import MessageEncoder, env_flag
+from basestation.protocol import CONSTANTS, MessageEncoder, env_flag
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,8 @@ except ImportError:
 WINDOW_SIZE = "800x560"
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
-RED, GREEN, BLUE = "#a51d2d", "#26a269", "#1c71d8"
+RED, GREEN, BLUE, GRAY = "#a51d2d", "#26a269", "#1c71d8", "#333"
+TELEMETRY_TIMEOUT = 2.5 # should never be less than 1.5
 
 # Which telemetry signals each module view shows, from the protocol itself
 _MESSAGES = MessageEncoder().get_messages().values()
@@ -41,7 +42,7 @@ _SIGNALS = {m["name"]: set(m["values"]) for m in _MESSAGES}
 MODULE_SIGNALS = {
     "life": _SIGNALS["life_detection"],
     "arm": _SIGNALS["arm_encoders"],
-    "auto": _SIGNALS["drive_imu"] | _SIGNALS["control_mode"],
+    "auto": _SIGNALS["drive_imu"],
 }
 MODULE_LABELS = {"nothing": "Nothing", "life": "Life Detection",
                  "auto": "Autonomous", "arm": "Arm"}
@@ -82,8 +83,13 @@ class Display:
 
     def __init__(self, simulation: bool):
         self.simulation = simulation
+        self._drive_speeds = range(CONSTANTS.DRIVE_SPEED.MIN,
+                                   CONSTANTS.DRIVE_SPEED.MAX + 1,
+                                   CONSTANTS.DRIVE_SPEED.INCREMENT)
+        self._auto_modes = CONSTANTS.AUTO_STATE.NAME_BY_VALUE
         self._lock = threading.Lock()
         self._snapshot = {}
+        self._started_at = time.time()
         self._module_view = "nothing"
         self._view_override = None  # dropdown selection in simulation mode
 
@@ -155,18 +161,20 @@ class Display:
         self._indicator_labels = {}
         row = 0
         for name, with_label in (("Rover Status", True),
-                                 ("Reverse", False),
-                                 ("Auto Status", True), ("Auto Toggle", False),
                                  ("Arm Toggle", False),
-                                 ("Life Toggle", False)):
+                                 ("Life Toggle", False), ("Reverse", False)):
             row = self._add_indicator(sidebar, row, name, with_label)
 
-        self.speed_label = ttk.Label(sidebar, text="Drive Speed: -")
-        self.speed_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
-        row += 1
+        speeds = [(percent, f"{percent}%") for percent in self._drive_speeds]
+        row, self.speed_boxes = self._add_bar(
+            sidebar, row, "Drive Speed", speeds, INDICATOR_SIZE // 2)
+        modes = [(value, name.removeprefix("auto_").capitalize())
+                 for value, name in self._auto_modes.items()]
+        row, self.mode_boxes = self._add_bar(
+            sidebar, row, "Control Mode", modes, INDICATOR_SIZE)
 
-        self.comm_label = ttk.Label(sidebar, text="Comm:\n-", justify="left")
-        self.comm_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
+        self.comm_label = ttk.Label(sidebar, text="-", justify="left")
+        self.comm_label.grid(row=row, column=0, sticky="w")
         self.updates_label = ttk.Label(sidebar, text="Updates: 0")
         self.updates_label.grid(row=row + 1, column=0, sticky="w")
 
@@ -178,7 +186,7 @@ class Display:
             row=0, column=0, sticky="w")
         box = tk.Frame(frame, width=INDICATOR_SIZE, height=INDICATOR_SIZE,
                        background=RED, highlightthickness=1,
-                       highlightbackground="#333")
+                       highlightbackground=GRAY)
         box.grid(row=0, column=1, sticky="e", padx=(8, 0))
         box.grid_propagate(False)
         self._indicators[name] = box
@@ -188,6 +196,30 @@ class Display:
             self._indicator_labels[name] = label
         ttk.Separator(parent).grid(row=row + 1, column=0, sticky="ew", pady=4)
         return row + 2
+
+    def _add_bar(self, parent, row, title, choices, height):
+        ttk.Label(parent, text=title, font=("Arial", 11, "bold")).grid(
+            row=row, column=0, sticky="w", pady=(6, 0))
+        bar = ttk.Frame(parent)
+        bar.grid(row=row + 1, column=0, sticky="w", pady=(4, 0))
+        boxes = {}
+        for column, (value, label) in enumerate(choices):
+            boxes[value] = self._add_choice(bar, column, label, height)
+        ttk.Separator(parent).grid(row=row + 2, column=0, sticky="ew", pady=4)
+        return row + 3, boxes
+
+    def _add_choice(self, parent, column, text, height):
+        parent.columnconfigure(column, weight=1, uniform="choices")
+        frame = ttk.Frame(parent)
+        frame.grid(row=0, column=column, sticky="ew", pady=2)
+        frame.columnconfigure(0, weight=1)
+        box = tk.Frame(frame, width=INDICATOR_SIZE, height=height,
+                       background=GRAY, highlightthickness=1,
+                       highlightbackground=GRAY)
+        box.grid(row=0, column=0, padx=2)
+        box.grid_propagate(False)
+        ttk.Label(frame, text=text).grid(row=1, column=0)
+        return box
 
     def _build_panels(self, parent):
         panels = ttk.Frame(parent)
@@ -220,26 +252,54 @@ class Display:
     def _refresh(self):
         with self._lock:
             snap = self._snapshot
-        if snap:
-            try:
+        try:
+            now = time.time()
+            received_at = snap.get("telemetry", {}).get("_received_at")
+            if received_at is None:
+                received_at = now if self.simulation else self._started_at
+            if now - received_at >= TELEMETRY_TIMEOUT:
+                self._reset_display()
+            elif snap:
                 self._draw_sidebar(snap)
                 self._set_text(self.devices_text, self._devices_content(snap))
                 self._draw_module_panel(snap.get("telemetry", {}))
-            except Exception:
-                log.exception("GUI refresh error")
+        except Exception:
+            log.exception("GUI refresh error")
         self.root.after(100, self._refresh)
+
+    def _reset_display(self):
+        for box in self._indicators.values():
+            box.config(background=RED)
+        for label in self._indicator_labels.values():
+            label.config(text="")
+        for boxes in (self.speed_boxes, self.mode_boxes):
+            for box in boxes.values():
+                box.config(background=GRAY)
+        self.comm_label.config(text="-")
+        self.updates_label.config(text="Updates: 0")
+        self._set_text(self.devices_text, "")
+        self._set_text(self.module_text, "")
+        self.module_frame.config(text="Module Info")
+        self._module_view = "nothing"
+        self._view_override = None
+        if self.simulation:
+            self._view_var.set(MODULE_LABELS["nothing"])
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
-        self.speed_label.config(text=f'Drive Speed: {snap["drive_speed"]}%')
+        for percent, box in self.speed_boxes.items():
+            box.config(background=BLUE if percent <= snap["drive_speed"] else GRAY)
         self._set_indicator("Reverse", snap.get("reverse"))
 
-        auto_on = bool(telemetry.get("auto_enabled"))
-        self._set_indicator("Auto Status", True, "#d22" if auto_on else BLUE)
-        self._indicator_labels["Auto Status"].config(
-            text="Autonomous" if auto_on else "Teleop")
+        confirmed_mode = telemetry.get("control_mode")
+        for value, box in self.mode_boxes.items():
+            color = GRAY
+            if value == confirmed_mode:
+                color = GREEN
+            elif value == snap["auto_state"]:
+                color = BLUE
+            box.config(background=color)
 
-        self._set_indicator("Auto Toggle", telemetry.get("auto_enabled"))
         self._set_indicator("Arm Toggle", telemetry.get("arm_enabled"))
         self._set_indicator("Life Toggle", telemetry.get("life_enabled"))
 
@@ -250,7 +310,7 @@ class Display:
                 text="ESTOPPED" if estopped else "OK")
 
         mode = " (SIMULATION)" if snap.get("simulation") else ""
-        self.comm_label.config(text=f"Comm:\nConnected{mode}")
+        self.comm_label.config(text=f"Connected{mode}")
         self.updates_label.config(text=f"Updates: {snap.get('updates', 0)}")
 
     def _set_indicator(self, name, on, on_color=GREEN):
