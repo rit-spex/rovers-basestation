@@ -17,6 +17,7 @@ data callback (radio) or the UDP telemetry port (simulation).
 
 import logging
 import os
+import errno
 import socket
 import threading
 
@@ -71,8 +72,9 @@ class Link:
                         "simulation fallback (set BASESTATION_SIMULATION=1 "
                         "to simulate on purpose)")
                 self._open_udp()
-        # Tracing is always on in simulation - verifying comms is the point.
-        self.trace = env_flag("ROVER_PROTOCOL_TRACE", default=self.simulation)
+        # Tracing is opt-in.  Per-message INFO logging is far too expensive
+        # for a 40 ms control loop and can starve heartbeat/telemetry traffic.
+        self.trace = env_flag("ROVER_PROTOCOL_TRACE", default=False)
 
     # ------------------------------------------------------------------
     # Sending
@@ -96,20 +98,42 @@ class Link:
         """Tell the rover to stop. Retried because it is the critical one."""
         payload = self.encoder.encode_data({}, MSG.QUIT_ID)
         for _ in range(QUIT_SEND_ATTEMPTS):
-            if self._transmit(payload):
+            if self._transmit(payload, sync=True):
                 log.info("Quit message sent")
                 return
         log.error("Failed to send quit message")
 
-    def _transmit(self, payload: bytes) -> bool:
+    def _transmit(self, payload: bytes, sync: bool = False) -> bool:
+        """Transmit one payload.
+
+        XBee state packets use the non-blocking send path: the blocking
+        ``send_data`` waits for the radio's transmit status, and several of
+        those per 40 ms control cycle can starve the loop.  Quit stays
+        synchronous so its delivery is confirmed.
+
+        UDP is also non-blocking: if the rover-side reader falls behind,
+        dropping a teleop frame is preferable to stalling the control loop
+        and its heartbeat.
+        """
         try:
             if self._udp is not None:
                 self._udp.sendto(payload, (COMM.UDP_HOST, COMM.UDP_ROVER_PORT))
             elif self._xbee is not None:
-                self._xbee.send_data(self._remote, payload)
+                send_async = getattr(self._xbee, "send_data_async", None)
+                if not sync and send_async is not None:
+                    send_async(self._remote, payload)
+                else:
+                    self._xbee.send_data(self._remote, payload)
             else:
                 return False
             return True
+        except (BlockingIOError, InterruptedError):
+            return False
+        except OSError as exc:
+            if exc.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+                return False
+            log.exception("Transmit failed")
+            return False
         except Exception:
             log.exception("Transmit failed")
             return False
@@ -196,6 +220,11 @@ class Link:
 
     def _open_udp(self):
         self._udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._udp.setblocking(False)
+        try:
+            self._udp.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1 << 20)
+        except OSError:
+            pass
         self._rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._rx.bind((COMM.UDP_HOST, COMM.UDP_TELEMETRY_PORT))

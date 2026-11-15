@@ -14,7 +14,11 @@ fail after a protocol change, update the goldens on purpose.
 
 import pytest
 
-from basestation.app import xbox_wire_values
+import threading
+import time
+from types import SimpleNamespace
+
+from basestation.app import HEARTBEAT_PERIOD, BaseStation, xbox_wire_values
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
 from basestation.keyboard import (HELD, JUST_PRESSED, JUST_RELEASED,
@@ -51,13 +55,30 @@ def test_button_and_trigger_reach_the_wire():
     assert payload.hex() == "0264649559"
 
 
+def test_arm_pose_encodes_to_known_bytes():
+    pose = {"pose_x": 1234, "pose_y": -500, "pose_z": 650,
+            "pose_roll": 100, "pose_pitch": -200, "pose_yaw": 9000}
+    payload = ENCODER.encode_data(pose, MSG.ARM_POSE_ID)
+    assert payload.hex(" ") == "f7 04 d2 fe 0c 02 8a 00 64 ff 38 23 28"
+
+    decoded, message_id = ENCODER.decode_data(payload)
+    assert message_id == MSG.ARM_POSE_ID
+    assert decoded == pose
+
+
 def test_spacemouse_and_keyboard_encode():
     sm = {"x": -100, "y": 50, "z": 0, "rx": 1, "ry": -1, "rz": 32767, "buttons": 3}
     assert ENCODER.encode_data(sm, MSG.SPACEMOUSE_ID).hex(" ") == \
         "06 ff 9c 00 32 00 00 00 01 ff ff 7f ff 00 03"
-    kb = Keyboard.zero_state() | {"enable_science": 1, "pump_1": 2}
+    kb = Keyboard.life_zero_state() | {"enable_science": 1, "pump_1": 2}
     assert ENCODER.encode_data(kb, MSG.KEYBOARD_ID).hex(" ") == \
         "07 01 00 00 00 00 00 02 00 00 00 00 00 00 00 00"
+
+    # Arm actions are per-action press states, not a key bitmask.
+    arm = Keyboard().get_arm_state()
+    arm["flip"] = 1
+    assert ENCODER.encode_data(arm, MSG.ARM_STATE_ID).hex(" ") == (
+        "08 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
 
 
 # ----------------------------------------------------------------------
@@ -135,6 +156,7 @@ def test_mode_combos():
         speeds.append(pads.drive_speed)
     assert speeds == [25, 50, 75, 100, 100, 100]
 
+
 def test_drive_speed_recalc_held_stick():
     pads = make_gamepads()
     pads.handle_event(XBOX, "ABS_Y", 32767)
@@ -189,21 +211,21 @@ def test_detect_type():
 def test_keyboard_press_hold_release_cycle():
     kb = Keyboard()
     kb._release_debounce = 0.0  # no debounce wait in tests
-    kb._press("pump_1")
-    assert kb.get_state()["pump_1"] == JUST_PRESSED
-    assert kb.get_state()["pump_1"] == HELD
-    kb._release("pump_1")
-    assert kb.get_state()["pump_1"] == JUST_RELEASED
-    assert kb.get_state()["pump_1"] == NOT_PRESSED
+    kb._press_life("pump_1")
+    assert kb.get_life_state()["pump_1"] == JUST_PRESSED
+    assert kb.get_life_state()["pump_1"] == HELD
+    kb._release_life("pump_1")
+    assert kb.get_life_state()["pump_1"] == JUST_RELEASED
+    assert kb.get_life_state()["pump_1"] == NOT_PRESSED
 
 
 def test_keyboard_release_debounce_cancels_bounce():
     kb = Keyboard()
-    kb._press("pump_1")
-    kb.get_state()
-    kb._release("pump_1")
-    kb._press("pump_1")  # bounce within the debounce window
-    assert kb.get_state()["pump_1"] == HELD  # release was cancelled
+    kb._press_life("pump_1")
+    kb.get_life_state()
+    kb._release_life("pump_1")
+    kb._press_life("pump_1")  # bounce within the debounce window
+    assert kb.get_life_state()["pump_1"] == HELD  # release was cancelled
 
 
 def test_keyboard_scan_failure_is_unknown_not_disconnect(monkeypatch):
@@ -281,6 +303,34 @@ def test_link_suppresses_duplicate_payloads():
     link.send(MSG.HEARTBEAT_ID, {"timestamp": 5}, force=True)
     link.send(MSG.HEARTBEAT_ID, {"timestamp": 5}, force=True)
     assert len(sent) == 4  # force bypasses suppression
+
+
+def test_heartbeat_runs_independently_of_control_loop():
+    """The heartbeat must keep flowing even if cycle() never runs."""
+    class FakeLink:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, message_id, values, force=False):
+            self.sent.append((message_id, values, force))
+            return True
+
+    station = SimpleNamespace(
+        link=FakeLink(),
+        _quit=threading.Event(),
+        _heartbeat_stop=threading.Event(),
+    )
+    thread = threading.Thread(
+        target=BaseStation._heartbeat_loop, args=(station,), daemon=True)
+    thread.start()
+    time.sleep(HEARTBEAT_PERIOD * 2.5)
+    station._heartbeat_stop.set()
+    thread.join(timeout=1.0)
+    heartbeats = [sent for sent in station.link.sent
+                  if sent[0] == MSG.HEARTBEAT_ID]
+    assert len(heartbeats) >= 2
+    assert all(sent[2] for sent in heartbeats)  # force=True
+
 
 def test_repeated_device_manager_keeps_type_codes():
     """inputs 0.5 drains EVENT_MAP's type_codes generator on first use.

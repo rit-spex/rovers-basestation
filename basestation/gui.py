@@ -19,6 +19,8 @@ import logging
 import threading
 import time
 
+from basestation.gui_arm_elements import (ARM_ANGLE_KEYS, ArmPanel,
+                                          arm_keyboard_lines, text_table)
 from basestation.keyboard import Keyboard
 from basestation.protocol import MessageEncoder, env_flag
 
@@ -26,11 +28,14 @@ log = logging.getLogger(__name__)
 
 try:
     import tkinter as tk
+    from tkinter import font as tkfont
     from tkinter import ttk
 except ImportError:
     tk = None
+    tkfont = None
 
-WINDOW_SIZE = "800x560"
+WINDOW_SIZE = "800x620"
+REFRESH_PERIOD_MS = 50
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
 RED, GREEN, BLUE = "#a51d2d", "#26a269", "#1c71d8"
@@ -43,19 +48,26 @@ MODULE_SIGNALS = {
     "arm": _SIGNALS["arm_encoders"],
     "auto": _SIGNALS["drive_imu"] | _SIGNALS["control_mode"],
 }
-MODULE_LABELS = {"nothing": "Nothing", "life": "Life Detection",
-                 "auto": "Autonomous", "arm": "Arm"}
+MODULE_LABELS = {"nothing": "None", "arm": "Arm",
+                 "life": "Life Detection", "auto": "Autonomous"}
 
 KEY_STATE_LABELS = {0: "-", 1: "PRESS", 2: "HOLD", 3: "REL"}
 
 
-def create_display(simulation: bool = False):
+def _font_one_point_smaller(widget):
+    """Return the widget's font descriptor, one point smaller."""
+    font = tkfont.Font(root=widget, font=widget.cget("font"))
+    return (font.actual("family"), font.actual("size") - 1,
+            font.actual("weight"))
+
+
+def create_display(simulation: bool = False, with_sim_inputs: bool = False):
     """The tkinter display, or the headless one when GUI is unavailable."""
     if env_flag("XBEE_NO_GUI") or tk is None:
         log.info("Using headless display")
         return HeadlessDisplay()
     try:
-        return Display(simulation)
+        return Display(simulation, with_sim_inputs=with_sim_inputs)
     except Exception as exc:
         log.warning("GUI unavailable (%s) - using headless display", exc)
         return HeadlessDisplay()
@@ -80,12 +92,16 @@ class HeadlessDisplay:
 class Display:
     """Tkinter GUI: mode/status sidebar, input devices, module telemetry."""
 
-    def __init__(self, simulation: bool):
+    def __init__(self, simulation: bool, with_sim_inputs: bool = False):
         self.simulation = simulation
+        self.with_sim_inputs = with_sim_inputs
         self._lock = threading.Lock()
         self._snapshot = {}
         self._module_view = "nothing"
         self._view_override = None  # dropdown selection in simulation mode
+        self._view_dropdown = None
+        self._mode_listeners = []
+        self.sim_inputs_frame = None
 
         self.root = tk.Tk()
         self.root.title("SPEX Rover Basestation Control")
@@ -101,7 +117,7 @@ class Display:
             self._snapshot = snapshot
 
     def run(self, should_quit):
-        self.root.after(100, self._refresh)
+        self.root.after(REFRESH_PERIOD_MS, self._refresh)
         self.root.mainloop()
 
     def quit(self):
@@ -115,10 +131,21 @@ class Display:
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        main = ttk.Frame(self.root, padding=8)
-        main.grid(row=0, column=0, sticky="nsew")
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
+
+        notebook = ttk.Notebook(self.root)
+        notebook.grid(row=0, column=0, sticky="nsew")
+        self.notebook = notebook
+
+        main_tab = ttk.Frame(notebook)
+        notebook.add(main_tab, text="Basestation")
+        if self.with_sim_inputs:
+            self.sim_inputs_frame = ttk.Frame(notebook)
+            notebook.add(self.sim_inputs_frame, text="Sim Inputs")
+
+        main = ttk.Frame(main_tab, padding=8)
+        main.pack(fill="both", expand=True)
         main.columnconfigure(0, weight=1)
         main.rowconfigure(1, weight=1)
 
@@ -140,11 +167,12 @@ class Display:
                  foreground="white", font=("Arial", 16, "bold"), pady=12,
                  ).grid(row=0, column=0, sticky="w", padx=16)
         self._view_var = tk.StringVar(value=MODULE_LABELS["nothing"])
-        dropdown = ttk.Combobox(banner, textvariable=self._view_var,
-                                values=list(MODULE_LABELS.values()),
-                                state="readonly", width=18)
-        dropdown.grid(row=0, column=1, padx=12)
-        dropdown.bind("<<ComboboxSelected>>", self._on_view_selected)
+        self._view_dropdown = ttk.Combobox(
+            banner, textvariable=self._view_var,
+            values=list(MODULE_LABELS.values()),
+            state="readonly", width=18)
+        self._view_dropdown.grid(row=0, column=1, padx=12)
+        self._view_dropdown.bind("<<ComboboxSelected>>", self._on_view_selected)
 
     def _build_sidebar(self, parent):
         sidebar = ttk.Frame(parent, padding=4, width=SIDEBAR_WIDTH)
@@ -197,8 +225,13 @@ class Display:
         panels.rowconfigure(0, weight=1)
 
         self.devices_text = self._text_panel(panels, "Input Devices", 0)
+        self.devices_text.tag_configure(
+            "device_title", foreground="#1c71d8")
         self.module_frame, self.module_text = self._text_panel(
             panels, "Module Info", 1, return_frame=True)
+        self.module_text.configure(
+            font=_font_one_point_smaller(self.module_text))
+        self.arm_panel = ArmPanel(self.module_text)
 
     def _text_panel(self, parent, title, column, return_frame=False):
         frame = ttk.LabelFrame(parent, text=title, padding=8)
@@ -211,6 +244,14 @@ class Display:
         text.configure(yscrollcommand=scroll.set)
         text.grid(row=0, column=0, sticky="nsew")
         scroll.grid(row=0, column=1, sticky="ns")
+        # Gentler wheel scrolling; Tk's default jumps five lines a notch.
+        for sequence, units in (("<Button-4>", -2), ("<Button-5>", 2)):
+            text.bind(sequence,
+                      lambda _event, u=units: self._scroll_text(text, u))
+        text.bind(
+            "<MouseWheel>",
+            lambda event: self._scroll_text(
+                text, -2 if event.delta > 0 else 2))
         return (frame, text) if return_frame else text
 
     # ------------------------------------------------------------------
@@ -223,11 +264,11 @@ class Display:
         if snap:
             try:
                 self._draw_sidebar(snap)
-                self._set_text(self.devices_text, self._devices_content(snap))
-                self._draw_module_panel(snap.get("telemetry", {}))
+                self._set_devices_text(snap)
+                self._draw_module_panel(snap.get("telemetry", {}), snap)
             except Exception:
                 log.exception("GUI refresh error")
-        self.root.after(100, self._refresh)
+        self.root.after(REFRESH_PERIOD_MS, self._refresh)
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
@@ -256,6 +297,16 @@ class Display:
     def _set_indicator(self, name, on, on_color=GREEN):
         self._indicators[name].configure(background=on_color if on else RED)
 
+    def _set_devices_text(self, snap):
+        """Write the input-device panel, coloring each device title."""
+        content = self._devices_content(snap)
+        self._set_text(self.devices_text, content)
+        widget = self.devices_text
+        widget.tag_remove("device_title", "1.0", "end")
+        for index, line in enumerate(content.splitlines(), start=1):
+            if line.endswith(":") and not line.startswith(" "):
+                widget.tag_add("device_title", f"{index}.0", f"{index}.end")
+
     def _devices_content(self, snap):
         lines = []
         states = snap.get("states", {})
@@ -266,46 +317,103 @@ class Display:
             lines.append("")
         if snap.get("spacemouse") is not None:
             lines.append("SpaceMouse:")
-            lines += [f"    {axis}: {value}"
-                      for axis, value in snap["spacemouse"].items()]
+            lines.extend(self._spacemouse_table(snap["spacemouse"]))
             lines.append("")
-        if snap.get("keyboard") is not None:  # shown only while connected (#25)
+        # Keyboard bindings are the Life Detection controls; only show
+        # them while the Life mode is selected.
+        if (self._module_view == "life"
+                and snap.get("keyboard") is not None):
             lines.append("Keyboard (Life Detection):")
             for signal, state in snap["keyboard"].items():
-                key = Keyboard.key_for(signal).upper()
+                key = Keyboard.key_for_life(signal).upper()
                 lines.append(f"    [{key}] {signal}: {KEY_STATE_LABELS[state]}")
+            lines.append("")
+        if (self._module_view == "arm"
+                and snap.get("arm_keyboard") is not None):
+            lines.extend(arm_keyboard_lines(snap["arm_keyboard"]))
             lines.append("")
         return "\n".join(lines) if lines else "No input devices connected\n"
 
-    def _draw_module_panel(self, telemetry):
+    @staticmethod
+    def _spacemouse_table(state: dict) -> list[str]:
+        """Bordered SpaceMouse readout with axis rows and x/y/z columns."""
+        rows = (
+            ("Trans", state.get("x", 0), state.get("y", 0),
+             state.get("z", 0)),
+            ("Rot", state.get("rx", 0), state.get("ry", 0),
+             state.get("rz", 0)),
+        )
+        lines = text_table(("Axis", "X", "Y", "Z"), rows)
+        if "buttons" in state:
+            lines.append(f"    buttons: {state['buttons']}")
+        return lines
+
+    def _draw_module_panel(self, telemetry, snap=None):
         view = self._pick_module_view(telemetry)
-        label = MODULE_LABELS[view]
-        self.module_frame.config(text=f"{label} Module")
+        self.module_frame.config(text=f"{MODULE_LABELS[view]} Module")
         if view == "nothing":
             self._set_text(self.module_text, "")
             return
-        rows = [f"{key}: {value}" for key, value in telemetry.items()
+        if view == "arm":
+            self.arm_panel.draw(telemetry, snap)
+            return
+        rows = [f"{key}: {self._format_telemetry(key, value)}"
+                for key, value in telemetry.items()
                 if key in MODULE_SIGNALS[view]]
         body = "\n".join(rows) if rows else "Waiting for module data..."
-        header = f"{label} Data ({self._freshness(telemetry)}):"
+        header = f"{MODULE_LABELS[view]} Data ({self._freshness(telemetry)}):"
         self._set_text(self.module_text, f"{header}\n\n{body}\n")
+
+    @staticmethod
+    def _format_telemetry(key, value):
+        if key in ARM_ANGLE_KEYS:
+            try:
+                return f"{float(value) / 100.0:.1f} deg"
+            except (TypeError, ValueError):
+                return value
+        return value
 
     def _pick_module_view(self, telemetry):
         if self.simulation and self._view_override:
-            return self._view_override
-        # Follow whichever subsystem the rover reports as enabled
+            self._set_module_view(self._view_override)
+            return self._module_view
+        # Follow whichever subsystem the rover reports as enabled.
         for view, key in (("arm", "arm_enabled"), ("auto", "auto_enabled"),
                           ("life", "life_enabled")):
             if telemetry.get(key):
-                self._module_view = view
-                break
+                self._set_module_view(view)
+                return self._module_view
+        self._set_module_view("nothing")
         return self._module_view
+
+    def _set_module_view(self, view):
+        if self._module_view == view:
+            return
+        self._module_view = view
+        if self.simulation and self._view_dropdown is not None:
+            self._view_var.set(MODULE_LABELS[view])
+        for listener in tuple(self._mode_listeners):
+            try:
+                listener(view)
+            except Exception:
+                log.exception("Mode listener failed")
+
+    def set_mode_from_control(self, mode):
+        """Follow a mode change made outside this display (Gazebo/sim)."""
+        self._set_module_view(mode)
+
+    def add_mode_listener(self, listener):
+        if listener not in self._mode_listeners:
+            self._mode_listeners.append(listener)
+            listener(self._module_view)
 
     def _on_view_selected(self, _event):
         selected = self._view_var.get()
         self._view_override = next(
             (key for key, label in MODULE_LABELS.items() if label == selected),
             None)
+        if self._view_override:
+            self._set_module_view(self._view_override)
 
     @staticmethod
     def _freshness(telemetry):
@@ -322,9 +430,22 @@ class Display:
         if getattr(widget, "_last_content", None) == content:
             return
         widget._last_content = content
-        scroll = widget.yview()
+        # Track the top visible line, not the scroll fraction: the content
+        # height changes as telemetry values grow or wrap, and restoring a
+        # fraction lands on the wrong line (or clamps to the top).
+        top = widget.index("@0,0")
+        stick = widget.yview()[1] >= 0.999
         widget.config(state="normal")
         widget.delete("1.0", "end")
         widget.insert("end", content)
         widget.config(state="disabled")
-        widget.yview_moveto(scroll[0])
+        if stick:
+            widget.yview_moveto(1.0)
+        else:
+            widget.yview(top)
+
+    @staticmethod
+    def _scroll_text(widget, units):
+        """Gentler wheel scrolling for the read-only panels."""
+        widget.yview_scroll(units, "units")
+        return "break"

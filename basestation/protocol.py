@@ -27,6 +27,7 @@ for _candidate in (_ROOT / "lib" / "rovers-protocol", _ROOT.parent / "rovers-pro
         break
 
 from rover_protocol import CONSTANTS, MessageEncoder  # noqa: E402
+from rover_protocol.arm_errors import error_text  # noqa: E402
 
 # Message id namespace (XBOX_ID, N64_ID, HEARTBEAT_ID, ...)
 MSG = CONSTANTS.COMPACT_MESSAGES
@@ -40,4 +41,4 @@ def env_flag(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
-__all__ = ["CONSTANTS", "MessageEncoder", "MSG", "env_flag"]
+__all__ = ["CONSTANTS", "MessageEncoder", "MSG", "env_flag", "error_text"]

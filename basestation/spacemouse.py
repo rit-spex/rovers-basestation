@@ -114,32 +114,65 @@ class SpaceMouse:
             self._stop.set()
             return False
         try:
-            # Enumerate all 3Dconnexion interfaces; connection mode (cable,
-            # receiver, Bluetooth) changes the product id, so prefer the
-            # configured one but accept any interface that looks right.
+            # Enumerate every HID interface: connection mode (cable,
+            # receiver, Bluetooth) changes the product id, and the
+            # configured VID/PID may name a different 3Dconnexion model.
+            # Rank the configured ids and known vendors first.
             devices = sorted(
-                hid.enumerate(self._vendor_id, 0),
-                key=lambda d: d.get("product_id") != self._product_id)
+                hid.enumerate(),
+                key=lambda d: (
+                    d.get("product_id") != self._product_id,
+                    d.get("vendor_id") not in self._KNOWN_VENDOR_IDS,
+                ))
             for info in devices:
                 if not self._looks_like_spacemouse(info):
                     continue
-                device = hid.device()
-                try:
-                    device.open_path(info["path"])
-                    device.set_nonblocking(True)
-                except Exception:
+                device = self._open_device(hid, info["path"])
+                if device is None:
                     continue
                 self._device = device
                 with self._lock:
                     self._connected = True
-                log.info("SpaceMouse connected (PID=0x%04X)",
+                log.info("SpaceMouse connected (VID=0x%04X PID=0x%04X)",
+                         info.get("vendor_id", 0),
                          info.get("product_id", 0))
                 return True
         except Exception:
             log.debug("SpaceMouse open failed", exc_info=True)
         return False
 
+    # Vendors that ship SpaceMouse hardware: Logitech-branded units and
+    # current 3Dconnexion devices (e.g. SpaceMouse Wireless 256f:c63a).
+    _KNOWN_VENDOR_IDS = (0x046D, 0x256F)
+
+    @staticmethod
+    def _open_device(hid, path):
+        """Open one HID path with either Python hidapi binding.
+
+        The Linux ``hid`` package (pyhidapi) opens through the
+        ``hid.Device(path=...)`` constructor and exposes non-blocking
+        mode as a property.  cython-hidapi's ``hid.device()`` uses
+        ``open_path()`` / ``set_nonblocking()`` instead.
+        """
+        try:
+            if hasattr(hid, "Device") and not hasattr(hid, "device"):
+                device = hid.Device(path=path)
+                try:
+                    device.nonblocking = True
+                except AttributeError:
+                    device.set_nonblocking(True)
+                return device
+            device = hid.device()
+            device.open_path(path)
+            device.set_nonblocking(True)
+            return device
+        except Exception:
+            log.debug("HID open failed for %s", path, exc_info=True)
+            return None
+
     def _looks_like_spacemouse(self, info: dict) -> bool:
+        if info.get("vendor_id") in self._KNOWN_VENDOR_IDS:
+            return True
         if info.get("product_id") == self._product_id:
             return True
         product = str(info.get("product_string") or "").lower()
@@ -171,24 +204,22 @@ class SpaceMouse:
         report_id, body = data[0], bytes(data[1:])
         if report_id == _REPORT_ROTATION and len(body) >= 6:
             self._seen_split_rotation = True
-            self._set_axes(("rx", "ry", "rz"), struct.unpack("<hhh", body[:6]),
-                           invert=("rz",))
+            self._set_axes(("rx", "ry", "rz"),
+                           struct.unpack("<hhh", body[:6]))
         elif report_id == _REPORT_TRANSLATION and len(body) >= 6:
             if len(body) >= 12 and not self._seen_split_rotation:
                 values = struct.unpack("<hhhhhh", body[:12])
-                self._set_axes(_AXES, values, invert=("y", "z", "rz"))
+                self._set_axes(_AXES, values)
             else:
-                self._set_axes(("x", "y", "z"), struct.unpack("<hhh", body[:6]),
-                               invert=("y", "z"))
+                self._set_axes(("x", "y", "z"),
+                               struct.unpack("<hhh", body[:6]))
         elif report_id == _REPORT_BUTTONS and len(body) >= 2:
             with self._lock:
                 self._state["buttons"] = struct.unpack("<H", body[:2])[0]
 
-    def _set_axes(self, axes, values, invert=()):
+    def _set_axes(self, axes, values):
         with self._lock:
             for axis, value in zip(axes, values):
-                if axis in invert:
-                    value = -value
                 self._state[axis] = self._filtered(axis, value)
 
     def _filtered(self, axis, value):
