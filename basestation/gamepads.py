@@ -104,7 +104,7 @@ class Gamepads:
     Mode controls (Xbox):
         hold SELECT + D-pad up/down  -> reverse mode on/off
         hold START  + D-pad left/right -> drive speed -/+25%
-        LEFT/RIGHT bumper press      -> autonomous state -1/+1
+        hold START + LEFT/RIGHT bumper -> autonomous state -1/+1
         HOME button                  -> quit
     """
 
@@ -238,11 +238,12 @@ class Gamepads:
             signal = XBOX_BUTTONS.get(code)
             if signal is None:
                 return
-            if pressed and code == "BTN_TL":
-                self._adjust_auto_state(-1)
-            elif pressed and code == "BTN_TR":
-                self._adjust_auto_state(1)
             with self._lock:
+                if pressed and self._held["BTN_START"]:
+                    if code == "BTN_TL":
+                        self._adjust_auto_state(-1)
+                    elif code == "BTN_TR":
+                        self._adjust_auto_state(1)
                 self.states[XBOX][signal] = pressed
         else:
             if code == "BTN_START":
@@ -319,7 +320,7 @@ class Gamepads:
 
     def _adjust_auto_state(self, delta):
         clamped = max(CONSTANTS.AUTO_STATE.MIN,
-                      min(CONSTANTS.AUTO_STATE.MAX, self.auto_state + delta))
+                      min(max(CONSTANTS.AUTO_STATE.NAME_BY_VALUE), self.auto_state + delta))
         if clamped != self.auto_state:
             self.auto_state = clamped
             log.info("Auto state -> %d", self.auto_state)
