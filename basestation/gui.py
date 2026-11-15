@@ -34,7 +34,7 @@ except ImportError:
     tk = None
     tkfont = None
 
-WINDOW_SIZE = "800x620"
+WINDOW_SIZE = "800x640"
 REFRESH_PERIOD_MS = 50
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
@@ -52,6 +52,20 @@ MODULE_LABELS = {"nothing": "None", "arm": "Arm",
                  "life": "Life Detection", "auto": "Autonomous"}
 
 KEY_STATE_LABELS = {0: "-", 1: "PRESS", 2: "HOLD", 3: "REL"}
+
+
+def _auto_mode_labels():
+    """Auto-state value -> sidebar label.
+
+    Newer protocol revisions drop the mode names, so fall back to the
+    numeric range when the protocol only publishes min/max.
+    """
+    states = CONSTANTS.AUTO_STATE
+    names = getattr(states, "NAME_BY_VALUE", None)
+    if names:
+        return {value: name.removeprefix("auto_").capitalize()
+                for value, name in names.items()}
+    return {value: str(value) for value in range(states.MIN, states.MAX + 1)}
 
 
 def _font_one_point_smaller(widget):
@@ -94,10 +108,11 @@ class Display:
 
     def __init__(self, simulation: bool, with_sim_inputs: bool = False):
         self.simulation = simulation
+        self.with_sim_inputs = with_sim_inputs
         self._drive_speeds = range(CONSTANTS.DRIVE_SPEED.MIN,
                                    CONSTANTS.DRIVE_SPEED.MAX + 1,
                                    CONSTANTS.DRIVE_SPEED.INCREMENT)
-        self._auto_modes = CONSTANTS.AUTO_STATE.NAME_BY_VALUE
+        self._auto_modes = _auto_mode_labels()
         self._lock = threading.Lock()
         self._snapshot = {}
         self._module_view = "nothing"
@@ -193,8 +208,7 @@ class Display:
         speeds = [(percent, f"{percent}%") for percent in self._drive_speeds]
         row, self.speed_boxes = self._add_bar(
             sidebar, row, "Drive Speed", speeds, INDICATOR_SIZE // 2)
-        modes = [(value, name.removeprefix("auto_").capitalize())
-                 for value, name in self._auto_modes.items()]
+        modes = list(self._auto_modes.items())
         row, self.mode_boxes = self._add_bar(
             sidebar, row, "Control Mode", modes, INDICATOR_SIZE)
 
