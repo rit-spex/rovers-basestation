@@ -32,7 +32,7 @@ except ImportError:
 
 WINDOW_SIZE = "800x560"
 SIDEBAR_WIDTH = 200
-INDICATOR_SIZE = 30
+INDICATOR_SIZE = 25
 RED, GREEN, BLUE, GRAY = "#a51d2d", "#26a269", "#1c71d8", "#333"
 TELEMETRY_TIMEOUT = 2.5 # should never be less than 1.5
 
@@ -180,7 +180,7 @@ class Display:
 
     def _add_indicator(self, parent, row, name, with_label):
         frame = ttk.Frame(parent)
-        frame.grid(row=row, column=0, sticky="ew", pady=2)
+        frame.grid(row=row, column=0, sticky="ew", pady=1)
         frame.columnconfigure(0, weight=1)
         ttk.Label(frame, text=name, font=("Arial", 11, "bold")).grid(
             row=0, column=0, sticky="w")
@@ -194,24 +194,24 @@ class Display:
             label = ttk.Label(frame, text="", font=("Arial", 9))
             label.grid(row=1, column=0, columnspan=2, sticky="w")
             self._indicator_labels[name] = label
-        ttk.Separator(parent).grid(row=row + 1, column=0, sticky="ew", pady=4)
+        ttk.Separator(parent).grid(row=row + 1, column=0, sticky="ew", pady=2)
         return row + 2
 
     def _add_bar(self, parent, row, title, choices, height):
         ttk.Label(parent, text=title, font=("Arial", 11, "bold")).grid(
-            row=row, column=0, sticky="w", pady=(6, 0))
+            row=row, column=0, sticky="w", pady=(2, 0))
         bar = ttk.Frame(parent)
-        bar.grid(row=row + 1, column=0, sticky="w", pady=(4, 0))
+        bar.grid(row=row + 1, column=0, sticky="w", pady=(2, 0))
         boxes = {}
         for column, (value, label) in enumerate(choices):
             boxes[value] = self._add_choice(bar, column, label, height)
-        ttk.Separator(parent).grid(row=row + 2, column=0, sticky="ew", pady=4)
+        ttk.Separator(parent).grid(row=row + 2, column=0, sticky="ew", pady=2)
         return row + 3, boxes
 
     def _add_choice(self, parent, column, text, height):
         parent.columnconfigure(column, weight=1, uniform="choices")
         frame = ttk.Frame(parent)
-        frame.grid(row=0, column=column, sticky="ew", pady=2)
+        frame.grid(row=0, column=column, sticky="ew", pady=1)
         frame.columnconfigure(0, weight=1)
         box = tk.Frame(frame, width=INDICATOR_SIZE, height=height,
                        background=GRAY, highlightthickness=1,
@@ -277,8 +277,6 @@ class Display:
                 box.config(background=GRAY)
         self.comm_label.config(text="-")
         self.updates_label.config(text="Updates: 0")
-        self._set_text(self.devices_text, "")
-        self._set_text(self.module_text, "")
         self.module_frame.config(text="Module Info")
         self._module_view = "nothing"
         self._view_override = None
