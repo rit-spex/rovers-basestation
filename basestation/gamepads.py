@@ -22,6 +22,7 @@ import os
 import threading
 from math import floor
 
+from basestation.inputs_compat import device_manager
 from basestation.protocol import CONSTANTS, MSG, MessageEncoder, env_flag
 
 try:
@@ -156,7 +157,9 @@ class Gamepads:
     def _monitor(self):
         while not self._stop.is_set():
             try:
-                inputs.devices = inputs.DeviceManager()  # rescan for hotplug
+                # device_manager repairs inputs 0.5's one-shot type-code map
+                # first; a bare DeviceManager() raises KeyError('LED') here.
+                inputs.devices = device_manager(inputs)
                 found = {}
                 for device in inputs.devices.gamepads:
                     # inputs 0.5 keeps the path private cuz falling back to the

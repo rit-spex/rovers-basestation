@@ -42,6 +42,8 @@ try:
 except Exception:
     inputs = None
 
+from basestation.inputs_compat import device_manager
+
 NOT_PRESSED, JUST_PRESSED, HELD, JUST_RELEASED = 0, 1, 2, 3
 
 # inputs key code -> protocol signal name (see protocol.yaml "keyboard")
@@ -485,7 +487,7 @@ class Keyboard:
         try:
             # inputs.devices is refreshed by the gamepad monitor so rebuild
             # here too so this works even with gamepads disabled
-            inputs.devices = inputs.DeviceManager()
+            inputs.devices = device_manager(inputs)
             return bool(inputs.devices.keyboards)
         except Exception:
             return None

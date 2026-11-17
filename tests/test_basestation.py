@@ -389,12 +389,45 @@ def test_heartbeat_runs_independently_of_control_loop():
     assert all(sent[2] for sent in heartbeats)  # force=True
 
 
+def test_device_manager_rescan_repairs_inputs_one_shot_type_codes():
+    """Line 159's rescan must survive inputs 0.5's drained type_codes.
+
+    ``inputs`` builds a DeviceManager at import time, which consumes the
+    generator in ``EVENT_MAP['type_codes']``.  A bare second
+    ``DeviceManager()`` then raises ``KeyError: 'LED'`` on Linux, which is
+    what the hotplug monitor used to hit every 0.5 s.
+    """
+    from basestation.inputs_compat import device_manager
+
+    event_types = ((0, "Sync"), (1, "Key"), (17, "LED"))
+    module = SimpleNamespace(
+        EVENT_TYPES=event_types,
+        EVENT_MAP=(("type_codes",
+                    ((name, code) for code, name in event_types)),),
+    )
+
+    class Manager:
+        def __init__(self):
+            codes = dict(dict(module.EVENT_MAP)["type_codes"])
+            if "LED" not in codes:
+                raise KeyError("LED")
+
+    module.DeviceManager = Manager
+
+    Manager()  # the manager inputs creates while importing itself
+    with pytest.raises(KeyError, match="LED"):
+        Manager()
+
+    assert isinstance(device_manager(module), Manager)
+    assert isinstance(device_manager(module), Manager)
+
+
 def test_repeated_device_manager_keeps_type_codes():
     """inputs 0.5 drains EVENT_MAP's type_codes generator on first use.
 
-    The hotplug monitors rebuild DeviceManager every 0.5 s; without the
-    repair in basestation/__init__.py the second one has an empty
-    type_codes and get_typecode('LED') raises KeyError on Linux.
+    The hotplug monitors rebuild DeviceManager every 0.5 s; the package
+    repair and inputs_compat.device_manager keep the type codes after the
+    generator has been drained.
     """
     inputs = pytest.importorskip("inputs")
     for _ in range(3):
