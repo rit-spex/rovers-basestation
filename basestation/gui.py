@@ -39,6 +39,7 @@ REFRESH_PERIOD_MS = 50
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
 RED, GREEN, BLUE, GRAY = "#a51d2d", "#26a269", "#1c71d8", "#333"
+TELEMETRY_TIMEOUT = 2.5 # should never be less than 1.5
 
 # Which telemetry signals each module view shows, from the protocol itself
 _MESSAGES = MessageEncoder().get_messages().values()
@@ -52,6 +53,18 @@ MODULE_LABELS = {"nothing": "None", "arm": "Arm",
                  "life": "Life Detection", "auto": "Autonomous"}
 
 KEY_STATE_LABELS = {0: "-", 1: "PRESS", 2: "HOLD", 3: "REL"}
+
+
+def telemetry_stale(telemetry: dict, now: float) -> bool:
+    """True only after rover telemetry has arrived and then gone quiet.
+
+    No telemetry yet is not stale: the Basestation tab must keep showing the
+    local inputs and link status while waiting for the rover's first packet.
+    """
+    received_at = telemetry.get("_received_at")
+    if not isinstance(received_at, (int, float)):
+        return False
+    return now - received_at >= TELEMETRY_TIMEOUT
 
 
 def _auto_mode_labels():
@@ -212,8 +225,8 @@ class Display:
         row, self.mode_boxes = self._add_bar(
             sidebar, row, "Control Mode", modes, INDICATOR_SIZE)
 
-        self.comm_label = ttk.Label(sidebar, text="Comm:\n-", justify="left")
-        self.comm_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
+        self.comm_label = ttk.Label(sidebar, text="-", justify="left")
+        self.comm_label.grid(row=row, column=0, sticky="w")
         self.updates_label = ttk.Label(sidebar, text="Updates: 0")
         self.updates_label.grid(row=row + 1, column=0, sticky="w")
 
@@ -304,14 +317,36 @@ class Display:
     def _refresh(self):
         with self._lock:
             snap = self._snapshot
-        if snap:
-            try:
+        try:
+            now = time.time()
+            telemetry = snap.get("telemetry", {})
+            if telemetry_stale(telemetry, now):
+                self._reset_display()
+            elif snap:
                 self._draw_sidebar(snap)
                 self._set_devices_text(snap)
-                self._draw_module_panel(snap.get("telemetry", {}), snap)
-            except Exception:
-                log.exception("GUI refresh error")
+                self._draw_module_panel(telemetry, snap)
+        except Exception:
+            log.exception("GUI refresh error")
         self.root.after(REFRESH_PERIOD_MS, self._refresh)
+
+    def _reset_display(self):
+        for box in self._indicators.values():
+            box.config(background=RED)
+        for label in self._indicator_labels.values():
+            label.config(text="")
+        for boxes in (self.speed_boxes, self.mode_boxes):
+            for box in boxes.values():
+                box.config(background=GRAY)
+        self.comm_label.config(text="-")
+        self.updates_label.config(text="Updates: 0")
+        self._set_text(self.devices_text, "")
+        self._set_text(self.module_text, "")
+        self.module_frame.config(text="Module Info")
+        self._module_view = "nothing"
+        self._view_override = None
+        if self.simulation:
+            self._view_var.set(MODULE_LABELS["nothing"])
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
@@ -338,7 +373,7 @@ class Display:
                 text="ESTOPPED" if estopped else "OK")
 
         mode = " (SIMULATION)" if snap.get("simulation") else ""
-        self.comm_label.config(text=f"Comm:\nConnected{mode}")
+        self.comm_label.config(text=f"Connected{mode}")
         self.updates_label.config(text=f"Updates: {snap.get('updates', 0)}")
 
     def _set_indicator(self, name, on, on_color=GREEN):
@@ -399,7 +434,9 @@ class Display:
         view = self._pick_module_view(telemetry)
         self.module_frame.config(text=f"{MODULE_LABELS[view]} Module")
         if view == "nothing":
-            self._set_text(self.module_text, "")
+            self._set_text(
+                self.module_text,
+                "" if telemetry else "Waiting for rover telemetry...")
             return
         if view == "arm":
             self.arm_panel.draw(telemetry, snap)

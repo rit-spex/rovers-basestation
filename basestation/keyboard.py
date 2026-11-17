@@ -95,6 +95,8 @@ ARM_ACTIONS = (
     "home_joint:2",
     "home_joint:3",
     "home_joint:4",
+    "gripper_up",
+    "gripper_down",
     "solenoid_strike",
 )
 # Per-action wire signal name. Colons are not legal in ROS topic names,

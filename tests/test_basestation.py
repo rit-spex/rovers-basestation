@@ -23,7 +23,7 @@ from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
 from basestation.keyboard import (HELD, JUST_PRESSED, JUST_RELEASED,
                                   NOT_PRESSED, Keyboard)
-from basestation.protocol import MSG, MessageEncoder
+from basestation.protocol import CONSTANTS, MSG, MessageEncoder
 
 ENCODER = MessageEncoder()
 
@@ -78,7 +78,8 @@ def test_spacemouse_and_keyboard_encode():
     arm = Keyboard().get_arm_state()
     arm["flip"] = 1
     assert ENCODER.encode_data(arm, MSG.ARM_STATE_ID).hex(" ") == (
-        "08 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+        "08 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
+        "00 00")
 
 
 # ----------------------------------------------------------------------
@@ -174,7 +175,7 @@ def test_auto_state_bumpers_clamp():
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TR", 1)
         pads.handle_event(XBOX, "BTN_TR", 0)
-    assert pads.auto_state == 2
+    assert pads.auto_state == CONSTANTS.AUTO_STATE.MAX
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TL", 1)
         pads.handle_event(XBOX, "BTN_TL", 0)
