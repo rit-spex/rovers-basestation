@@ -8,7 +8,10 @@
 """Basestation tab freshness: local input state must not blank out while
 the rover has not sent telemetry yet."""
 
-from basestation.gui import TELEMETRY_TIMEOUT, telemetry_stale
+from types import SimpleNamespace
+
+from basestation.gui import (GRAY, RED, TELEMETRY_TIMEOUT, Display,
+                             telemetry_stale)
 
 NOW = 1000.0
 
@@ -31,3 +34,57 @@ def test_telemetry_that_went_quiet_is_stale():
 def test_non_numeric_received_at_is_ignored():
     assert not telemetry_stale({"_received_at": None}, NOW)
     assert not telemetry_stale({"_received_at": "not a timestamp"}, NOW)
+
+
+class FakeWidget:
+    def __init__(self, text=""):
+        self.options = {"text": text}
+        self.background = None
+
+    def config(self, **kwargs):
+        self.options.update({k: v for k, v in kwargs.items() if k == "text"})
+        if "background" in kwargs:
+            self.background = kwargs["background"]
+
+    def cget(self, key):
+        return self.options.get(key)
+
+
+def test_reset_display_only_clears_the_sidebar():
+    """Stale telemetry must not wipe the input or arm text boxes."""
+    text_writes = []
+    display = SimpleNamespace(
+        _indicators={"Rover": FakeWidget()},
+        _indicator_labels={"Rover": FakeWidget("OK")},
+        speed_boxes={25: FakeWidget()},
+        mode_boxes={0: FakeWidget()},
+        comm_label=FakeWidget("Connected"),
+        updates_label=FakeWidget("Updates: 9"),
+        devices_text=FakeWidget("Xbox Wireless Controller:"),
+        module_text=FakeWidget("Arm Module data"),
+        module_frame=FakeWidget("Arm Module"),
+        _module_view="arm",
+        _view_override="arm",
+        simulation=True,
+        _view_var=FakeWidget("Arm"),
+        _set_text=lambda widget, content: text_writes.append((widget, content)),
+    )
+
+    Display._reset_display(display)
+
+    # Far-left status reset.
+    assert display._indicators["Rover"].background == RED
+    assert display._indicator_labels["Rover"].cget("text") == ""
+    assert display.speed_boxes[25].background == GRAY
+    assert display.mode_boxes[0].background == GRAY
+    assert display.comm_label.cget("text") == "-"
+    assert display.updates_label.cget("text") == "Updates: 0"
+
+    # Input and arm text boxes keep their content and view state.
+    assert text_writes == []
+    assert display.devices_text.cget("text") == "Xbox Wireless Controller:"
+    assert display.module_text.cget("text") == "Arm Module data"
+    assert display.module_frame.cget("text") == "Arm Module"
+    assert display._module_view == "arm"
+    assert display._view_override == "arm"
+    assert display._view_var.cget("text") == "Arm"
