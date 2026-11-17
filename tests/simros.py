@@ -23,7 +23,7 @@ def main():
     request_size = len(encoder.encode_data({}, MSG.AUTO_STATE_ID))
     heartbeat_size = len(encoder.encode_data({}, MSG.HEARTBEAT_ID))
     target = (COMM.UDP_HOST, COMM.UDP_TELEMETRY_PORT)
-    mode = None
+    auto_mode = None
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rover:
         rover.bind((COMM.UDP_HOST, COMM.UDP_ROVER_PORT))
@@ -35,15 +35,15 @@ def main():
                     continue
                 if data[0] == MSG.AUTO_STATE_ID and len(data) == request_size:
                     values, _ = encoder.decode_data(data)
-                    mode = values["auto_state"]
+                    auto_mode = values["auto_state"]
                 elif data[0] != MSG.HEARTBEAT_ID or len(data) != heartbeat_size:
                     continue
-                if mode is None:
+                if auto_mode is None:
                     continue
-                reply = encoder.encode_data({"control_mode": mode}, MSG.CONTROL_MODE_ID)
+                reply = encoder.encode_data({"control_mode": auto_mode}, MSG.CONTROL_MODE_ID)
                 rover.sendto(reply, target)
                 if data[0] == MSG.AUTO_STATE_ID:
-                    print(f"auto_state {mode} -> control_mode {mode}")
+                    print(f"auto_state {auto_mode} -> control_mode {auto_mode}")
         except KeyboardInterrupt:
             print("\nstopped\n")
 
