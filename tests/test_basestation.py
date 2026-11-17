@@ -23,7 +23,7 @@ from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
 from basestation.keyboard import (HELD, JUST_PRESSED, JUST_RELEASED,
                                   NOT_PRESSED, Keyboard)
-from basestation.protocol import MSG, MessageEncoder
+from basestation.protocol import CONSTANTS, MSG, MessageEncoder
 
 ENCODER = MessageEncoder()
 
@@ -174,7 +174,7 @@ def test_auto_state_bumpers_clamp():
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TR", 1)
         pads.handle_event(XBOX, "BTN_TR", 0)
-    assert pads.auto_state == 2
+    assert pads.auto_state == CONSTANTS.AUTO_STATE.MAX
     for _ in range(10):
         pads.handle_event(XBOX, "BTN_TL", 1)
         pads.handle_event(XBOX, "BTN_TL", 0)
@@ -187,6 +187,62 @@ def test_quit_buttons():
     pads.handle_event(XBOX, "BTN_MODE", 1)   # Xbox home
     pads.handle_event(N64, "BTN_START", 1)   # N64 start
     assert len(quits) == 2
+
+
+def test_gamepad_removal_quits_once():
+    """Unplug runs the quit callback once even if both the reader thread and
+    the hotplug monitor notice the removal."""
+    quits = []
+    pads = make_gamepads(on_quit=lambda: quits.append(1))
+    pads.devices["/dev/input/event99"] = {
+        "name": "Xbox Wireless Controller", "type": XBOX}
+    pads._remove_device("/dev/input/event99")
+    pads._remove_device("/dev/input/event99")  # second observer, same device
+    assert quits == [1]
+    assert pads.devices == {}
+
+
+def test_gamepad_hotplug_monitor_quits_on_unplug(monkeypatch):
+    """The 0.5 s rescan notices a vanished pad and fires on_quit, while the
+    reader is still blocked in read()."""
+    import basestation.gamepads as gamepads_module
+
+    blocked = threading.Event()
+
+    class FakePad:
+        name = "Xbox Wireless Controller"
+        _device_path = "/dev/input/event99"
+
+        def read(self):
+            blocked.wait()  # parked like a real blocking evdev read
+            return []
+
+    present = {"yes": True}
+
+    class FakeDeviceManager:
+        def __init__(self):
+            self.gamepads = [FakePad()] if present["yes"] else []
+
+    fake_inputs = SimpleNamespace(
+        DeviceManager=FakeDeviceManager, devices=FakeDeviceManager())
+    monkeypatch.setattr(gamepads_module, "inputs", fake_inputs)
+
+    quits = []
+    pads = Gamepads(on_quit=lambda: quits.append(1))
+    try:
+        deadline = time.time() + 3
+        while not pads.devices and time.time() < deadline:
+            time.sleep(0.05)
+        assert pads.devices, "monitor never found the pad"
+
+        present["yes"] = False
+        deadline = time.time() + 3
+        while not quits and time.time() < deadline:
+            time.sleep(0.05)
+        assert quits == [1]
+    finally:
+        blocked.set()
+        pads.stop()
 
 
 def test_n64_dpad_maps_to_buttons():
