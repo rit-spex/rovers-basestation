@@ -317,8 +317,8 @@ class Display:
                 self._draw_sidebar(snap)
                 self._set_devices_text(snap)
                 self._draw_module_panel(snap.get("telemetry", {}), snap)
-            except Exception:
-                log.exception("GUI refresh error")
+        except Exception:
+            log.exception("GUI refresh error")
         self.root.after(REFRESH_PERIOD_MS, self._refresh)
 
     def _reset_display(self):
