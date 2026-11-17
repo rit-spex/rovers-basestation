@@ -30,10 +30,11 @@ try:
 except ImportError:
     tk = None
 
-WINDOW_SIZE = "800x640" #revert to 560 b4 push
+WINDOW_SIZE = "800x560"
 SIDEBAR_WIDTH = 200
 INDICATOR_SIZE = 30
 RED, GREEN, BLUE, GRAY = "#a51d2d", "#26a269", "#1c71d8", "#333"
+TELEMETRY_TIMEOUT = 2.5 # should never be less than 1.5
 
 # Which telemetry signals each module view shows, from the protocol itself
 _MESSAGES = MessageEncoder().get_messages().values()
@@ -88,6 +89,7 @@ class Display:
         self._auto_modes = CONSTANTS.AUTO_STATE.NAME_BY_VALUE
         self._lock = threading.Lock()
         self._snapshot = {}
+        self._started_at = time.time()
         self._module_view = "nothing"
         self._view_override = None  # dropdown selection in simulation mode
 
@@ -171,8 +173,8 @@ class Display:
         row, self.mode_boxes = self._add_bar(
             sidebar, row, "Control Mode", modes, INDICATOR_SIZE)
 
-        self.comm_label = ttk.Label(sidebar, text="Comm:\n-", justify="left")
-        self.comm_label.grid(row=row, column=0, sticky="w", pady=(6, 0))
+        self.comm_label = ttk.Label(sidebar, text="-", justify="left")
+        self.comm_label.grid(row=row, column=0, sticky="w")
         self.updates_label = ttk.Label(sidebar, text="Updates: 0")
         self.updates_label.grid(row=row + 1, column=0, sticky="w")
 
@@ -250,14 +252,38 @@ class Display:
     def _refresh(self):
         with self._lock:
             snap = self._snapshot
-        if snap:
-            try:
+        try:
+            now = time.time()
+            received_at = snap.get("telemetry", {}).get("_received_at")
+            if received_at is None:
+                received_at = now if self.simulation else self._started_at
+            if now - received_at >= TELEMETRY_TIMEOUT:
+                self._reset_display()
+            elif snap:
                 self._draw_sidebar(snap)
                 self._set_text(self.devices_text, self._devices_content(snap))
                 self._draw_module_panel(snap.get("telemetry", {}))
-            except Exception:
-                log.exception("GUI refresh error")
+        except Exception:
+            log.exception("GUI refresh error")
         self.root.after(100, self._refresh)
+
+    def _reset_display(self):
+        for box in self._indicators.values():
+            box.config(background=RED)
+        for label in self._indicator_labels.values():
+            label.config(text="")
+        for boxes in (self.speed_boxes, self.mode_boxes):
+            for box in boxes.values():
+                box.config(background=GRAY)
+        self.comm_label.config(text="-")
+        self.updates_label.config(text="Updates: 0")
+        self._set_text(self.devices_text, "")
+        self._set_text(self.module_text, "")
+        self.module_frame.config(text="Module Info")
+        self._module_view = "nothing"
+        self._view_override = None
+        if self.simulation:
+            self._view_var.set(MODULE_LABELS["nothing"])
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})
@@ -284,7 +310,7 @@ class Display:
                 text="ESTOPPED" if estopped else "OK")
 
         mode = " (SIMULATION)" if snap.get("simulation") else ""
-        self.comm_label.config(text=f"Comm:\nConnected{mode}")
+        self.comm_label.config(text=f"Connected{mode}")
         self.updates_label.config(text=f"Updates: {snap.get('updates', 0)}")
 
     def _set_indicator(self, name, on, on_color=GREEN):
