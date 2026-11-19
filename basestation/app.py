@@ -27,7 +27,8 @@ import time
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads
 from basestation.gui import create_display
-from basestation.keyboard import Keyboard
+from basestation.keyboard import (ARM_STATE_SIGNALS, JUST_PRESSED,
+                                  NOT_PRESSED, Keyboard)
 from basestation.protocol import CONSTANTS, MSG, env_flag
 from basestation.simulated_input_devices import SimulatedInputs
 from basestation.spacemouse import SpaceMouse
@@ -40,6 +41,40 @@ TIMESTAMP_SIGNAL = CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE
 AUTO_STATE_SIGNAL = CONSTANTS.AUTO_STATE.NAME
 AXIS_LY = CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR
 AXIS_RY = CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR
+
+LOCK_ALL_ACTION = "lock_all_joints"
+JOINT_LOCK_SIGNALS = tuple(
+    ARM_STATE_SIGNALS[f"toggle_joint_lock:{index}"] for index in range(5))
+
+
+def arm_wire_state(state: dict, locked_joints=None) -> dict:
+    """Expand the local lock-all key into the per-joint lock commands.
+
+    The rover understands ``toggle_joint_lock_N`` but not lock-all, and
+    ``lock_all_joints`` is basestation-only so it must never reach the
+    XBee.  This removes it and emits one pulse for every joint telemetry
+    reports as unlocked, which leaves all five locked without ever
+    unlocking one.  Without telemetry the macro is ignored rather than
+    risk unlocking a joint.
+    """
+    state = dict(state)
+    local_lock_all = state.pop(LOCK_ALL_ACTION, NOT_PRESSED)
+
+    # Rebuild from the protocol field list so no local action can leak out.
+    wire = {
+        signal: state.get(signal, NOT_PRESSED)
+        for signal in ARM_STATE_SIGNALS.values()
+    }
+    if local_lock_all != JUST_PRESSED:
+        return wire
+    if locked_joints is None:
+        return wire
+
+    locked = int(locked_joints)
+    for index, signal in enumerate(JOINT_LOCK_SIGNALS):
+        if not locked & (1 << index):
+            wire[signal] = JUST_PRESSED
+    return wire
 
 
 def xbox_wire_values(state: dict, reverse: bool) -> dict:
@@ -186,9 +221,13 @@ class BaseStation:
         self.link.send(MSG.KEYBOARD_ID, wire_keyboard, force=True)
 
         # Arm actions travel as per-action states (0-3) rather than a key
-        # bitmask; the basestation owns the key-to-action map.
-        self.link.send(MSG.ARM_STATE_ID, self.keyboard.get_arm_state(),
-                       force=True)
+        # bitmask; the basestation owns the key-to-action map.  Lock-all is
+        # expanded here into the per-joint pulses the rover understands.
+        telemetry = self.telemetry_snapshot()
+        arm_state = arm_wire_state(
+            self.keyboard.get_arm_state(include_local=True),
+            telemetry.get("locked_joints"))
+        self.link.send(MSG.ARM_STATE_ID, arm_state, force=True)
 
         return {
             "devices": devices,
@@ -200,7 +239,7 @@ class BaseStation:
             "reverse": self.gamepads.reverse_mode,
             "auto_state": self.gamepads.auto_state,
             "simulation": self.link.simulation,
-            "telemetry": self.telemetry_snapshot(),
+            "telemetry": telemetry,
         }
 
     def shutdown(self, display):

@@ -531,9 +531,10 @@ class SimulatorWindow:
                         lambda _event, s=signal: self.keyboard.release(s))
         elif self._mode == "arm":
             self._keyboard_hint.config(
-                text="Blue keys send arm commands (invKin202627 bindings). "
-                     "F flip, H home, I position, J joint, V PnP, X planar, "
-                     "G guide, L/O locks, S solenoid. Shift+1-5 homes "
+                text="Blue keys send arm commands. "
+                     "F flip, H home, I position, J joint, V PnP, P planar, "
+                     "G guide, Q pos lock, O ori lock, L locks all joints, "
+                     "R rest (future), S solenoid, Z zenith. Shift+1-5 homes "
                      "one joint; 1-5 toggles its lock. Hold Left/Right to "
                      "jog the base, PgUp/PgDn for the elbow; Up/Down drive "
                      "the gripper.")

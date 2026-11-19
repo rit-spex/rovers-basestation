@@ -10,7 +10,7 @@
 """Keyboard input for basestation modes.
 
 Life Detection mode uses the original life-detection key map.  Arm mode
-uses the bindings from ``invKin202627/src/interfaces/gui_constants.py``
+is based on the bindings from ``invKin202627/src/interfaces/gui_constants.py``
 for the actions that make sense on the rover.  Camera and test-overlay
 keys stay local to the arm GUI and are not sent.
 
@@ -76,9 +76,10 @@ TK_LIFE_KEY_MAP = {code.removeprefix("KEY_").lower(): sig
 # ---------------------------------------------------------------------------
 # Arm keyboard actions (invKin202627 bindings, rover-relevant subset)
 # ---------------------------------------------------------------------------
-# Actions the basestation maps physical keys to; each is sent on the wire
-# as a per-action press state.
-ARM_ACTIONS = (
+# Wire actions are sent over the XBee link as per-action press states.
+# Local actions stay on the basestation and are expanded by app.py before
+# anything is put on the wire.
+ARM_WIRE_ACTIONS = (
     "flip",
     "home",
     "position_drive",
@@ -101,11 +102,18 @@ ARM_ACTIONS = (
     "gripper_up",
     "gripper_down",
     "solenoid_strike",
+    # Appended in protocol.yaml order.
+    "rest",
+    "zenith",
 )
+# Basestation-only pseudo-actions.  They still use the same press-state
+# machine for keys/display, but are never encoded into arm_state.
+ARM_LOCAL_ACTIONS = ("lock_all_joints",)
+ARM_ACTIONS = ARM_WIRE_ACTIONS + ARM_LOCAL_ACTIONS
 # Per-action wire signal name. Colons are not legal in ROS topic names,
 # so the numbered actions use an underscore on the wire.
 ARM_STATE_SIGNALS = {action: action.replace(":", "_")
-                     for action in ARM_ACTIONS}
+                     for action in ARM_WIRE_ACTIONS}
 
 ARM_KEY_MAP = {
     "KEY_F": "flip",
@@ -113,11 +121,17 @@ ARM_KEY_MAP = {
     "KEY_I": "position_drive",
     "KEY_J": "joint_drive",
     "KEY_V": "pnp_normal",
-    "KEY_X": "toggle_planar",
+    "KEY_P": "toggle_planar",
     "KEY_G": "guide_orientation",
-    "KEY_L": "toggle_position_lock",
+    # Q and O are the target-lock toggles; L only locks every joint.
+    "KEY_Q": "toggle_position_lock",
     "KEY_O": "toggle_orientation_lock",
+    "KEY_L": "lock_all_joints",
     "KEY_S": "solenoid_strike",
+    # Straight-up test pose, matching the rover's Z key.
+    "KEY_Z": "zenith",
+    # Placeholder for the future Rest mode; the rover decides what to do.
+    "KEY_R": "rest",
     "KEY_UP": "gripper_up",
     "KEY_DOWN": "gripper_down",
 }
@@ -254,19 +268,26 @@ class Keyboard:
                     self._life_state[signal] = NOT_PRESSED
             return snapshot
 
-    def get_arm_state(self) -> dict:
+    def get_arm_state(self, include_local: bool = False) -> dict:
         """Snapshot the per-action arm press states and advance transients.
 
         Each action uses the same 0-3 encoding as the life-detection keys:
         not pressed, just pressed, held, just released.  The rover acts
         only on "just pressed", so it never needs the key map.
+
+        Local actions (``lock_all_joints``) are omitted by default because
+        they must never be encoded into ``arm_state``.  Pass
+        ``include_local=True`` only for the basestation's own expansion.
         """
         with self._lock:
             self._commit_arm_releases()
             if self._mode != "arm":
                 self._arm_pending.clear()
                 self._arm_state = dict.fromkeys(ARM_ACTIONS, NOT_PRESSED)
-                return dict.fromkeys(ARM_STATE_SIGNALS.values(), NOT_PRESSED)
+                state = dict.fromkeys(ARM_STATE_SIGNALS.values(), NOT_PRESSED)
+                if include_local:
+                    state.update(dict.fromkeys(ARM_LOCAL_ACTIONS, NOT_PRESSED))
+                return state
 
             snapshot = dict(self._arm_state)
             # A tap shorter than one control cycle must still report a press.
@@ -280,10 +301,15 @@ class Keyboard:
                 elif self._arm_state[action] == JUST_RELEASED:
                     self._arm_state[action] = NOT_PRESSED
 
-            return {
+            state = {
                 ARM_STATE_SIGNALS[action]: snapshot[action]
-                for action in ARM_ACTIONS
+                for action in ARM_WIRE_ACTIONS
             }
+            if include_local:
+                state.update({
+                    action: snapshot[action] for action in ARM_LOCAL_ACTIONS
+                })
+            return state
 
     def arm_pressed(self) -> dict:
         """Per-action pressed state, for the basestation display."""

@@ -21,7 +21,7 @@ from basestation.protocol import error_text
 
 log = logging.getLogger(__name__)
 
-# Arm telemetry bits (keep in sync with inverse_kinematics_node.py).
+# Arm telemetry bits (keep in sync with arm_route_planner_node.py).
 ARM_FLAG_NAMES = (
     (0, "Home"),
     (1, "Flip"),
@@ -30,31 +30,36 @@ ARM_FLAG_NAMES = (
     (4, "Joint"),
     (5, "PosLock"),
     (6, "OriLock"),
-    (7, "Grip"),
+    (7, "Zenith"),
 )
 ARM_MODE_SHORT = {
     0: "PNP",
     1: "PNPF",
     2: "PLAN",
     3: "HOME",
+    4: "ZEN",
 }
 ARM_MODE_TAGS = {
     0: "mode_pnp",
     1: "mode_pnpf",
     2: "mode_planar",
     3: "mode_home",
+    4: "mode_zenith",
 }
 ARM_OPTION_KEYS = {
-    "MODE": "V/X/H",
+    "MODE": "V/P/H",
     "POSITION": "I",
     "PNP": "V",
     "HOME": "H",
     "FLIP": "F",
     "FLIPPED": "F",
-    "PLANAR": "X",
+    "PLANAR": "P",
+    "ZENITH": "Z",
     "JOINT": "J",
-    "POSLOCK": "L",
+    "POSLOCK": "Q",
     "ORILOCK": "O",
+    "GUIDE": "G",
+    "REST": "R",
     "GRIP": "-",
     "SOL": "-",
     "HOMING": "S+1-5",
@@ -75,12 +80,15 @@ ARM_ACTION_LABELS = {
     "flip": "Flip",
     "home": "Home",
     "position_drive": "Position",
-    "joint_drive": "Angles",
+    "joint_drive": "Joint",
     "pnp_normal": "PNP",
     "toggle_planar": "Planar",
+    "zenith": "Zenith",
     "guide_orientation": "Guide",
     "toggle_position_lock": "Pos Lock",
     "toggle_orientation_lock": "Ori Lock",
+    "lock_all_joints": "Lock All",
+    "rest": "Rest",
     "solenoid_strike": "Solenoid",
     "gripper_up": "Grip Up",
     "gripper_down": "Grip Down",
@@ -105,12 +113,15 @@ ARM_ANGLE_KEYS = {
 }
 
 
-def text_table(headers, rows, indent="  ", min_width=4) -> list[str]:
+def text_table(headers, rows, indent="  ", min_width=4,
+               compact_first=False) -> list[str]:
     """Bordered text table in the SpaceMouse readout style.
 
     ``headers`` is the header row and ``rows`` are (label, *values).
     Labels are left-aligned; headers and values are right-aligned in
-    columns at least ``min_width`` characters wide.
+    columns at least ``min_width`` characters wide.  ``compact_first``
+    removes the padding around the first column so short row labels such
+    as the pose table's A/T/R sit tight against the border.
     """
     label_width = max(
         min_width, len(str(headers[0])),
@@ -122,9 +133,11 @@ def text_table(headers, rows, indent="  ", min_width=4) -> list[str]:
     )
 
     def line(cells) -> str:
+        values = [f"{str(cell):>{data_width}}" for cell in cells[1:]]
+        if compact_first:
+            return f"{indent}|{cells[0]}|" + " | ".join(values) + "|"
         body = " | ".join(
-            [f"{str(cells[0]):<{label_width}}"]
-            + [f"{str(cell):>{data_width}}" for cell in cells[1:]])
+            [f"{str(cells[0]):<{label_width}}"] + values)
         return f"{indent}| {body} |"
 
     rendered = [line(headers)]
@@ -143,7 +156,7 @@ def _pose_table(x, y, z, roll, pitch, yaw):
         ("T", f"{float(x):.1f}", f"{float(y):.1f}", f"{float(z):.1f}"),
         ("R", f"{float(roll):.1f}", f"{float(pitch):.1f}",
          f"{float(yaw):.1f}"),
-    ], indent="", min_width=1)
+    ], indent="", min_width=1, compact_first=True)
 
 
 def arm_pose_lines(telemetry: dict) -> list[str]:
@@ -159,7 +172,7 @@ def arm_pose_lines(telemetry: dict) -> list[str]:
         return text_table(("A", "X", "Y", "Z"), [
             ("T", "---", "---", "---"),
             ("R", "---", "---", "---"),
-        ], indent="", min_width=1)
+        ], indent="", min_width=1, compact_first=True)
     return _pose_table(*values)
 
 
@@ -178,10 +191,12 @@ def arm_keyboard_lines(arm_keys: dict) -> list[str]:
     """Device-panel legend for the Arm keyboard bindings."""
     lines = ["Keyboard (Arm):"]
     for action, pressed in arm_keys.items():
-        key = Keyboard.key_for_arm(action).upper()
+        key = Keyboard.key_for_arm(action)
+        if key == "?":
+            continue  # action has no key binding
         check = "x" if pressed else " "
         label = ARM_ACTION_LABELS.get(action, action)
-        lines.append(f"    [{key}] [{check}] {label}")
+        lines.append(f"    [{key.upper()}] [{check}] {label}")
     return lines
 
 
@@ -199,6 +214,8 @@ def configure_tags(widget):
         "mode_planar", foreground="#0b6b3a", background="#e6ffe9")
     widget.tag_configure(
         "mode_home", foreground="#a16207", background="#fff4d6")
+    widget.tag_configure(
+        "mode_zenith", foreground="#0f766e", background="#ccfbf1")
     widget.tag_configure("on", foreground="#0b6b3a", background="#e6ffe9")
     widget.tag_configure("off", foreground="#888888")
     widget.tag_configure(
@@ -252,6 +269,7 @@ class ArmPanel:
                           for key in motor_keys)
         arm_keys = snap.get("arm_keyboard") or {}
         guide_active = bool(arm_keys.get("guide_orientation"))
+        rest_active = bool(arm_keys.get("rest"))
         solenoid_active = bool(arm_keys.get("solenoid_strike"))
         teleop = teleop_active(snap)
 
@@ -280,7 +298,7 @@ class ArmPanel:
                       if isinstance(received, (int, float)) else None)
         pose = tuple(telemetry.get(key) for key in _POSE_SIGNALS)
         state_key = (mode, flags, locked, homing, angles, pose, age_bucket,
-                     teleop, guide_active, solenoid_active,
+                     teleop, guide_active, rest_active, solenoid_active,
                      self._error_seq,
                      int(error_age) if error_age is not None else None)
         if self._last_state == state_key:
@@ -322,11 +340,12 @@ class ArmPanel:
             ("Drive Modes", (
                 (ARM_OPTION_KEYS["POSITION"], "Position",
                  not flag_on("JOINT")),
-                (ARM_OPTION_KEYS["JOINT"], "Angles", flag_on("JOINT")),
+                (ARM_OPTION_KEYS["JOINT"], "Joint", flag_on("JOINT")),
             )),
             ("Limit Types", (
                 (ARM_OPTION_KEYS["PLANAR"], "Planar", flag_on("PLANAR")),
                 (ARM_OPTION_KEYS["FLIPPED"], "Flipped", flag_on("FLIPPED")),
+                (ARM_OPTION_KEYS["ZENITH"], "Zenith", flag_on("ZENITH")),
             )),
             ("Target Locks", (
                 (ARM_OPTION_KEYS["POSLOCK"], "Pos Lock", flag_on("POSLOCK")),
@@ -335,6 +354,8 @@ class ArmPanel:
             ("Actions", (
                 (ARM_OPTION_KEYS["FLIP"], "Flipping", flag_on("FLIP")),
                 (ARM_OPTION_KEYS["HOME"], "Homing All", flag_on("HOME")),
+                (ARM_OPTION_KEYS["GUIDE"], "Guide", guide_active),
+                (ARM_OPTION_KEYS["REST"], "Rest", rest_active),
                 (ARM_OPTION_KEYS["SOL"], "Solenoid", solenoid_active),
             )),
         )
@@ -350,7 +371,9 @@ class ArmPanel:
             widget.insert("end", "\n")
 
         widget.insert(
-            "end", "\nLock: 1-5   Home: Shift+1-5\n", ("off",))
+            "end",
+            "\nLock: 1-5   Lock All: L   Rest: R   Home: Shift+1-5\n",
+            ("off",))
         self._insert_footer(widget, telemetry, angles_live)
         self._restore_view(widget, top, stick)
 
@@ -404,8 +427,8 @@ class ArmPanel:
             active.append("FLIPPING")
         if flag_on("PLANAR"):
             active.append("PLANAR")
-        if flag_on("GRIP"):
-            active.append("GRIPPER")
+        if flag_on("ZENITH"):
+            active.append("ZENITH")
         text = " | ".join(active) if active else "idle"
         widget.insert("end", "\nSTATUS ", ("table_header",))
         widget.insert("end", text, ("on" if active else "off",))

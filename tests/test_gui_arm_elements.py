@@ -93,11 +93,58 @@ def test_teleop_deadzone():
     assert not teleop_active({})
 
 
+def test_pose_angle_tables_are_compact():
+    lines = arm_pose_lines({
+        "pose_x": 1234, "pose_y": -500, "pose_z": 650,
+        "pose_roll": 100, "pose_pitch": -200, "pose_yaw": 9000,
+    })
+    assert lines[0].startswith("|A|")
+    assert lines[1].startswith("|T|")
+    assert lines[2].startswith("|R|")
+    assert "| A |" not in lines[0]
+    assert len(set(map(len, lines))) == 1
+
+
 def test_arm_keyboard_legend_marks_pressed_keys():
     lines = arm_keyboard_lines({"flip": True, "home": False})
     assert lines[0] == "Keyboard (Arm):"
     assert "    [F] [x] Flip" in lines
     assert "    [H] [ ] Home" in lines
+
+
+def test_arm_keyboard_legend_uses_the_new_bindings():
+    lines = arm_keyboard_lines({
+        "joint_drive": False, "toggle_planar": False,
+        "toggle_position_lock": True, "toggle_orientation_lock": False,
+        "guide_orientation": True, "lock_all_joints": False,
+    })
+    assert "    [J] [ ] Joint" in lines
+    assert "    [P] [ ] Planar" in lines
+    assert "    [Q] [x] Pos Lock" in lines
+    assert "    [O] [ ] Ori Lock" in lines
+    assert "    [G] [x] Guide" in lines
+    assert "    [L] [ ] Lock All" in lines
+
+
+def test_arm_panel_reads_out_rest_action():
+    widget = FakeText()
+    panel = ArmPanel(widget)
+    panel.draw(
+        live_telemetry(locked_joints=0b11111),
+        {"arm_keyboard": {"rest": True}})
+    text = widget.text()
+    assert "L     Lock All" not in text
+    assert "R     Rest       [ON ]" in text
+    assert "Lock All: L" in text and "Rest: R" in text
+
+
+def test_arm_panel_reads_out_zenith():
+    widget = FakeText()
+    panel = ArmPanel(widget)
+    panel.draw(live_telemetry(arm_flags=1 << 7), {})
+    text = widget.text()
+    assert "STATUS ZENITH" in text
+    assert "Z     Zenith     [ON ]" in text
 
 
 def test_error_banner_shows_text_then_expires():

@@ -74,7 +74,7 @@ Gazebo includes a **Simulation Control** panel directly in the Gazebo window
 The simulation banner has the module mode selector: **None**, **Arm**,
 **Life Detection**, and **Autonomous**. The selected mode controls which
 module panel is shown. Keyboard bindings follow the mode: Life Detection
-shows the life keys, and Arm shows the `invKin202627` arm bindings in both
+shows the life keys, and Arm shows the arm bindings in both
 the Input Devices panel and the simulated keyboard tab.
 
 The robot hardware configuration itself is a Gazebo setting, not a
@@ -92,7 +92,7 @@ python -m basestation --sim-inputs --real-spacemouse
 The main basestation Arm panel shows a joint table with each joint's
 current angle, motor lock (`X`), and active homing (`X`), an end-effector
 pose table (Cartesian XYZ and roll/pitch/yaw), and colored mode/status
-chips for Pick and Place, Flipped, Planar, Homing, Flipping, Joint Drive,
+chips for Pick and Place, Flipped, Planar, Zenith, Homing, Flipping, Joint Drive,
 position/orientation locks, gripper drive, and the solenoid. The rover
 publishes the measured pose in the `arm_pose` telemetry packet; until the
 first one arrives the pose table shows placeholders.
@@ -118,7 +118,10 @@ non-zero (systemd restarts it until the radio is back). Set
 | hold START + D-pad left/right | decrease/increase drive speed by 25% |
 | Xbox HOME or N64 START | quit (sends QUIT to the rover) |
 | keyboard Q W S H E R 1-4 Z X C V B | life detection controls (Life Detection mode) |
-| keyboard F / H / I / J / V / X / G / L / O | arm flip / home / position drive / joint drive / PnP / planar / guide / position lock / orientation lock (Arm mode) |
+| keyboard F / H / I / J / V / P / G / Q / O | arm flip / home / position drive / joint drive / PnP / planar / guide / position lock / orientation lock (Arm mode) |
+| keyboard Z | zenith straight-up test pose (Arm mode) |
+| keyboard L | lock all joints; locks only, never unlocks (Arm mode) |
+| keyboard R | Rest mode placeholder, rules TBD (Arm mode) |
 | keyboard 1-5 | toggle joint lock 1-5 (Arm mode) |
 | keyboard Shift+1-5 | home joint 1-5 (Arm mode) |
 | keyboard Left / Right | jog the arm base (Arm mode) |
@@ -127,18 +130,20 @@ non-zero (systemd restarts it until the radio is back). Set
 | SpaceMouse | 6DOF arm control |
 
 Keyboard settings follow the selected module mode: Life Detection mode uses
-the life keys, Arm mode uses the `invKin202627` arm bindings (camera and
-test-overlay keys stay local and are not sent). The basestation owns the
-key-to-action map: arm actions are sent over the link as per-action press
-states (0 = idle, 1 = just pressed, 2 = held, 3 = just released), not as a
-key bitmask, so the rover only reacts to "just pressed". SpaceMouse axes are
-sent every control cycle alongside the states.
+the life keys, Arm mode uses the arm bindings derived from
+`invKin202627` (camera and test-overlay keys stay local and are not sent).
+The basestation owns the key-to-action map: arm actions are sent over the
+link as per-action press states (0 = idle, 1 = just pressed, 2 = held,
+3 = just released), not as a key bitmask, so the rover only reacts to
+"just pressed". SpaceMouse axes are sent every control cycle alongside the
+states. `L` is basestation-only: it is never encoded into `arm_state`, and is
+expanded into the individual joint-lock actions before transmission.
 
 The Gazebo rover stack takes a `robot_config` launch argument (`drivebase`,
 `arm_drivebase`, or `life_drivebase`) and reports it over telemetry.
 
 The Arm Module panel has an **ERROR** row that shows the last arm command
-rejection, such as `Octant 5 requires Planar - press X` or `Planar needs the
+rejection, such as `Octant 5 requires Planar - press P` or `Planar needs the
 base within +/-5 deg`. The rover sends the error code and argument in the
 `arm_status` telemetry message; the basestation renders the text. The banner
 clears on the next successful arm command, and re-appears on every repeated

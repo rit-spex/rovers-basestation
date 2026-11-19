@@ -12,8 +12,9 @@ def _keyboard():
     return kb
 
 
-def _state(kb, action):
-    return kb.get_arm_state()[ARM_STATE_SIGNALS[action]]
+def _state(kb, action, include_local=False):
+    state = kb.get_arm_state(include_local=include_local)
+    return state[ARM_STATE_SIGNALS.get(action, action)]
 
 
 def test_arm_mode_emits_action_states():
@@ -79,6 +80,62 @@ def test_arrows_no_longer_jog_the_shoulder():
     assert "down" not in TK_ARM_JOG_KEYS
     assert ARM_JOG_KEYS["KEY_LEFT"] == ("rz", 1)
     assert TK_ARM_JOG_KEYS["right"] == ("rz", -1)
+
+
+def test_l_locks_all_joints_and_r_starts_rest_pipeline():
+    assert ARM_KEY_MAP["KEY_L"] == "lock_all_joints"
+    assert TK_ARM_KEY_MAP["l"] == "lock_all_joints"
+    assert ARM_KEY_MAP["KEY_R"] == "rest"
+    assert TK_ARM_KEY_MAP["r"] == "rest"
+    assert Keyboard.key_for_arm("lock_all_joints") == "l"
+    assert Keyboard.key_for_arm("rest") == "r"
+
+
+def test_planar_and_target_lock_bindings():
+    assert ARM_KEY_MAP["KEY_P"] == "toggle_planar"
+    assert TK_ARM_KEY_MAP["p"] == "toggle_planar"
+    assert ARM_KEY_MAP["KEY_Q"] == "toggle_position_lock"
+    assert TK_ARM_KEY_MAP["q"] == "toggle_position_lock"
+    assert ARM_KEY_MAP["KEY_O"] == "toggle_orientation_lock"
+    assert TK_ARM_KEY_MAP["o"] == "toggle_orientation_lock"
+    assert ARM_KEY_MAP["KEY_Z"] == "zenith"
+    assert TK_ARM_KEY_MAP["z"] == "zenith"
+    assert "KEY_X" not in ARM_KEY_MAP
+    assert Keyboard.key_for_arm("toggle_planar") == "p"
+    assert Keyboard.key_for_arm("toggle_position_lock") == "q"
+    assert Keyboard.key_for_arm("toggle_orientation_lock") == "o"
+    assert Keyboard.key_for_arm("zenith") == "z"
+
+
+def test_holding_lock_all_sends_only_one_press():
+    kb = _keyboard()
+    kb.set_mode("arm")
+    kb.press_arm("lock_all_joints")
+    assert _state(kb, "lock_all_joints", include_local=True) == JUST_PRESSED
+
+    # OS key repeat / a held key must not look like another lock command.
+    kb.press_arm("lock_all_joints")
+    assert _state(kb, "lock_all_joints", include_local=True) == HELD
+
+    kb.release_arm("lock_all_joints")
+    assert _state(kb, "lock_all_joints", include_local=True) == JUST_RELEASED
+    assert _state(
+        kb, "lock_all_joints", include_local=True) == NOT_PRESSED
+
+
+def test_lock_all_is_basestation_only():
+    assert "lock_all_joints" not in ARM_STATE_SIGNALS
+
+    kb = _keyboard()
+    kb.set_mode("arm")
+    kb.press_arm("lock_all_joints")
+    assert "lock_all_joints" not in kb.get_arm_state()
+
+    local = _keyboard()
+    local.set_mode("arm")
+    local.press_arm("lock_all_joints")
+    assert (local.get_arm_state(include_local=True)["lock_all_joints"]
+            == JUST_PRESSED)
 
 
 def test_arm_signals_match_protocol():

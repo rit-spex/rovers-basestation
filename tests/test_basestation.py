@@ -18,11 +18,12 @@ import threading
 import time
 from types import SimpleNamespace
 
-from basestation.app import HEARTBEAT_PERIOD, BaseStation, xbox_wire_values
+from basestation.app import (HEARTBEAT_PERIOD, BaseStation, arm_wire_state,
+                             xbox_wire_values)
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
-from basestation.keyboard import (HELD, JUST_PRESSED, JUST_RELEASED,
-                                  NOT_PRESSED, Keyboard)
+from basestation.keyboard import (ARM_STATE_SIGNALS, HELD, JUST_PRESSED,
+                                  JUST_RELEASED, NOT_PRESSED, Keyboard)
 from basestation.protocol import CONSTANTS, MSG, MessageEncoder
 
 ENCODER = MessageEncoder()
@@ -79,7 +80,43 @@ def test_spacemouse_and_keyboard_encode():
     arm["flip"] = 1
     assert ENCODER.encode_data(arm, MSG.ARM_STATE_ID).hex(" ") == (
         "08 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
-        "00 00")
+        "00 00 00 00")
+
+
+def test_lock_all_is_removed_before_encoding():
+    state = Keyboard().get_arm_state(include_local=True)
+    state["lock_all_joints"] = JUST_PRESSED
+    wire = arm_wire_state(state, 0b11111)
+    assert "lock_all_joints" not in wire
+    assert set(wire) == set(ARM_STATE_SIGNALS.values())
+
+
+def test_lock_all_expands_to_the_unlocked_joint_toggles():
+    state = dict.fromkeys(ARM_STATE_SIGNALS.values(), NOT_PRESSED)
+    state["lock_all_joints"] = JUST_PRESSED
+
+    # Joints 0 and 2 are already locked, so L must not toggle those.
+    wire = arm_wire_state(state, 0b00101)
+    assert "lock_all_joints" not in wire
+    for index, pressed in enumerate((False, True, False, True, True)):
+        signal = ARM_STATE_SIGNALS[f"toggle_joint_lock:{index}"]
+        assert wire[signal] == (JUST_PRESSED if pressed else NOT_PRESSED)
+
+
+def test_lock_all_with_all_joints_locked_sends_no_pulses():
+    state = dict.fromkeys(ARM_STATE_SIGNALS.values(), NOT_PRESSED)
+    state["lock_all_joints"] = JUST_PRESSED
+
+    wire = arm_wire_state(state, 0b11111)
+    assert set(wire.values()) == {NOT_PRESSED}
+
+
+def test_lock_all_without_telemetry_is_ignored():
+    state = dict.fromkeys(ARM_STATE_SIGNALS.values(), NOT_PRESSED)
+    state["lock_all_joints"] = JUST_PRESSED
+
+    wire = arm_wire_state(state, None)
+    assert set(wire.values()) == {NOT_PRESSED}
 
 
 # ----------------------------------------------------------------------
@@ -290,6 +327,49 @@ def test_truncated_telemetry_is_dropped_not_misdecoded():
     # decode into wrong joint angles instead of being rejected like it should
     link._handle_telemetry(full[:11])
     assert len(received) == 1  # dropped, not delivered as garbage
+
+
+def test_arm_status_updates_mode_locks_and_flags():
+    link = Link(connect=False)
+    received = []
+    link._on_telemetry = received.append
+
+    status = {
+        "arm_error_code": 0,
+        "arm_error_arg": 0,
+        "arm_error_seq": 7,
+        "arm_operation_mode": 4,       # zenith
+        "locked_joints": 0b11000,
+        "homing_joints": 0b00001,
+        "arm_flags": 1 << 7,           # zenith flag
+    }
+    payload = ENCODER.encode_data(status, MSG.ARM_STATUS_ID)
+    assert len(payload) == 9
+    link._handle_telemetry(payload)
+    link.close()
+
+    assert len(received) == 1
+    assert received[0] == status | {"_message_name": "arm_status"}
+
+
+def test_arm_status_fields_are_merged_into_telemetry():
+    station = object.__new__(BaseStation)
+    station.telemetry = {}
+    station._telemetry_lock = threading.Lock()
+
+    station._store_telemetry({
+        "arm_operation_mode": 4,
+        "locked_joints": 0b11000,
+        "homing_joints": 0,
+        "arm_flags": 1 << 7,
+    })
+    station._store_telemetry({"rover_estop": False})
+
+    snap = station.telemetry_snapshot()
+    assert snap["arm_operation_mode"] == 4
+    assert snap["locked_joints"] == 0b11000
+    assert snap["arm_flags"] == 1 << 7
+    assert snap["rover_estop"] is False
 
 
 def test_link_suppresses_duplicate_payloads():
