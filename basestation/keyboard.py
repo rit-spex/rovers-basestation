@@ -22,6 +22,9 @@ Arm actions are edge-triggered on the rover, but the basestation owns the
 key map and sends each action's press state (0-3) instead of a key
 bitmask, so the rover only acts on "just pressed".
 
+In Arm mode the Left/Right and PageUp/PageDown keys jog the arm by
+synthesizing SpaceMouse axes, while Up/Down drive the gripper.
+
 Key releases are debounced for 50 ms because some USB/wireless keyboards
 emit spurious release+press pairs while a key is physically held.
 
@@ -115,6 +118,8 @@ ARM_KEY_MAP = {
     "KEY_L": "toggle_position_lock",
     "KEY_O": "toggle_orientation_lock",
     "KEY_S": "solenoid_strike",
+    "KEY_UP": "gripper_up",
+    "KEY_DOWN": "gripper_down",
 }
 ARM_NUMBER_MAP = {
     "KEY_1": 0, "KEY_2": 1, "KEY_3": 2, "KEY_4": 3, "KEY_5": 4,
@@ -140,14 +145,13 @@ TK_ARM_SHIFT_NUMBER_MAP = {
 }
 
 # Arrow/nav keys synthesize SpaceMouse axes so they can jog the arm while
-# held.  The rover already consumes these axes for both drive modes, so no
+# held.  Up/Down are gripper actions (in ARM_KEY_MAP above), not jog keys.
+# The rover already consumes these axes for both drive modes, so no
 # protocol change is needed.
 JOG_MAGNITUDE = 60
 ARM_JOG_KEYS = {
     "KEY_LEFT": ("rz", 1),
     "KEY_RIGHT": ("rz", -1),
-    "KEY_UP": ("ry", 1),
-    "KEY_DOWN": ("ry", -1),
     "KEY_PAGEUP": ("rx", 1),
     "KEY_PAGE_UP": ("rx", 1),
     "KEY_PAGEDOWN": ("rx", -1),
@@ -156,11 +160,11 @@ ARM_JOG_KEYS = {
 TK_ARM_JOG_KEYS = {
     "left": ("rz", 1),
     "right": ("rz", -1),
-    "up": ("ry", 1),
-    "down": ("ry", -1),
     "prior": ("rx", 1),
     "next": ("rx", -1),
 }
+# Arrow keys that the GUI fallback must not steal from text widgets.
+TK_NAV_KEYS = frozenset(TK_ARM_JOG_KEYS) | {"up", "down"}
 
 RELEASE_DEBOUNCE_SECONDS = 0.05
 
@@ -506,8 +510,7 @@ class Keyboard:
                         self._release_life(signal)
                 elif self._mode == "arm":
                     keysym = event.keysym.lower()
-                    jog = TK_ARM_JOG_KEYS.get(keysym)
-                    if jog is not None:
+                    if keysym in TK_NAV_KEYS:
                         # Do not steal arrows while editing a spinbox or
                         # dropdown; those widgets use them for navigation.
                         try:
@@ -517,6 +520,8 @@ class Keyboard:
                         if widget_class in ("Entry", "Spinbox", "TSpinbox",
                                             "TCombobox"):
                             return
+                    jog = TK_ARM_JOG_KEYS.get(keysym)
+                    if jog is not None:
                         self._tk_active = True
                         axis, sign = jog
                         if pressed:

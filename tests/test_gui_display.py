@@ -36,6 +36,26 @@ def test_non_numeric_received_at_is_ignored():
     assert not telemetry_stale({"_received_at": "not a timestamp"}, NOW)
 
 
+def _cells(line):
+    return [cell.strip() for cell in line.split("|")[1:-1]]
+
+
+def test_xbox_table_puts_button_pairs_in_left_right_columns():
+    lines = Display._xbox_table({
+        "AXIS_LY": 100, "AXIS_RY": 150,
+        "A": True, "B": False, "X": False, "Y": True,
+        "LEFT_BUMPER": False, "RIGHT_BUMPER": True,
+        "AXIS_LT": True, "AXIS_RT": False,
+    })
+    assert len(set(map(len, lines))) == 1  # all rows padded alike
+    assert _cells(lines[0]) == ["Axis", "Left", "Right"]
+    assert _cells(lines[1]) == ["Sticks", "100", "150"]
+    assert _cells(lines[2]) == ["A/B", "X", "-"]
+    assert _cells(lines[3]) == ["X/Y", "-", "X"]
+    assert _cells(lines[4]) == ["Bumpers", "-", "X"]
+    assert _cells(lines[5]) == ["Triggers", "X", "-"]
+
+
 class FakeWidget:
     def __init__(self, text=""):
         self.options = {"text": text}

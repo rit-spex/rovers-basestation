@@ -82,6 +82,8 @@ ARM_ACTION_LABELS = {
     "toggle_position_lock": "Pos Lock",
     "toggle_orientation_lock": "Ori Lock",
     "solenoid_strike": "Solenoid",
+    "gripper_up": "Grip Up",
+    "gripper_down": "Grip Down",
 }
 for _index, _joint in enumerate(
         ("Base", "Shoulder", "Elbow", "Wrist Bend", "Wrist Twist")):

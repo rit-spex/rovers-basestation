@@ -121,6 +121,9 @@ non-zero (systemd restarts it until the radio is back). Set
 | keyboard F / H / I / J / V / X / G / L / O | arm flip / home / position drive / joint drive / PnP / planar / guide / position lock / orientation lock (Arm mode) |
 | keyboard 1-5 | toggle joint lock 1-5 (Arm mode) |
 | keyboard Shift+1-5 | home joint 1-5 (Arm mode) |
+| keyboard Left / Right | jog the arm base (Arm mode) |
+| keyboard PageUp / PageDown | jog the arm elbow (Arm mode) |
+| keyboard Up / Down | drive the gripper (Arm mode) |
 | SpaceMouse | 6DOF arm control |
 
 Keyboard settings follow the selected module mode: Life Detection mode uses

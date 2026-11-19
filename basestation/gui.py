@@ -37,7 +37,9 @@ except ImportError:
 WINDOW_SIZE = "800x640"
 REFRESH_PERIOD_MS = 50
 SIDEBAR_WIDTH = 200
-INDICATOR_SIZE = 30
+INDICATOR_SIZE = 25
+# Status indicators are nudged left of the sidebar edge.
+STATUS_INDICATOR_RIGHT_PAD = 10
 RED, GREEN, BLUE, GRAY = "#a51d2d", "#26a269", "#1c71d8", "#333"
 TELEMETRY_TIMEOUT = 2.5 # should never be less than 1.5
 
@@ -53,6 +55,18 @@ MODULE_LABELS = {"nothing": "None", "arm": "Arm",
                  "life": "Life Detection", "auto": "Autonomous"}
 
 KEY_STATE_LABELS = {0: "-", 1: "PRESS", 2: "HOLD", 3: "REL"}
+
+# Xbox button pairs shown as Left/Right columns in the devices panel.
+XBOX_TABLE_ROWS = (
+    ("A/B", CONSTANTS.XBOX.BUTTON.A_STR, CONSTANTS.XBOX.BUTTON.B_STR),
+    ("X/Y", CONSTANTS.XBOX.BUTTON.X_STR, CONSTANTS.XBOX.BUTTON.Y_STR),
+    ("Bumpers", CONSTANTS.XBOX.BUTTON.LEFT_BUMPER_STR,
+     CONSTANTS.XBOX.BUTTON.RIGHT_BUMPER_STR),
+    ("Triggers", CONSTANTS.XBOX.TRIGGER.AXIS_LT_STR,
+     CONSTANTS.XBOX.TRIGGER.AXIS_RT_STR),
+)
+XBOX_STICK_SIGNALS = (CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR,
+                      CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR)
 
 
 def telemetry_stale(telemetry: dict, now: float) -> bool:
@@ -239,7 +253,8 @@ class Display:
         box = tk.Frame(frame, width=INDICATOR_SIZE, height=INDICATOR_SIZE,
                        background=RED, highlightthickness=1,
                        highlightbackground=GRAY)
-        box.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        box.grid(row=0, column=1, sticky="e",
+                 padx=(8, STATUS_INDICATOR_RIGHT_PAD))
         box.grid_propagate(False)
         self._indicators[name] = box
         if with_label:
@@ -393,8 +408,12 @@ class Display:
         states = snap.get("states", {})
         for info in snap.get("devices", {}).values():
             lines.append(f"{info['name']}:")
-            for signal, value in states.get(info["type"], {}).items():
-                lines.append(f"    {signal}: {value}")
+            state = states.get(info["type"], {})
+            if info.get("type") == CONSTANTS.XBOX.NAME:
+                lines.extend(self._xbox_table(state))
+            else:
+                for signal, value in state.items():
+                    lines.append(f"    {signal}: {value}")
             lines.append("")
         if snap.get("spacemouse") is not None:
             lines.append("SpaceMouse:")
@@ -414,6 +433,21 @@ class Display:
             lines.extend(arm_keyboard_lines(snap["arm_keyboard"]))
             lines.append("")
         return "\n".join(lines) if lines else "No input devices connected\n"
+
+    @staticmethod
+    def _xbox_table(state: dict) -> list[str]:
+        """Bordered Xbox readout: stick axes then Left/Right button pairs."""
+        left_stick, right_stick = XBOX_STICK_SIGNALS
+        rows = [
+            ("Sticks", state.get(left_stick, "-"),
+             state.get(right_stick, "-")),
+        ]
+        rows.extend(
+            (label, "X" if state.get(left) else "-",
+             "X" if state.get(right) else "-")
+            for label, left, right in XBOX_TABLE_ROWS
+        )
+        return text_table(("Axis", "Left", "Right"), rows)
 
     @staticmethod
     def _spacemouse_table(state: dict) -> list[str]:

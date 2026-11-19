@@ -164,8 +164,9 @@ class BaseStation:
                        {AUTO_STATE_SIGNAL: self.gamepads.auto_state})
 
         spacemouse_state = self.spacemouse.get_state()
-        # Arrow/nav jog keys synthesize SpaceMouse axes.  The rover latches
-        # axes, so holding a key keeps the arm moving until release.
+        # Nav jog keys (Left/Right, PageUp/PageDown) synthesize SpaceMouse
+        # axes.  The rover latches axes, so holding a key keeps the arm
+        # moving until release.
         jog = self.keyboard.jog_axes()
         if jog:
             spacemouse_state = dict(spacemouse_state)

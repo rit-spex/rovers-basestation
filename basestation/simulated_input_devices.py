@@ -52,7 +52,7 @@ KEYBOARD_LABELS = {label.upper(): signal
                    for signal, label in LIFE_KEYS.items()}
 
 # Arm key label -> semantic action, from invKin202627 bindings.
-ARM_KEYBOARD_LABELS = {code.removeprefix("KEY_"): action
+ARM_KEYBOARD_LABELS = {code.removeprefix("KEY_").title(): action
                        for code, action in ARM_KEY_MAP.items()}
 ARM_NUMBER_KEYS = {code.removeprefix("KEY_"): index
                    for code, index in ARM_NUMBER_MAP.items()
@@ -60,11 +60,10 @@ ARM_NUMBER_KEYS = {code.removeprefix("KEY_"): index
                                "KEY_4", "KEY_5")}
 
 # On-screen nav keys that synthesize SpaceMouse axes for jogging.
+# Up/Down are gripper actions and come from ARM_KEYBOARD_LABELS.
 ARM_JOG_LABELS = {
     "Left": ("rz", 1),
     "Right": ("rz", -1),
-    "Up": ("ry", 1),
-    "Down": ("ry", -1),
     "PgUp": ("rx", 1),
     "PgDn": ("rx", -1),
 }
@@ -535,8 +534,9 @@ class SimulatorWindow:
                 text="Blue keys send arm commands (invKin202627 bindings). "
                      "F flip, H home, I position, J joint, V PnP, X planar, "
                      "G guide, L/O locks, S solenoid. Shift+1-5 homes "
-                     "one joint; 1-5 toggles its lock. Hold arrows to jog "
-                     "base/shoulder and PgUp/PgDn for the elbow.")
+                     "one joint; 1-5 toggles its lock. Hold Left/Right to "
+                     "jog the base, PgUp/PgDn for the elbow; Up/Down drive "
+                     "the gripper.")
             for label, action in ARM_KEYBOARD_LABELS.items():
                 for button in self._key_buttons.get(label, ()):
                     self._enable_key_button(button)

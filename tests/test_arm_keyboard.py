@@ -1,7 +1,8 @@
 """Arm keyboard mode and press-state tests."""
 
 from basestation.keyboard import (
-    ARM_STATE_SIGNALS, HELD, JUST_PRESSED, JUST_RELEASED, NOT_PRESSED, Keyboard)
+    ARM_JOG_KEYS, ARM_KEY_MAP, ARM_STATE_SIGNALS, HELD, JUST_PRESSED,
+    JUST_RELEASED, NOT_PRESSED, TK_ARM_JOG_KEYS, TK_ARM_KEY_MAP, Keyboard)
 
 
 def _keyboard():
@@ -60,6 +61,24 @@ def test_signal_names_are_topic_safe():
         assert ":" not in signal, action
         assert signal.replace("_", "").isalnum(), action
     assert len(set(ARM_STATE_SIGNALS.values())) == len(ARM_STATE_SIGNALS)
+
+
+def test_up_down_arrows_drive_the_gripper():
+    assert ARM_KEY_MAP["KEY_UP"] == "gripper_up"
+    assert ARM_KEY_MAP["KEY_DOWN"] == "gripper_down"
+    assert TK_ARM_KEY_MAP["up"] == "gripper_up"
+    assert TK_ARM_KEY_MAP["down"] == "gripper_down"
+    assert Keyboard.key_for_arm("gripper_up") == "up"
+    assert Keyboard.key_for_arm("gripper_down") == "down"
+
+
+def test_arrows_no_longer_jog_the_shoulder():
+    assert "KEY_UP" not in ARM_JOG_KEYS
+    assert "KEY_DOWN" not in ARM_JOG_KEYS
+    assert "up" not in TK_ARM_JOG_KEYS
+    assert "down" not in TK_ARM_JOG_KEYS
+    assert ARM_JOG_KEYS["KEY_LEFT"] == ("rz", 1)
+    assert TK_ARM_JOG_KEYS["right"] == ("rz", -1)
 
 
 def test_arm_signals_match_protocol():
