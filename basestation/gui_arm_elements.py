@@ -256,6 +256,13 @@ class ArmPanel:
         self._error_at = 0.0
         self._last_state = None
 
+    def reset(self):
+        """Forget cached telemetry so the next packet redraws from scratch."""
+        self._last_state = None
+        self._error_seq = 0
+        self._error_text = ""
+        self._error_at = 0.0
+
     def draw(self, telemetry, snap=None):
         """Colored arm state + joint table in the Arm module panel."""
         snap = snap or {}

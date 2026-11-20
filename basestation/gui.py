@@ -353,10 +353,10 @@ class Display:
         self.root.after(REFRESH_PERIOD_MS, self._refresh)
 
     def _reset_display(self):
-        """Clear only the far-left status sidebar on stale rover telemetry.
+        """Clear the rover-derived status and module panels on stale data.
 
-        The input-device and arm/module text boxes keep their last content:
-        they describe local basestation state and stay useful even when the
+        The input-device text box keeps its last content because it
+        describes local basestation state and is still useful when the
         rover has gone quiet.
         """
         for box in self._indicators.values():
@@ -368,6 +368,9 @@ class Display:
                 box.config(background=GRAY)
         self.comm_label.config(text="-")
         self.updates_label.config(text="Updates: 0")
+        self.module_frame.config(text="Module Info")
+        self._set_text(self.module_text, "Waiting for rover telemetry...")
+        self.arm_panel.reset()
 
     def _draw_sidebar(self, snap):
         telemetry = snap.get("telemetry", {})

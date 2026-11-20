@@ -70,9 +70,10 @@ class FakeWidget:
         return self.options.get(key)
 
 
-def test_reset_display_only_clears_the_sidebar():
-    """Stale telemetry must not wipe the input or arm text boxes."""
+def test_reset_display_clears_sidebar_and_module_panel():
+    """Stale telemetry must clear rover state but keep local input devices."""
     text_writes = []
+    resets = []
     display = SimpleNamespace(
         _indicators={"Rover": FakeWidget()},
         _indicator_labels={"Rover": FakeWidget("OK")},
@@ -88,6 +89,7 @@ def test_reset_display_only_clears_the_sidebar():
         simulation=True,
         _view_var=FakeWidget("Arm"),
         _set_text=lambda widget, content: text_writes.append((widget, content)),
+        arm_panel=SimpleNamespace(reset=lambda: resets.append(True)),
     )
 
     Display._reset_display(display)
@@ -100,11 +102,11 @@ def test_reset_display_only_clears_the_sidebar():
     assert display.comm_label.cget("text") == "-"
     assert display.updates_label.cget("text") == "Updates: 0"
 
-    # Input and arm text boxes keep their content and view state.
-    assert text_writes == []
+    # The rover-derived module panel resets and drops its cached state.
+    assert text_writes == [
+        (display.module_text, "Waiting for rover telemetry...")]
+    assert display.module_frame.cget("text") == "Module Info"
+    assert resets == [True]
+
+    # Local input device content is preserved.
     assert display.devices_text.cget("text") == "Xbox Wireless Controller:"
-    assert display.module_text.cget("text") == "Arm Module data"
-    assert display.module_frame.cget("text") == "Arm Module"
-    assert display._module_view == "arm"
-    assert display._view_override == "arm"
-    assert display._view_var.cget("text") == "Arm"
