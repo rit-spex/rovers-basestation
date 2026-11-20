@@ -21,6 +21,7 @@ the rover stops.
 
 import argparse
 import logging
+import signal
 import threading
 import time
 
@@ -41,6 +42,13 @@ TIMESTAMP_SIGNAL = CONSTANTS.HEARTBEAT.TIMESTAMP_MESSAGE
 AUTO_STATE_SIGNAL = CONSTANTS.AUTO_STATE.NAME
 AXIS_LY = CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR
 AXIS_RY = CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR
+NEUTRAL_AXIS = CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
+
+# A released stick is a discrete "zero drive" command.  Send it for a few
+# cycles so the release is not lost, then go quiet: while the stick is idle
+# other sources (autonomous typing) can own the drive topics without the
+# basestation fighting them with a stream of neutral frames.
+DRIVE_RELEASE_REPEAT_FRAMES = 5
 
 LOCK_ALL_ACTION = "lock_all_joints"
 JOINT_LOCK_SIGNALS = tuple(
@@ -62,8 +70,8 @@ def arm_wire_state(state: dict, locked_joints=None) -> dict:
 
     # Rebuild from the protocol field list so no local action can leak out.
     wire = {
-        signal: state.get(signal, NOT_PRESSED)
-        for signal in ARM_STATE_SIGNALS.values()
+        signal_name: state.get(signal_name, NOT_PRESSED)
+        for signal_name in ARM_STATE_SIGNALS.values()
     }
     if local_lock_all != JUST_PRESSED:
         return wire
@@ -71,9 +79,9 @@ def arm_wire_state(state: dict, locked_joints=None) -> dict:
         return wire
 
     locked = int(locked_joints)
-    for index, signal in enumerate(JOINT_LOCK_SIGNALS):
+    for index, signal_name in enumerate(JOINT_LOCK_SIGNALS):
         if not locked & (1 << index):
-            wire[signal] = JUST_PRESSED
+            wire[signal_name] = JUST_PRESSED
     return wire
 
 
@@ -117,6 +125,9 @@ class BaseStation:
             target=self._heartbeat_loop, daemon=True, name="heartbeat")
         self._heartbeat_thread.start()
         self.mode = "nothing"
+        # Drive-release edge tracking (see cycle()).
+        self._drive_was_active = False
+        self._drive_release_frames = 0
 
     @property
     def quitting(self) -> bool:
@@ -192,11 +203,28 @@ class BaseStation:
     def cycle(self) -> dict:
         """Send everything due this cycle; return a display snapshot."""
         states, devices = self.gamepads.snapshot()
-        self.link.send(MSG.XBOX_ID,
-                       xbox_wire_values(states[XBOX], self.gamepads.reverse_mode))
+        xbox_state = xbox_wire_values(
+            states[XBOX], self.gamepads.reverse_mode)
+        # The drive is a level command, so stream it while the stick is
+        # deflected.  On release, send an explicit zero-drive state for a
+        # short burst: the chassis latches the last command, so the release
+        # must actually reach it.  Once the burst is done, stay quiet so an
+        # autonomous source on the same topic is not fought by neutral frames.
+        drive_active = (
+            xbox_state[AXIS_LY] != NEUTRAL_AXIS
+            or xbox_state[AXIS_RY] != NEUTRAL_AXIS)
+        if self._drive_was_active and not drive_active:
+            self._drive_release_frames = DRIVE_RELEASE_REPEAT_FRAMES
+        self._drive_was_active = drive_active
+        force_drive = drive_active or self._drive_release_frames > 0
+        if self._drive_release_frames > 0:
+            self._drive_release_frames -= 1
+        self.link.send(MSG.XBOX_ID, xbox_state, force=force_drive)
         self.link.send(MSG.N64_ID, states[N64])
+        # Auto-state is a mode level with no competing publisher.
         self.link.send(MSG.AUTO_STATE_ID,
-                       {AUTO_STATE_SIGNAL: self.gamepads.auto_state})
+                       {AUTO_STATE_SIGNAL: self.gamepads.auto_state},
+                       force=True)
 
         spacemouse_state = self.spacemouse.get_state()
         # Nav jog keys (Left/Right, PageUp/PageDown) synthesize SpaceMouse
@@ -301,6 +329,13 @@ def main():
                        or env_flag("BASESTATION_REAL_SPACEMOUSE"))
     station = BaseStation(sim_inputs=sim_inputs,
                           real_spacemouse=real_spacemouse)
+    # systemd stops the service with SIGTERM.  Without a handler Python
+    # terminates immediately and the control loop's finally block never
+    # sends the QUIT message.  Setting the quit event lets the normal
+    # shutdown path run.
+    signal.signal(
+        signal.SIGTERM,
+        lambda _signum, _frame: station.request_quit())
     display = create_display(
         simulation=station.link.simulation,
         with_sim_inputs=station.simulation is not None)

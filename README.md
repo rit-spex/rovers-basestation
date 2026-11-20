@@ -136,8 +136,13 @@ The basestation owns the key-to-action map: arm actions are sent over the
 link as per-action press states (0 = idle, 1 = just pressed, 2 = held,
 3 = just released), not as a key bitmask, so the rover only reacts to
 "just pressed". SpaceMouse axes are sent every control cycle alongside the
-states. `L` is basestation-only: it is never encoded into `arm_state`, and is
-expanded into the individual joint-lock actions before transmission.
+states. The Xbox drive axes are streamed while the stick is deflected, and a
+released stick sends an explicit zero-drive burst so the rover stops even if a
+frame is lost in flight; once released, the basestation goes quiet so it does
+not fight an autonomous drive source on the same topics. Auto-state is
+retransmitted every cycle for the same reason. `L` is basestation-only: it is
+never encoded into `arm_state`, and is expanded into the individual
+joint-lock actions before transmission.
 
 The Gazebo rover stack takes a `robot_config` launch argument (`drivebase`,
 `arm_drivebase`, or `life_drivebase`) and reports it over telemetry.

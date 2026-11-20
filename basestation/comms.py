@@ -33,7 +33,8 @@ class Link:
     """Encodes and transmits messages; decodes incoming telemetry.
 
     Consecutive duplicate payloads are suppressed per message id to keep
-    radio traffic down. Pass force=True to always transmit (heartbeats).
+    radio traffic down. Pass force=True to always transmit (heartbeats,
+    active drive streams, and release bursts).
     """
 
     def __init__(self, on_telemetry=None, connect: bool = True):

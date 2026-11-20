@@ -162,6 +162,13 @@ class Display:
             self._snapshot = snapshot
 
     def run(self, should_quit):
+        def _check_quit():
+            if should_quit():
+                self.root.quit()
+            else:
+                self.root.after(REFRESH_PERIOD_MS, _check_quit)
+
+        self.root.after(REFRESH_PERIOD_MS, _check_quit)
         self.root.after(REFRESH_PERIOD_MS, self._refresh)
         self.root.mainloop()
 

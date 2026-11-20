@@ -18,7 +18,8 @@ import threading
 import time
 from types import SimpleNamespace
 
-from basestation.app import (HEARTBEAT_PERIOD, BaseStation, arm_wire_state,
+from basestation.app import (AXIS_LY, AXIS_RY, DRIVE_RELEASE_REPEAT_FRAMES,
+                             HEARTBEAT_PERIOD, BaseStation, arm_wire_state,
                              xbox_wire_values)
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
@@ -412,6 +413,69 @@ def test_heartbeat_runs_independently_of_control_loop():
                   if sent[0] == MSG.HEARTBEAT_ID]
     assert len(heartbeats) >= 2
     assert all(sent[2] for sent in heartbeats)  # force=True
+
+
+def test_release_sends_zero_burst_then_goes_quiet():
+    """A released stick publishes explicit zero drive, then stops sending.
+
+    The chassis latches the last drive command, so the release itself must
+    reach it.  The basestation sends the neutral state for a short burst, then
+    goes quiet so an autonomous drive source is not fought by neutral frames.
+    """
+    class FakeSpaceMouse:
+        def get_state(self):
+            return dict.fromkeys(CONSTANTS.SPACEMOUSE.ALL_AXES, 0)
+
+    pads = make_gamepads()
+    link = Link(connect=False)
+    sent = []
+    link._transmit = lambda payload: sent.append(payload) or True
+
+    station = object.__new__(BaseStation)
+    station.gamepads = pads
+    station.spacemouse = FakeSpaceMouse()
+    station.keyboard = Keyboard()
+    station.link = link
+    station.telemetry_snapshot = lambda: {}
+    station._drive_was_active = False
+    station._drive_release_frames = 0
+
+    def xbox_frames():
+        return [p for p in sent if p and p[0] == MSG.XBOX_ID]
+
+    # Idle neutral is sent once (initial state), then not streamed.
+    station.cycle()
+    station.cycle()
+    assert len(xbox_frames()) == 1
+
+    # A deflected stick streams, so a steady held command keeps flowing.
+    pads.handle_event(XBOX, "ABS_Y", 32767)
+    station.cycle()
+    station.cycle()
+    assert len(xbox_frames()) == 3
+    held = ENCODER.decode_data(xbox_frames()[-1])[0]
+    assert held[AXIS_LY] > 0.0
+
+    # Release: an explicit zero-drive burst, then silence.
+    pads.handle_event(XBOX, "ABS_Y", 0)
+    for _ in range(DRIVE_RELEASE_REPEAT_FRAMES + 3):
+        station.cycle()
+    neutral_frames = [
+        ENCODER.decode_data(payload)[0]
+        for payload in xbox_frames()[3:]
+    ]
+    assert len(neutral_frames) == DRIVE_RELEASE_REPEAT_FRAMES
+    assert all(frame[AXIS_LY] == 0.0 and frame[AXIS_RY] == 0.0
+               for frame in neutral_frames)
+
+    before = len(xbox_frames())
+    station.cycle()
+    assert len(xbox_frames()) == before  # idle duplicates stay suppressed
+
+    # Auto-state is a mode level and is always transmitted.
+    auto_frames = [p for p in sent if p and p[0] == MSG.AUTO_STATE_ID]
+    assert len(auto_frames) >= 2
+    link.close()
 
 
 def test_repeated_device_manager_keeps_type_codes():
