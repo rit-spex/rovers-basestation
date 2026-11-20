@@ -1,7 +1,16 @@
+# ------------------------------------------------------------------
+#                          SPEX ROVER 2026
+# ------------------------------------------------------------------
+# Reference unit for the rover Pi (user "rover").
+# For any other machine, run ./auto_boot/setup.sh --install-service
+# to generate and install a unit with the correct user and paths.
+# ------------------------------------------------------------------
 [Unit]
 Description=SPEX rover basestation
 After=network-online.target
 Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -9,8 +18,6 @@ User=rover
 Group=rover
 Restart=on-failure
 RestartSec=10
-StartLimitBurst=5
-StartLimitIntervalSec=60
 TimeoutStopSec=10
 Environment=HOME=/home/rover
 Environment=XBEE_NO_GUI=1
