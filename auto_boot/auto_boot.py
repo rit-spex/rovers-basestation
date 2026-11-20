@@ -2,14 +2,21 @@
 #                          SPEX ROVER 2026
 # ------------------------------------------------------------------
 # file name     : auto_boot.py
-# purpose       : wait until the rover XBee answers a ping, then
-#                 launch the basestation headless
+# purpose       : launch the basestation with the GUI as soon as the
+#                 machine boots; optionally wait for the rover XBee
+#                 before starting
 # created on    : 7/12/2026 - Ryan
-# last modified : 7/12/2026 - Ryan
+# last modified : 11/20/2026 - start the GUI without waiting
 # ------------------------------------------------------------------
-"""Boot helper for the Raspberry Pi: block until the rover's XBee is
-reachable, then start the basestation. Run by the systemd service."""
+"""Boot helper for the Raspberry Pi.
 
+By default this starts the basestation immediately, GUI included; the
+display shows "Waiting for rover telemetry..." until the rover answers.
+Pass ``--wait`` to block until the rover's XBee answers a ping first, or
+``--headless`` for a display-less deployment. Run by the systemd service.
+"""
+
+import argparse
 import logging
 import os
 import subprocess
@@ -61,13 +68,28 @@ def wait_for_rover() -> bool:
     return False
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Start the basestation (GUI by default)")
+    parser.add_argument(
+        "--wait", action="store_true",
+        help="block until the rover XBee answers a ping before starting")
+    parser.add_argument(
+        "--headless", action="store_true",
+        help="start without the GUI (same as XBEE_NO_GUI=1)")
+    args = parser.parse_args(argv)
+
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s - %(name)s - %(message)s")
-    if not wait_for_rover():
+    if args.wait and not wait_for_rover():
         return 1
+
     env = os.environ.copy()
-    env["XBEE_NO_GUI"] = "1"
+    # The autoboot service should show the GUI; ignore a stale
+    # XBEE_NO_GUI=1 left in the environment by an older unit.
+    env.pop("XBEE_NO_GUI", None)
+    if args.headless:
+        env["XBEE_NO_GUI"] = "1"
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return subprocess.run([sys.executable, "-m", "basestation"],
                           cwd=repo_root, env=env).returncode

@@ -96,8 +96,8 @@ if [ "$INSTALL_SERVICE" -eq 1 ]; then
     cat > "$UNIT_FILE" <<EOF
 [Unit]
 Description=SPEX rover basestation
-After=network-online.target
-Wants=network-online.target
+After=network-online.target graphical.target
+Wants=network-online.target graphical.target
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
@@ -109,8 +109,10 @@ Restart=on-failure
 RestartSec=10
 TimeoutStopSec=10
 Environment=HOME=$SERVICE_HOME
-Environment=XBEE_NO_GUI=1
 Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=$SERVICE_HOME/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/%U
 WorkingDirectory=$REPO_ROOT
 ExecStart=/bin/bash $REPO_ROOT/auto_boot/auto_boot.sh
 

@@ -153,6 +153,28 @@ Headless mode refuses the UDP fallback: if the XBee cannot be opened it exits
 non-zero (systemd restarts it until the radio is back). Set
 `BASESTATION_SIMULATION=1` to run headless simulation on purpose.
 
+### Autoboot
+
+`auto_boot/` starts the basestation at boot, GUI included. It launches
+immediately, so the window comes up and shows "Waiting for rover
+telemetry..." until the rover answers — it does not block on the radio.
+
+```bash
+./auto_boot/setup.sh                     # rebuild .venv
+./auto_boot/setup.sh --install-service   # write + enable the systemd unit
+```
+
+The helper takes flags when a deployment needs different behavior:
+
+```bash
+.venv/bin/python3 auto_boot/auto_boot.py --wait      # block for the rover ping first
+.venv/bin/python3 auto_boot/auto_boot.py --headless  # no GUI
+```
+
+The generated systemd unit exports `DISPLAY=:0`, `XAUTHORITY`, and
+`XDG_RUNTIME_DIR` so the GUI can appear under the service. If no X server
+is reachable it falls back to the headless display automatically.
+
 ## Controls
 
 | Input | Action |
@@ -216,7 +238,7 @@ basestation/
   gui_arm_elements.py  Arm panel: joint table, pose, modes, errors
   protocol.py    shared rovers-protocol import shim
 tools/           debug_gamepad.py, gps_reader.py
-auto_boot/       systemd service for the Pi
+auto_boot/       boot helper + systemd service (starts the GUI)
 tests/           wire-format and behavior tests
 ```
 

@@ -23,4 +23,4 @@ if [ ! -x .venv/bin/python3 ]; then
     exit 1
 fi
 
-exec .venv/bin/python3 auto_boot/auto_boot.py
+exec .venv/bin/python3 auto_boot/auto_boot.py "$@"

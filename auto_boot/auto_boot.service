@@ -7,8 +7,8 @@
 # ------------------------------------------------------------------
 [Unit]
 Description=SPEX rover basestation
-After=network-online.target
-Wants=network-online.target
+After=network-online.target graphical.target
+Wants=network-online.target graphical.target
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
@@ -20,7 +20,10 @@ Restart=on-failure
 RestartSec=10
 TimeoutStopSec=10
 Environment=HOME=/home/rover
-Environment=XBEE_NO_GUI=1
+Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/rover/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/%U
 WorkingDirectory=/home/rover/rovers-basestation
 ExecStart=/bin/bash /home/rover/rovers-basestation/auto_boot/auto_boot.sh
 
