@@ -7,7 +7,7 @@ from the rover is decoded and shown in a tkinter GUI.
 
 ```
                       XBee radio / UDP
-                      
+
   +----------------+  ----------------->  +-----------------+
   | BASESTATION    |   controller data    |  ROVER (ROS 2)  |
   | (Raspberry Pi) |  <-----------------  |  (Jetson Orin)  |
@@ -96,6 +96,52 @@ chips for Pick and Place, Flipped, Planar, Zenith, Homing, Flipping, Joint Drive
 position/orientation locks, gripper drive, and the solenoid. The rover
 publishes the measured pose in the `arm_pose` telemetry packet; until the
 first one arrives the pose table shows placeholders.
+
+Example readout with the rover connected (angles in degrees, pose position
+in inches, rotation in degrees):
+
+```
+JOINT    ANGLE LOCK HOME
+Base      12.3  [x]  [ ]
+Shldr    -45.0  [ ]  [x]
+Elbow     67.9  [ ]  [ ]
+WstBnd    12.0  [ ]  [ ]
+WstTst    -8.0  [x]  [ ]
+Gripper   25.0  [ ]  [ ]
+
+ERROR: -----
+
+Limit Types
+F     Flipped    [OFF]
+P     Planar     [OFF]
+Z     Zenith     [OFF]
+
+Drive Modes
+I     Position   [ON ]
+J     Joint      [OFF]
+
+Actions
+F     Flipping   [OFF]
+H     Homing All [OFF]
+G     Guide      [ON ]
+R     Rest       [OFF]
+-     Solenoid   [OFF]
+
+Target Locks
+Q     Pos Lock   [OFF]
+O     Ori Lock   [ON ]
+
+Lock: 1-5   Lock All: L
+Home: Shift+1-5
+
+ARM TELEMETRY: LIVE
+Last Packet: 17:45:36   |  00s ago
+
+END EFFECTOR POSE
+|A|    X |     Y |     Z |
+|T| 22.5 | -11.0 |  18.3 |
+|R|  1.1 |  -1.9 |  89.5 |
+```
 
 Headless (service / no display):
 

@@ -135,7 +135,20 @@ def test_arm_panel_reads_out_rest_action():
     text = widget.text()
     assert "L     Lock All" not in text
     assert "R     Rest       [ON ]" in text
-    assert "Lock All: L" in text and "Rest: R" in text
+    assert "Lock All: L" in text and "Home: Shift+1-5" in text
+    assert "Rest: R" not in text
+
+
+def test_arm_panel_groups_follow_requested_order():
+    widget = FakeText()
+    panel = ArmPanel(widget)
+    panel.draw(live_telemetry(), {})
+    text = widget.text()
+    assert "KEY   OPTION" not in text
+    assert "ERROR: -----" in text
+    positions = [text.index(title) for title in
+                 ("Limit Types", "Drive Modes", "Actions", "Target Locks")]
+    assert positions == sorted(positions)
 
 
 def test_arm_panel_reads_out_zenith():
@@ -143,8 +156,18 @@ def test_arm_panel_reads_out_zenith():
     panel = ArmPanel(widget)
     panel.draw(live_telemetry(arm_flags=1 << 7), {})
     text = widget.text()
-    assert "STATUS ZENITH" in text
     assert "Z     Zenith     [ON ]" in text
+
+
+def test_arm_panel_drops_status_line_and_puts_pose_last():
+    widget = FakeText()
+    panel = ArmPanel(widget)
+    panel.draw(live_telemetry(arm_flags=1 << 7), {})
+    text = widget.text()
+    assert "STATUS" not in text
+    # The end-effector pose block is the last thing in the panel.
+    assert text.rindex("END EFFECTOR POSE") > text.rindex("ARM TELEMETRY")
+    assert text.rstrip().splitlines()[-1].startswith("|R|")
 
 
 def test_error_banner_shows_text_then_expires():

@@ -135,7 +135,7 @@ def text_table(headers, rows, indent="  ", min_width=4,
     def line(cells) -> str:
         values = [f"{str(cell):>{data_width}}" for cell in cells[1:]]
         if compact_first:
-            return f"{indent}|{cells[0]}|" + " | ".join(values) + "|"
+            return f"{indent}|{cells[0]}|" + " | ".join(values) + " |"
         body = " | ".join(
             [f"{str(cells[0]):<{label_width}}"] + values)
         return f"{indent}| {body} |"
@@ -322,41 +322,26 @@ class ArmPanel:
             # with every setting/option hidden.
             self._insert_joint_table(
                 widget, telemetry, locked, homing, show_state=False)
-            self._insert_pose(widget, telemetry)
-            self._insert_status(
-                widget, teleop, guide_active, solenoid_active, flag_on)
-            self._insert_error(widget, show_error, error_age, compact=True)
+            self._insert_error(widget, show_error, error_age)
             self._insert_footer(widget, telemetry, angles_live)
+            self._insert_pose(widget, telemetry)
             self._restore_view(widget, top, stick)
             return
 
         self._insert_joint_table(widget, telemetry, locked, homing)
-        self._insert_pose(widget, telemetry)
-        self._insert_status(
-            widget, teleop, guide_active, solenoid_active, flag_on)
-        widget.insert(
-            "end", f"{'KEY':<5} {'OPTION':<10} {'VALUE'}\n",
-            ("table_header",))
-        widget.insert(
-            "end", f"{'-' * 5} {'-' * 10} {'-' * 5}\n", ("off",))
-
         self._insert_error(widget, show_error, error_age)
         widget.insert("end", "\n")
 
         groups = (
+            ("Limit Types", (
+                (ARM_OPTION_KEYS["FLIPPED"], "Flipped", flag_on("FLIPPED")),
+                (ARM_OPTION_KEYS["PLANAR"], "Planar", flag_on("PLANAR")),
+                (ARM_OPTION_KEYS["ZENITH"], "Zenith", flag_on("ZENITH")),
+            )),
             ("Drive Modes", (
                 (ARM_OPTION_KEYS["POSITION"], "Position",
                  not flag_on("JOINT")),
                 (ARM_OPTION_KEYS["JOINT"], "Joint", flag_on("JOINT")),
-            )),
-            ("Limit Types", (
-                (ARM_OPTION_KEYS["PLANAR"], "Planar", flag_on("PLANAR")),
-                (ARM_OPTION_KEYS["FLIPPED"], "Flipped", flag_on("FLIPPED")),
-                (ARM_OPTION_KEYS["ZENITH"], "Zenith", flag_on("ZENITH")),
-            )),
-            ("Target Locks", (
-                (ARM_OPTION_KEYS["POSLOCK"], "Pos Lock", flag_on("POSLOCK")),
-                (ARM_OPTION_KEYS["ORILOCK"], "Ori Lock", flag_on("ORILOCK")),
             )),
             ("Actions", (
                 (ARM_OPTION_KEYS["FLIP"], "Flipping", flag_on("FLIP")),
@@ -364,6 +349,10 @@ class ArmPanel:
                 (ARM_OPTION_KEYS["GUIDE"], "Guide", guide_active),
                 (ARM_OPTION_KEYS["REST"], "Rest", rest_active),
                 (ARM_OPTION_KEYS["SOL"], "Solenoid", solenoid_active),
+            )),
+            ("Target Locks", (
+                (ARM_OPTION_KEYS["POSLOCK"], "Pos Lock", flag_on("POSLOCK")),
+                (ARM_OPTION_KEYS["ORILOCK"], "Ori Lock", flag_on("ORILOCK")),
             )),
         )
         for title, rows in groups:
@@ -377,11 +366,10 @@ class ArmPanel:
                 widget.insert("end", "\n", ("off",))
             widget.insert("end", "\n")
 
-        widget.insert(
-            "end",
-            "\nLock: 1-5   Lock All: L   Rest: R   Home: Shift+1-5\n",
-            ("off",))
+        widget.insert("end", "Lock: 1-5   Lock All: L\n", ("off",))
+        widget.insert("end", "Home: Shift+1-5\n", ("off",))
         self._insert_footer(widget, telemetry, angles_live)
+        self._insert_pose(widget, telemetry)
         self._restore_view(widget, top, stick)
 
     @staticmethod
@@ -408,54 +396,20 @@ class ArmPanel:
 
     @staticmethod
     def _insert_pose(widget, telemetry):
-        """Insert the end-effector XYZ + RPY table below the joint angles."""
+        """Insert the end-effector XYZ + RPY table at the very bottom."""
         widget.insert("end", "\nEND EFFECTOR POSE\n", ("table_header",))
         for line in arm_pose_lines(telemetry):
             widget.insert("end", line + "\n", ("off",))
 
-    @staticmethod
-    def _insert_status(widget, teleop, guide_active, solenoid_active,
-                       flag_on):
-        """One line summarizing the active inputs, modes, and actions."""
-        active = []
-        if teleop:
-            active.append("TELEOP")
-        if guide_active:
-            active.append("GUIDE")
-        if solenoid_active:
-            active.append("SOLENOID")
-        if flag_on("POSLOCK"):
-            active.append("POS LOCK")
-        if flag_on("ORILOCK"):
-            active.append("ORI LOCK")
-        if flag_on("HOME"):
-            active.append("HOMING")
-        if flag_on("FLIP"):
-            active.append("FLIPPING")
-        if flag_on("PLANAR"):
-            active.append("PLANAR")
-        if flag_on("ZENITH"):
-            active.append("ZENITH")
-        text = " | ".join(active) if active else "idle"
-        widget.insert("end", "\nSTATUS ", ("table_header",))
-        widget.insert("end", text, ("on" if active else "off",))
-        widget.insert("end", "\n", ("off",))
-
-    def _insert_error(self, widget, show_error, error_age,
-                      compact=False):
-        """Insert the last command rejection row."""
-        if compact:
-            widget.insert("end", "\nERROR ", ("table_header",))
-        else:
-            widget.insert(
-                "end", f"{ARM_OPTION_KEYS['ERROR']:<5} ", ("key",))
-            widget.insert("end", f"{'ERROR':<10} ", ("label",))
+    def _insert_error(self, widget, show_error, error_age):
+        """Insert the last command rejection as a one-line ERROR row."""
+        widget.insert("end", "\nERROR: ", ("table_header",))
         if show_error:
             widget.insert(
                 "end", f"{self._error_text}  ({error_age:.0f}s)",
                 ("error",))
         else:
-            widget.insert("end", "--", ("off",))
+            widget.insert("end", "-----", ("off",))
         widget.insert("end", "\n", ("off",))
 
     @staticmethod
@@ -465,13 +419,11 @@ class ArmPanel:
         if show_state:
             widget.insert(
                 "end",
-                f"{'JOINT':<7} {'ANGLE':>6} {'LOCK':<4} {'HOME':<4}\n",
+                f"{'JOINT':<7} {'ANGLE':>6} {'LOCK':>4} {'HOME':>4}\n",
                 ("table_header",))
-            widget.insert("end", "-" * 24 + "\n", ("off",))
         else:
             widget.insert(
                 "end", f"{'JOINT':<7} {'ANGLE':>6}\n", ("table_header",))
-            widget.insert("end", "-" * 14 + "\n", ("off",))
         for index, (name, key) in enumerate(ARM_JOINTS):
             value = telemetry.get(key)
             try:
@@ -494,7 +446,7 @@ class ArmPanel:
             home_text = "[x]" if is_homing else "[ ]"
             widget.insert(
                 "end",
-                f"{name:<7} {angle} {lock_text:<4} {home_text:<4}",
+                f"{name:<7} {angle} {lock_text:>4} {home_text:>4}",
                 (tag,))
             widget.insert("end", "\n", ("off",))
 
