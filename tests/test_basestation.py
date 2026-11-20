@@ -18,9 +18,9 @@ import threading
 import time
 from types import SimpleNamespace
 
-from basestation.app import (AXIS_LY, AXIS_RY, DRIVE_RELEASE_REPEAT_FRAMES,
-                             HEARTBEAT_PERIOD, BaseStation, arm_wire_state,
-                             xbox_wire_values)
+from basestation.app import (AXIS_LY, AXIS_RY, HEARTBEAT_PERIOD,
+                             RELEASE_BURST_FRAMES, BaseStation, StreamGate,
+                             arm_wire_state, xbox_wire_values)
 from basestation.comms import Link
 from basestation.gamepads import N64, XBOX, Gamepads, detect_type
 from basestation.keyboard import (ARM_STATE_SIGNALS, HELD, JUST_PRESSED,
@@ -415,6 +415,52 @@ def test_heartbeat_runs_independently_of_control_loop():
     assert all(sent[2] for sent in heartbeats)  # force=True
 
 
+class _IdleSpaceMouse:
+    def get_state(self):
+        return dict.fromkeys(CONSTANTS.SPACEMOUSE.ALL_AXES, 0)
+
+
+def make_station(pads, link, keyboard=None):
+    station = object.__new__(BaseStation)
+    station.gamepads = pads
+    station.spacemouse = _IdleSpaceMouse()
+    station.keyboard = keyboard or Keyboard()
+    station.link = link
+    station.telemetry_snapshot = lambda: {}
+    station._gates = {name: StreamGate() for name in (
+        "xbox", "spacemouse", "keyboard", "arm_state", "auto_state")}
+    station._last_auto_state = None
+    return station
+
+
+def capture_link():
+    link = Link(connect=False)
+    sent = []
+    link._transmit = lambda payload: sent.append(payload) or True
+    return link, sent
+
+
+def frames_for(sent, message_id):
+    return [p for p in sent if p and p[0] == message_id]
+
+
+def test_idle_link_sends_no_repeated_state():
+    """Idle inputs must not occupy the shared radio channel.
+
+    Only the first cycle sends (the initial state, plus the initial auto-state
+    edge and its burst).  After that every idle stream is silent.
+    """
+    link, sent = capture_link()
+    station = make_station(make_gamepads(), link)
+    for _ in range(RELEASE_BURST_FRAMES + 3):
+        station.cycle()
+    before = len(sent)
+    for _ in range(50):
+        station.cycle()
+    assert len(sent) == before
+    link.close()
+
+
 def test_release_sends_zero_burst_then_goes_quiet():
     """A released stick publishes explicit zero drive, then stops sending.
 
@@ -422,59 +468,87 @@ def test_release_sends_zero_burst_then_goes_quiet():
     reach it.  The basestation sends the neutral state for a short burst, then
     goes quiet so an autonomous drive source is not fought by neutral frames.
     """
-    class FakeSpaceMouse:
-        def get_state(self):
-            return dict.fromkeys(CONSTANTS.SPACEMOUSE.ALL_AXES, 0)
-
     pads = make_gamepads()
-    link = Link(connect=False)
-    sent = []
-    link._transmit = lambda payload: sent.append(payload) or True
+    link, sent = capture_link()
+    station = make_station(pads, link)
 
-    station = object.__new__(BaseStation)
-    station.gamepads = pads
-    station.spacemouse = FakeSpaceMouse()
-    station.keyboard = Keyboard()
-    station.link = link
-    station.telemetry_snapshot = lambda: {}
-    station._drive_was_active = False
-    station._drive_release_frames = 0
-
-    def xbox_frames():
-        return [p for p in sent if p and p[0] == MSG.XBOX_ID]
-
-    # Idle neutral is sent once (initial state), then not streamed.
     station.cycle()
-    station.cycle()
-    assert len(xbox_frames()) == 1
+    assert len(frames_for(sent, MSG.XBOX_ID)) == 1
 
-    # A deflected stick streams, so a steady held command keeps flowing.
     pads.handle_event(XBOX, "ABS_Y", 32767)
     station.cycle()
     station.cycle()
-    assert len(xbox_frames()) == 3
-    held = ENCODER.decode_data(xbox_frames()[-1])[0]
+    assert len(frames_for(sent, MSG.XBOX_ID)) == 3
+    held = ENCODER.decode_data(frames_for(sent, MSG.XBOX_ID)[-1])[0]
     assert held[AXIS_LY] > 0.0
 
-    # Release: an explicit zero-drive burst, then silence.
     pads.handle_event(XBOX, "ABS_Y", 0)
-    for _ in range(DRIVE_RELEASE_REPEAT_FRAMES + 3):
+    for _ in range(RELEASE_BURST_FRAMES + 3):
         station.cycle()
-    neutral_frames = [
-        ENCODER.decode_data(payload)[0]
-        for payload in xbox_frames()[3:]
-    ]
-    assert len(neutral_frames) == DRIVE_RELEASE_REPEAT_FRAMES
-    assert all(frame[AXIS_LY] == 0.0 and frame[AXIS_RY] == 0.0
-               for frame in neutral_frames)
+    neutral = [ENCODER.decode_data(p)[0]
+               for p in frames_for(sent, MSG.XBOX_ID)[3:]]
+    assert len(neutral) == RELEASE_BURST_FRAMES
+    assert all(f[AXIS_LY] == 0.0 and f[AXIS_RY] == 0.0 for f in neutral)
+    link.close()
 
-    before = len(xbox_frames())
+
+def test_arm_edge_once_held_streams_release_bursts():
+    """Press edges go out once, held jogs stream, and releases are repeated.
+
+    The rover acts on the just-pressed edge, so re-sending it would toggle
+    twice.  A held action must keep streaming or the gripper jog times out.
+    """
+    keyboard = Keyboard()
+    keyboard._release_debounce = 0.0
+    keyboard.set_mode("arm")
+    link, sent = capture_link()
+    station = make_station(make_gamepads(), link, keyboard=keyboard)
+
+    keyboard.press_arm("flip")
     station.cycle()
-    assert len(xbox_frames()) == before  # idle duplicates stay suppressed
+    edges = [ENCODER.decode_data(p)[0] for p in frames_for(sent, MSG.ARM_STATE_ID)]
+    assert edges and edges[-1]["flip"] == 1
+    keyboard.release_arm("flip")
+    for _ in range(RELEASE_BURST_FRAMES + 2):
+        station.cycle()
 
-    # Auto-state is a mode level and is always transmitted.
-    auto_frames = [p for p in sent if p and p[0] == MSG.AUTO_STATE_ID]
-    assert len(auto_frames) >= 2
+    link_frames = len(frames_for(sent, MSG.ARM_STATE_ID))
+    keyboard.press_arm("gripper_up")
+    for _ in range(4):
+        station.cycle()
+    held = [ENCODER.decode_data(p)[0]
+            for p in frames_for(sent, MSG.ARM_STATE_ID)[link_frames:]]
+    assert len(held) >= 4
+    assert all(f["gripper_up"] != 0 for f in held[-4:])
+
+    before = len(frames_for(sent, MSG.ARM_STATE_ID))
+    keyboard.release_arm("gripper_up")
+    for _ in range(10):
+        station.cycle()
+    after = len(frames_for(sent, MSG.ARM_STATE_ID)) - before
+    assert after == RELEASE_BURST_FRAMES + 1  # JUST_RELEASED + burst of idle
+    link.close()
+
+
+def test_auto_state_change_is_sent_then_repeated_briefly():
+    pads = make_gamepads()
+    link, sent = capture_link()
+    station = make_station(pads, link)
+    for _ in range(RELEASE_BURST_FRAMES + 3):
+        station.cycle()
+    settled = len(frames_for(sent, MSG.AUTO_STATE_ID))
+    for _ in range(RELEASE_BURST_FRAMES + 5):
+        station.cycle()
+    assert len(frames_for(sent, MSG.AUTO_STATE_ID)) == settled
+
+    pads.auto_state = pads.auto_state + 1
+    station.cycle()
+    for _ in range(RELEASE_BURST_FRAMES + 5):
+        station.cycle()
+    changed = frames_for(sent, MSG.AUTO_STATE_ID)[settled:]
+    assert len(changed) == RELEASE_BURST_FRAMES + 1
+    assert all(ENCODER.decode_data(p)[0]["auto_state"] == pads.auto_state
+               for p in changed)
     link.close()
 
 

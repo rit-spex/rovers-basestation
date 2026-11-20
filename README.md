@@ -135,14 +135,13 @@ the life keys, Arm mode uses the arm bindings derived from
 The basestation owns the key-to-action map: arm actions are sent over the
 link as per-action press states (0 = idle, 1 = just pressed, 2 = held,
 3 = just released), not as a key bitmask, so the rover only reacts to
-"just pressed". SpaceMouse axes are sent every control cycle alongside the
-states. The Xbox drive axes are streamed while the stick is deflected, and a
-released stick sends an explicit zero-drive burst so the rover stops even if a
-frame is lost in flight; once released, the basestation goes quiet so it does
-not fight an autonomous drive source on the same topics. Auto-state is
-retransmitted every cycle for the same reason. `L` is basestation-only: it is
-never encoded into `arm_state`, and is expanded into the individual
-joint-lock actions before transmission.
+"just pressed". The radio is one shared channel, so idle state is not sent:
+a stream (Xbox drive, SpaceMouse, keyboard, arm states) is sent every cycle
+while it is active, and when it returns to idle the idle value is repeated for
+a short burst (5 frames) so a dropped frame cannot leave the rover holding the
+last drive command or held jog. Edges and auto-state changes go out once as
+they happen. `L` is basestation-only: it is never encoded into `arm_state`, and
+is expanded into the individual joint-lock actions before transmission.
 
 The Gazebo rover stack takes a `robot_config` launch argument (`drivebase`,
 `arm_drivebase`, or `life_drivebase`) and reports it over telemetry.

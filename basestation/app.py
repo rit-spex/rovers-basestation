@@ -44,11 +44,12 @@ AXIS_LY = CONSTANTS.XBOX.JOYSTICK.AXIS_LY_STR
 AXIS_RY = CONSTANTS.XBOX.JOYSTICK.AXIS_RY_STR
 NEUTRAL_AXIS = CONSTANTS.XBOX.JOYSTICK.NEUTRAL_INT
 
-# A released stick is a discrete "zero drive" command.  Send it for a few
-# cycles so the release is not lost, then go quiet: while the stick is idle
-# other sources (autonomous typing) can own the drive topics without the
-# basestation fighting them with a stream of neutral frames.
-DRIVE_RELEASE_REPEAT_FRAMES = 5
+# The radio is a shared half-duplex channel with one ACKed packet per frame.
+# Re-sending idle state every 40 ms saturates it and the rover loses real
+# commands, so idle states go quiet.  When a state returns to idle its idle
+# value is repeated this many cycles so one dropped frame cannot leave the
+# rover holding the last active value (the drive, a held jog, or a key).
+RELEASE_BURST_FRAMES = 5
 
 LOCK_ALL_ACTION = "lock_all_joints"
 JOINT_LOCK_SIGNALS = tuple(
@@ -94,6 +95,32 @@ def xbox_wire_values(state: dict, reverse: bool) -> dict:
     return swapped
 
 
+class StreamGate:
+    """Decide whether a state is transmitted with force this cycle.
+
+    While the state is active it is sent every cycle.  When it returns to
+    idle the idle value is repeated for ``RELEASE_BURST_FRAMES`` cycles, and
+    then the stream goes quiet.  Unforced sends still go out when the payload
+    changes, so edges and mode changes are sent once as they happen.
+    """
+
+    def __init__(self, burst: int = RELEASE_BURST_FRAMES):
+        self._burst = burst
+        self._was_active = False
+        self._remaining = 0
+
+    def should_force(self, active: bool) -> bool:
+        if self._was_active and not active:
+            self._remaining = self._burst
+        self._was_active = active
+        if active:
+            return True
+        if self._remaining > 0:
+            self._remaining -= 1
+            return True
+        return False
+
+
 class BaseStation:
     """Owns the input readers, the rover link, and the telemetry cache."""
 
@@ -125,9 +152,9 @@ class BaseStation:
             target=self._heartbeat_loop, daemon=True, name="heartbeat")
         self._heartbeat_thread.start()
         self.mode = "nothing"
-        # Drive-release edge tracking (see cycle()).
-        self._drive_was_active = False
-        self._drive_release_frames = 0
+        self._gates = {name: StreamGate() for name in (
+            "xbox", "spacemouse", "keyboard", "arm_state", "auto_state")}
+        self._last_auto_state = None
 
     @property
     def quitting(self) -> bool:
@@ -200,31 +227,32 @@ class BaseStation:
     # One control cycle
     # ------------------------------------------------------------------
 
+    def _send_stream(self, name: str, message_id: int, values: dict,
+                     active: bool):
+        """Send one state through its gate; see StreamGate."""
+        self.link.send(message_id, values,
+                       force=self._gates[name].should_force(active))
+
     def cycle(self) -> dict:
         """Send everything due this cycle; return a display snapshot."""
         states, devices = self.gamepads.snapshot()
         xbox_state = xbox_wire_values(
             states[XBOX], self.gamepads.reverse_mode)
-        # The drive is a level command, so stream it while the stick is
-        # deflected.  On release, send an explicit zero-drive state for a
-        # short burst: the chassis latches the last command, so the release
-        # must actually reach it.  Once the burst is done, stay quiet so an
-        # autonomous source on the same topic is not fought by neutral frames.
         drive_active = (
             xbox_state[AXIS_LY] != NEUTRAL_AXIS
             or xbox_state[AXIS_RY] != NEUTRAL_AXIS)
-        if self._drive_was_active and not drive_active:
-            self._drive_release_frames = DRIVE_RELEASE_REPEAT_FRAMES
-        self._drive_was_active = drive_active
-        force_drive = drive_active or self._drive_release_frames > 0
-        if self._drive_release_frames > 0:
-            self._drive_release_frames -= 1
-        self.link.send(MSG.XBOX_ID, xbox_state, force=force_drive)
+        self._send_stream(
+            "xbox", MSG.XBOX_ID, xbox_state, drive_active)
         self.link.send(MSG.N64_ID, states[N64])
-        # Auto-state is a mode level with no competing publisher.
-        self.link.send(MSG.AUTO_STATE_ID,
-                       {AUTO_STATE_SIGNAL: self.gamepads.auto_state},
-                       force=True)
+
+        auto_state = self.gamepads.auto_state
+        # A mode change is a one-off edge: active for one cycle, then the
+        # gate repeats the new value for the burst window.
+        self._send_stream(
+            "auto_state", MSG.AUTO_STATE_ID,
+            {AUTO_STATE_SIGNAL: auto_state},
+            auto_state != self._last_auto_state)
+        self._last_auto_state = auto_state
 
         spacemouse_state = self.spacemouse.get_state()
         # Nav jog keys (Left/Right, PageUp/PageDown) synthesize SpaceMouse
@@ -234,9 +262,11 @@ class BaseStation:
         if jog:
             spacemouse_state = dict(spacemouse_state)
             spacemouse_state.update(jog)
-        # Always send, even while the device is disconnected: the reader's
-        # state is zeroed then, which tells the rover to stop moving.
-        self.link.send(MSG.SPACEMOUSE_ID, spacemouse_state, force=True)
+        # Still sent when the device is disconnected: the reader's state is
+        # zeroed then, and the release burst tells the rover to stop moving.
+        self._send_stream(
+            "spacemouse", MSG.SPACEMOUSE_ID, spacemouse_state,
+            any(spacemouse_state.values()))
 
         keyboard_state = None
         if self.keyboard.is_connected():
@@ -245,8 +275,9 @@ class BaseStation:
         else:
             wire_keyboard = self.keyboard.life_zero_state()
             self.keyboard.release_all_arm()
-        # Send continuously: the life keys carry press edges.
-        self.link.send(MSG.KEYBOARD_ID, wire_keyboard, force=True)
+        self._send_stream(
+            "keyboard", MSG.KEYBOARD_ID, wire_keyboard,
+            any(value != NOT_PRESSED for value in wire_keyboard.values()))
 
         # Arm actions travel as per-action states (0-3) rather than a key
         # bitmask; the basestation owns the key-to-action map.  Lock-all is
@@ -255,7 +286,9 @@ class BaseStation:
         arm_state = arm_wire_state(
             self.keyboard.get_arm_state(include_local=True),
             telemetry.get("locked_joints"))
-        self.link.send(MSG.ARM_STATE_ID, arm_state, force=True)
+        self._send_stream(
+            "arm_state", MSG.ARM_STATE_ID, arm_state,
+            any(value != NOT_PRESSED for value in arm_state.values()))
 
         return {
             "devices": devices,
